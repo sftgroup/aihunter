@@ -305,6 +305,7 @@ class ChainWorker:
         self.xgb_model = None
         self.running = True
         self.last_block = {}
+        self.seen_tx_hashes = set()  # 已处理的交易哈希，用于去重
         self.rpc_urls = {}
         self.analyzers = {}
         
@@ -534,11 +535,20 @@ class ChainWorker:
         for log in logs:
             try:
                 if len(log['topics']) < 3: continue
+                tx_hash = log.get('transactionHash', '')
+                
+                # 去重：已处理过的交易跳过
+                if tx_hash in self.seen_tx_hashes:
+                    continue
+                self.seen_tx_hashes.add(tx_hash)
+                # 限制集合大小
+                if len(self.seen_tx_hashes) > 1000:
+                    self.seen_tx_hashes = set(list(self.seen_tx_hashes)[-500:])
+                
                 token0 = '0x' + log['topics'][1][26:]
                 token1 = '0x' + log['topics'][2][26:]
                 data_hex = log.get('data', '0x')
                 pair_addr = '0x' + data_hex[26:66] if data_hex and len(data_hex) >= 66 else ''
-                tx_hash = log.get('transactionHash', '')
                 
                 if not pair_addr: continue
                 
@@ -560,24 +570,21 @@ class ChainWorker:
                     should_trade = True
                     reject_reasons = []
                     
-                    # 规则1：高风险不买
-                    if risk_level == 'high':
+                    # 核心判断逻辑：
+                    # 1. 高风险 + 信心<60 → 跳过
+                    # 2. 可增发(mintable) + 没锁LP(lp_unlocked) → 跳过（貔貅特征）
+                    # 3. 税过高(tax_high) → 跳过
+                    # 4. 其他情况允许买入
+                    
+                    if risk_level == 'high' and confidence < 60:
                         should_trade = False
-                        reject_reasons.append('高风险')
-                    # 规则2：信心分低于40不买
-                    if confidence < 40:
+                        reject_reasons.append('高风险+信心不足')
+                    
+                    if 'mintable' in flags and 'lp_locked' not in flags:
                         should_trade = False
-                        reject_reasons.append(f'信心过低({confidence}%)')
-                    # 规则3：可增发(mintable)不买
-                    if 'mintable' in flags:
-                        should_trade = False
-                        reject_reasons.append('可增发')
-                    # 规则4：owner_active 且 没有 lp_locked 不买
-                    if 'owner_active' in flags and 'lp_locked' not in flags:
-                        should_trade = False
-                        reject_reasons.append('未弃权+LP未锁')
-                    # 规则5：税过高不买
-                    if 'tax_high' in flags:
+                        reject_reasons.append('貔貅特征(可增发+LP未锁)')
+                    
+                    if 'tax_high' in flags and confidence < 70:
                         should_trade = False
                         reject_reasons.append('税过高')
                     
