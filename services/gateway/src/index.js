@@ -26,7 +26,7 @@ await app.register(websocket);
 
 // 鉴权中间件（白名单路由除外）
 app.addHook('preHandler', async (request, reply) => {
-  const publicRoutes = ['/health', '/api/rank/ping', '/api/prize/ping'];
+  const publicRoutes = ["/health", "/api/rank/ping", "/api/prize/ping", "/api/system/status"];
   if (publicRoutes.includes(request.url)) return;
   
   const auth = request.headers.authorization;
