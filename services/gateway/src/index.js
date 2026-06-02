@@ -46,7 +46,7 @@ await app.register(websocket);
 app.addHook('preHandler', async (request, reply) => {
   const publicRoutes = ['/health', '/api/rank/ping', '/api/prize/ping', '/api/system/status', '/ws',
     '/api/config/ai', '/api/config/rpc', '/api/trade/paper', '/api/trade/paper/result', '/api/trade/portfolio'];
-  if (publicRoutes.includes(request.url) || request.url.startsWith('/api/config/') || request.url.startsWith('/api/trade/')) return;
+  if (publicRoutes.includes(request.url) || request.url.startsWith('/api/config/') || request.url.startsWith('/api/trade/') || request.url.startsWith('/api/learning/')) return;
   const auth = request.headers.authorization;
   if (!auth || auth !== `Bearer ${AUTH_TOKEN}`) {
     return reply.status(401).send({ error: 'Unauthorized' });
@@ -140,32 +140,275 @@ app.post('/api/config/rpc/remove', async (request) => {
 });
 
 // ===== 模拟交易 API（持久化到 PostgreSQL）=====
-// 创建模拟交易（先买才能卖）
-app.post('/api/trade/paper', async (request) => {
-  const { userId, chain, contract, symbol, confidence, riskLevel, flags } = request.body;
-  const id = `pap_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
-  
-  // 计算买入金额（基于信心分）
-  const baseAmount = 100 + (confidence || 50) * 8; // 100~500
-  const entryPrice = 0.0001 + Math.random() * 0.001; // 模拟入场价
-  
-  // 流动池影响：买入量越大，价格影响越大
-  const liquidityUsd = 5000 + Math.random() * 45000; // 模拟池深 $5k~$50k
-  const priceImpact = (baseAmount / liquidityUsd) * 100; // 百分比
-  const actualEntry = entryPrice * (1 + priceImpact / 100); // 滑点后实际成交价
+// ===== 净值快照（每笔交易后记录）=====
+async function takeEquitySnapshot(userId) {
+  const uid = userId || 'paper';
+  const balanceKey = `paper:balance:${uid}`;
+  const bal = parseFloat(await redis.get(balanceKey) || '10000');
+  const closed = await db.query(
+    "SELECT pnl_usd FROM paper_trades WHERE user_id = $1 AND status = 'closed'", [uid]
+  );
+  const rows = closed.rows;
+  const winCount = rows.filter(r => parseFloat(r.pnl_usd) > 0).length;
+  const totalPnl = rows.reduce((s, r) => s + parseFloat(r.pnl_usd || 0), 0);
+  const totalTrades = rows.length;
+  const winRate = totalTrades > 0 ? ((winCount / totalTrades) * 100).toFixed(1) : 0;
   
   await db.query(
-    `INSERT INTO paper_trades (id, user_id, chain, contract, symbol, side, status, entry_price, amount_usd, price_impact, confidence, risk_level, flags, liquidity_usd, created_at)
-     VALUES ($1,$2,$3,$4,$5,'BUY','open',$6,$7,$8,$9,$10,$11,$12,NOW())`,
-    [id, userId || 'paper', chain, contract, symbol, actualEntry, baseAmount, priceImpact, confidence, riskLevel || 'medium', JSON.stringify(flags || []), liquidityUsd]
+    `INSERT INTO equity_snapshots (user_id, balance, total_pnl, total_trades, win_rate, snapshot_at)
+     VALUES ($1, $2, $3, $4, $5, NOW())`,
+    [uid, bal.toFixed(2), totalPnl.toFixed(2), totalTrades, winRate]
+  );
+}
+
+// ===== 模拟参数配置 =====
+app.get('/api/trade/paper/config', async (request) => {
+  const { userId } = request.query;
+  const uid = userId || 'paper';
+  const row = await db.query("SELECT * FROM paper_config WHERE user_id = $1", [uid]);
+  if (row.rows.length === 0) {
+    return { code: 200, data: { initial_balance: 10000, min_amount: 100, max_amount: 500, take_profit_pct: 30, stop_loss_pct: -20, enabled: true } };
+  }
+  return { code: 200, data: row.rows[0] };
+});
+
+app.post('/api/trade/paper/config', async (request) => {
+  const { userId, initial_balance, min_amount, max_amount, take_profit_pct, stop_loss_pct, enabled } = request.body;
+  const uid = userId || 'paper';
+  await db.query(
+    `INSERT INTO paper_config (user_id, initial_balance, min_amount, max_amount, take_profit_pct, stop_loss_pct, enabled, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+     ON CONFLICT (user_id) DO UPDATE SET
+       initial_balance = $2, min_amount = $3, max_amount = $4,
+       take_profit_pct = $5, stop_loss_pct = $6, enabled = $7, updated_at = NOW()`,
+    [uid, initial_balance || 10000, min_amount || 100, max_amount || 500,
+     take_profit_pct || 30, stop_loss_pct || -20, enabled !== false]
+  );
+  return { code: 200, message: '✅ 模拟参数已保存' };
+});
+
+// ===== 重置模拟交易 =====
+app.post('/api/trade/paper/reset', async (request) => {
+  const { userId } = request.body;
+  const uid = userId || 'paper';
+  // 获取配置中的初始余额
+  const cfg = await db.query("SELECT initial_balance FROM paper_config WHERE user_id = $1", [uid]);
+  const initBal = cfg.rows.length > 0 ? parseFloat(cfg.rows[0].initial_balance) : 10000;
+  
+  // 清空交易记录
+  await db.query("DELETE FROM paper_trades WHERE user_id = $1", [uid]);
+  // 清空净值快照
+  await db.query("DELETE FROM equity_snapshots WHERE user_id = $1", [uid]);
+  // 重置余额
+  const balanceKey = `paper:balance:${uid}`;
+  await redis.set(balanceKey, initBal.toFixed(2));
+  
+  // 记录初始快照
+  await db.query(
+    `INSERT INTO equity_snapshots (user_id, balance, total_pnl, total_trades, win_rate, snapshot_at)
+     VALUES ($1, $2, 0, 0, 0, NOW())`,
+    [uid, initBal.toFixed(2)]
   );
   
-  return { code: 200, data: { id, entryPrice: actualEntry, amount: baseAmount, priceImpact: priceImpact.toFixed(2) + '%' } };
+  return { code: 200, message: '✅ 模拟交易已重置', balance: initBal };
+});
+
+// ===== 价格历史（回测数据源）=====
+app.get('/api/trade/paper/price-history', async (request) => {
+  const { chain, contract, hours } = request.query;
+  if (!chain || !contract) return { code: 400, error: '缺少 chain 或 contract' };
+  const timeRange = hours ? `${hours} hours` : '24 hours';
+  const rows = await db.query(
+    "SELECT price, liquidity_usd, snapshot_at FROM price_snapshots WHERE chain = $1 AND contract = $2 AND snapshot_at > NOW() - $3::interval ORDER BY snapshot_at ASC",
+    [chain, contract, timeRange]
+  );
+  return { code: 200, data: rows.rows };
+});
+
+// ===== 批量回测接口 =====
+app.get('/api/trade/paper/backtest', async (request) => {
+  const { chain, hours, amount } = request.query;
+  const perAmt = parseFloat(amount) || 100;
+  
+  // 构建时间条件
+  let timeCond = '';
+  const params = [];
+  if (hours && hours !== '0') {
+    timeCond = `AND created_at > NOW() - $1::interval`;
+    params.push(`${hours} hours`);
+  }
+  
+  // 构建链条件
+  let chainCond = '';
+  if (chain && chain !== 'all') {
+    chainCond = params.length === 0 ? `AND chain = $1` : `AND chain = $2`;
+    params.push(chain);
+  }
+  
+  // 取已平仓的交易
+  const paramIdx = (i) => `$${i + 1}`;
+  let queryStr = `SELECT * FROM paper_trades WHERE status = 'closed' ${timeCond} ${chainCond} ORDER BY closed_at ASC`;
+  
+  // 手动构建参数化查询
+  let idx = 1;
+  let where = ["status = 'closed'"];
+  let values = [];
+  if (hours && hours !== '0') {
+    where.push(`created_at > NOW() - $${idx}::interval`);
+    values.push(`${hours} hours`);
+    idx++;
+  }
+  if (chain && chain !== 'all') {
+    where.push(`chain = $${idx}`);
+    values.push(chain);
+    idx++;
+  }
+  
+  const trades = await db.query(
+    `SELECT * FROM paper_trades WHERE ${where.join(' AND ')} ORDER BY closed_at ASC`,
+    values
+  );
+  
+  const rows = trades.rows;
+  if (rows.length === 0) {
+    return { code: 200, data: { total: 0, trades: [], stats: null, message: '该时段暂无已平仓交易' } };
+  }
+  
+  // 逐笔计算盈亏（使用实际成交数据）
+  let totalPnl = 0;
+  let wins = 0;
+  let cumPnl = [];
+  let cum = 0;
+  let maxDrawdown = 0;
+  let peak = 0;
+  
+  for (const t of rows) {
+    const pnl = parseFloat(t.pnl_usd || 0);
+    totalPnl += pnl;
+    if (pnl > 0) wins++;
+    cum += pnl;
+    cumPnl.push({ x: t.closed_at || t.created_at, y: parseFloat(cum.toFixed(2)) });
+    if (cum > peak) peak = cum;
+    const dd = peak > 0 ? ((cum - peak) / peak) * 100 : 0;
+    if (dd < maxDrawdown) maxDrawdown = dd;
+  }
+  
+  const totalTrades = rows.length;
+  const winRate = (wins / totalTrades * 100).toFixed(1);
+  const avgPnl = (totalPnl / totalTrades);
+  
+  // 夏普比率简化计算
+  let sumSq = 0;
+  for (const t of rows) {
+    const pnl = parseFloat(t.pnl_usd || 0);
+    sumSq += Math.pow(pnl - avgPnl, 2);
+  }
+  const stdDev = Math.sqrt(sumSq / totalTrades);
+  const sharpe = stdDev > 0 ? (avgPnl / stdDev) * Math.sqrt(365) : 0;
+  
+  // 盈亏分布
+  const dist = { profit: wins, loss: totalTrades - wins };
+  
+  // 按链统计
+  const chainStats = {};
+  for (const t of rows) {
+    const c = t.chain || 'unknown';
+    if (!chainStats[c]) chainStats[c] = { trades: 0, wins: 0, pnl: 0 };
+    chainStats[c].trades++;
+    if (parseFloat(t.pnl_usd || 0) > 0) chainStats[c].wins++;
+    chainStats[c].pnl += parseFloat(t.pnl_usd || 0);
+  }
+  
+  return { code: 200, data: {
+    total: totalTrades,
+    stats: {
+      total_pnl: parseFloat(totalPnl.toFixed(2)),
+      win_rate: winRate + '%',
+      wins,
+      losses: totalTrades - wins,
+      avg_pnl: parseFloat(avgPnl.toFixed(2)),
+      max_drawdown: parseFloat(maxDrawdown.toFixed(2)),
+      sharpe_ratio: parseFloat(sharpe.toFixed(3)),
+      total_invested: parseFloat((perAmt * totalTrades).toFixed(2))
+    },
+    cum_pnl: cumPnl,
+    distribution: dist,
+    chain_stats: chainStats,
+    trades: rows.slice(-50) // 最近50笔详情
+  }};
+});
+
+// ===== 净值曲线 =====
+app.get('/api/trade/paper/equity', async (request) => {
+  const { userId, limit } = request.query;
+  const uid = userId || 'paper';
+  const maxPoints = parseInt(limit) || 200;
+  const rows = await db.query(
+    "SELECT balance, total_pnl, total_trades, win_rate, snapshot_at FROM equity_snapshots WHERE user_id = $1 ORDER BY snapshot_at ASC",
+    [uid]
+  );
+  // 如果点数太多，均匀抽样
+  let snapshots = rows.rows;
+  if (snapshots.length > maxPoints) {
+    const step = Math.ceil(snapshots.length / maxPoints);
+    snapshots = snapshots.filter((_, i) => i % step === 0 || i === snapshots.length - 1);
+  }
+  return { code: 200, data: snapshots };
+});
+
+// 创建模拟交易（使用信号中的真实价格）
+app.post('/api/trade/paper', async (request) => {
+  const { userId, chain, contract, symbol, confidence, riskLevel, flags, price_data } = request.body;
+  const id = `pap_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+  
+  // 读取用户配置
+  const cfg = await db.query("SELECT * FROM paper_config WHERE user_id = $1", [userId || 'paper']);
+  const config = cfg.rows[0] || { min_amount: 100, max_amount: 500 };
+  
+  // 计算买入金额（基于信心分 + 配置范围）
+  const conf = confidence || 50;
+  const minAmt = parseFloat(config.min_amount) || 100;
+  const maxAmt = parseFloat(config.max_amount) || 500;
+  const range = maxAmt - minAmt;
+  const baseAmount = Math.round((minAmt + (conf / 100) * range) * 100) / 100;
+  
+  // 使用实时价格（如果有）
+  let entryPrice, liquidityUsd, priceImpact, actualEntry;
+  
+  if (price_data && price_data.price > 0) {
+    entryPrice = price_data.price;
+    liquidityUsd = price_data.liquidity_usd || 10000;
+    // 滑点：买入金额占池子的百分比
+    priceImpact = (baseAmount / liquidityUsd) * 100;
+    // 买入导致价格上涨（滑点）
+    actualEntry = entryPrice * (1 + priceImpact / 100);
+    console.log(`💰 真实买入: $${entryPrice} 池深:$${liquidityUsd} 滑点:${priceImpact.toFixed(2)}%`);
+  } else {
+    // 没有实时价格时回退到估算
+    entryPrice = 0.0001 + Math.random() * 0.001;
+    liquidityUsd = 5000 + Math.random() * 45000;
+    priceImpact = (baseAmount / liquidityUsd) * 100;
+    actualEntry = entryPrice * (1 + priceImpact / 100);
+  }
+  
+  // 计算买入数量
+  const quantity = baseAmount / actualEntry;
+  
+  // 清理特殊字符（PostgreSQL 不接受 \0 空字节）
+  const clean = (s) => (s || '').replace(/\x00/g, '').trim();
+  
+  await db.query(
+    `INSERT INTO paper_trades (id, user_id, chain, contract, symbol, side, status, entry_price, amount_usd, quantity, price_impact, confidence, risk_level, flags, liquidity_usd, created_at)
+     VALUES ($1,$2,$3,$4,$5,'BUY','open',$6,$7,$8,$9,$10,$11,$12,$13,NOW())`,
+    [id, userId || 'paper', clean(chain), clean(contract), clean(symbol), actualEntry, baseAmount, quantity, priceImpact, confidence, riskLevel || 'medium', JSON.stringify(flags || []), liquidityUsd]
+  );
+  
+  return { code: 200, data: { id, entryPrice: actualEntry, amount: baseAmount, quantity, priceImpact: priceImpact.toFixed(2) + '%' } };
 });
 
 // 卖出
 app.post('/api/trade/paper/sell', async (request) => {
-  const { tradeId } = request.body;
+  const { tradeId, price_data } = request.body;
   if (!tradeId) return { code: 400, error: '缺少 tradeId' };
   
   // 查找持仓
@@ -174,28 +417,47 @@ app.post('/api/trade/paper/sell', async (request) => {
   
   const t = trade.rows[0];
   
-  // 模拟卖出价（考虑流动池影响）
-  const liquidityUsd = parseFloat(t.liquidity_usd) || 10000;
-  const amountUsd = parseFloat(t.amount_usd);
-  const priceImpact = (amountUsd / liquidityUsd) * 100;
   const entryPrice = parseFloat(t.entry_price);
+  const amountUsd = parseFloat(t.amount_usd);
+  const liquidityUsd = parseFloat(t.liquidity_usd) || 10000;
+  const priceImpact = (amountUsd / liquidityUsd) * 100;
+  const quantity = parseFloat(t.quantity) || (amountUsd / entryPrice);
   
-  // 随机盈亏：-20% ~ +30%（受信心分影响）
-  const confidence = parseInt(t.confidence) || 50;
-  const maxGain = confidence / 100 * 0.5; // 信心越高，最大涨幅越高
-  const maxLoss = -(1 - confidence / 100) * 0.3;
-  const returnPct = maxLoss + Math.random() * (maxGain - maxLoss);
+  // 使用实时价格计算盈亏（如果有）
+  let exitPriceActual, pnlUsd, pnlPct;
   
-  const exitPrice = entryPrice * (1 + returnPct);
-  const exitPriceActual = exitPrice * (1 - priceImpact / 100); // 卖出滑点
-  const pnlUsd = amountUsd * ((exitPriceActual - entryPrice) / entryPrice);
-  const pnlPct = ((exitPriceActual - entryPrice) / entryPrice) * 100;
+  if (price_data && price_data.price > 0) {
+    // 真实价格
+    const currentPrice = price_data.price;
+    const currentLiquidity = price_data.liquidity_usd || liquidityUsd;
+    // 卖出滑点：卖出量占池子的比例
+    const sellImpact = (amountUsd / currentLiquidity) * 100;
+    // 卖出导致价格下跌
+    exitPriceActual = currentPrice * (1 - sellImpact / 100);
+    
+    pnlUsd = amountUsd * ((exitPriceActual - entryPrice) / entryPrice);
+    pnlPct = ((exitPriceActual - entryPrice) / entryPrice) * 100;
+    
+    console.log(`💰 真实卖出: 买入价=$${entryPrice} 当前价=$${currentPrice} 成交价=$${exitPriceActual} 滑点=${sellImpact.toFixed(2)}%`);
+  } else {
+    // 没有实时价格时用随机估算（但基于真实池深）
+    // 池子越浅波动越大
+    const volFactor = Math.max(0.02, Math.min(0.5, 10000 / liquidityUsd)); // 池越浅波动越大
+    // 价格变化：-volFactor ~ +volFactor 之间随机
+    const priceChange = (Math.random() * 2 - 1) * volFactor;
+    exitPriceActual = entryPrice * (1 + priceChange) * (1 - priceImpact / 100);
+    pnlUsd = amountUsd * ((exitPriceActual - entryPrice) / entryPrice);
+    pnlPct = ((exitPriceActual - entryPrice) / entryPrice) * 100;
+  }
+  
+  const exitQuantity = quantity;
+  const exitAmountUsd = exitQuantity * exitPriceActual;
   
   await db.query(
     `UPDATE paper_trades SET 
-      side = 'SELL', status = 'closed', exit_price = $1, pnl_usd = $2, pnl_pct = $3, sell_price_impact = $4, closed_at = NOW()
-     WHERE id = $5`,
-    [exitPriceActual, pnlUsd, pnlPct, priceImpact, tradeId]
+      side = 'SELL', status = 'closed', exit_price = $1, exit_quantity = $2, exit_amount_usd = $3, pnl_usd = $4, pnl_pct = $5, sell_price_impact = $6, closed_at = NOW()
+     WHERE id = $7`,
+    [exitPriceActual, exitQuantity, exitAmountUsd, pnlUsd, pnlPct, priceImpact, tradeId]
   );
   
   // 更新用户模拟余额
@@ -203,6 +465,45 @@ app.post('/api/trade/paper/sell', async (request) => {
   const currentBalance = await redis.get(balanceKey);
   const newBalance = (parseFloat(currentBalance || '10000') + pnlUsd).toFixed(2);
   await redis.set(balanceKey, newBalance);
+  
+  // 记录净值快照
+  await takeEquitySnapshot(t.user_id);
+  
+  // 写入经验表，触发学习
+  const successLabel = pnlUsd > 0 ? 'win' : 'loss';
+  const features = {
+    chain: t.chain,
+    confidence: t.confidence,
+    risk_level: t.risk_level,
+    flags: t.flags,
+    liquidity_usd: parseFloat(t.liquidity_usd),
+    entry_price: parseFloat(t.entry_price),
+    price_impact: parseFloat(t.price_impact),
+    hold_seconds: Math.round((Date.now() - new Date(t.created_at).getTime()) / 1000)
+  };
+  const paramsUsed = {
+    amount_usd: parseFloat(t.amount_usd),
+    slippage: parseFloat(t.sell_price_impact || 0)
+  };
+  const outcome = {
+    pnl: parseFloat(pnlUsd.toFixed(2)),
+    pnl_pct: parseFloat(pnlPct.toFixed(2)),
+    exit_price: parseFloat(exitPriceActual.toFixed(10))
+  };
+  
+  try {
+    await db.query(
+      `INSERT INTO trade_experiences (user_id, chain, strategy_type, mode, features_snapshot, params_used, market_context, outcome, success_label)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [t.user_id, t.chain, 'signal_follow', 'paper',
+       JSON.stringify(features), JSON.stringify(paramsUsed),
+       JSON.stringify({}), JSON.stringify(outcome), successLabel]
+    );
+    // 触发学习
+    await redis.publish('learning:trigger', JSON.stringify({ strategy: 'signal_follow' }));
+  } catch(e) {
+    console.error('写入经验失败:', e.message);
+  }
   
   return { code: 200, data: { id: tradeId, pnlUsd: pnlUsd.toFixed(2), pnlPct: pnlPct.toFixed(2) + '%', balance: newBalance } };
 });
@@ -241,7 +542,19 @@ app.post('/api/trade/paper/auto', async (request) => {
   const signal = request.body;
   if (!signal || !signal.contract) return { code: 400 };
   
-  // 自动买入
+  // 检查模拟交易是否启用
+  const cfg = await db.query("SELECT enabled FROM paper_config WHERE user_id = 'paper'");
+  if (cfg.rows.length > 0 && !cfg.rows[0].enabled) {
+    return { code: 200, data: { skipped: true, reason: '模拟交易已禁用' } };
+  }
+  
+  // 读取止盈止损配置
+  const configRow = await db.query("SELECT * FROM paper_config WHERE user_id = 'paper'");
+  const config = configRow.rows[0] || {};
+  const takeProfitPct = parseFloat(config.take_profit_pct) || 30;
+  const stopLossPct = parseFloat(config.stop_loss_pct) || -20;
+  
+  // 自动买入（带上实时价格数据）
   const buyResp = await fetch(`http://localhost:${PORT}/api/trade/paper`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -252,19 +565,20 @@ app.post('/api/trade/paper/auto', async (request) => {
       symbol: signal.symbol || signal.contract,
       confidence: signal.confidence || 50,
       riskLevel: signal.risk_level,
-      flags: signal.flags
+      flags: signal.flags,
+      price_data: signal.price_data  // 传入实时价格
     })
   });
   const buyData = await buyResp.json();
   
-  // 5-30秒后自动卖出（模拟持有时间）
+  // 5-30秒后自动卖出，基于实时价格变化模拟
   const holdMs = 5000 + Math.random() * 25000;
   setTimeout(async () => {
     try {
       await fetch(`http://localhost:${PORT}/api/trade/paper/sell`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tradeId: buyData.data.id })
+        body: JSON.stringify({ tradeId: buyData.data.id, price_data: signal.price_data })
       });
     } catch(e) {}
   }, holdMs);
@@ -363,6 +677,32 @@ app.post('/api/rules/:strategy', async (request) => {
   await redis.set(`rules:${request.params.strategy}`, JSON.stringify(request.body));
   await redis.publish('rule_updates', JSON.stringify({ strategy: request.params.strategy, newRule: request.body, status: 'promoted' }));
   return { code: 200, message: '规则已热加载' };
+});
+
+// ===== 学习参数查询 =====
+app.get('/api/learning/params/:strategy', async (request) => {
+  const params = await redis.get(`params:${request.params.strategy}`);
+  const rules = await redis.get(`rules:${request.params.strategy}`);
+  const expCount = await db.query(
+    "SELECT COUNT(*) as c FROM trade_experiences WHERE strategy_type = $1", [request.params.strategy]
+  );
+  return { code: 200, data: {
+    params: params ? JSON.parse(params) : null,
+    rules: rules ? JSON.parse(rules) : null,
+    experience_count: parseInt(expCount.rows[0].c) || 0
+  }};
+});
+
+// ===== 学习历史曲线 =====
+app.get('/api/learning/history', async (request) => {
+  const { strategy, limit } = request.query;
+  const s = strategy || 'signal_follow';
+  const maxRows = parseInt(limit) || 50;
+  const rows = await db.query(
+    "SELECT id, params, rules, score, experience_count, created_at FROM learning_history WHERE strategy = $1 ORDER BY created_at ASC LIMIT $2",
+    [s, maxRows]
+  );
+  return { code: 200, data: rows.rows };
 });
 
 app.post('/api/experiences', async (request) => {
