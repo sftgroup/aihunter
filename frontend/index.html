@@ -116,7 +116,8 @@ let signals = [];
 let ws = null;
 
 function connectWS() {
-  const wsUrl = "ws://" + window.location.hostname + ":3100/ws";
+  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const wsUrl = proto + "//" + window.location.host + "/ws";
   ws = new WebSocket(wsUrl);
   
   ws.onopen = () => {

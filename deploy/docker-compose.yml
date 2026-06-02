@@ -1,82 +1,106 @@
-version: '3.8'
-
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: aihunter-db
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: aihunter
-      POSTGRES_USER: aihunter
-      POSTGRES_PASSWORD: aihunter2025
+  frontend:
+    container_name: aihunter-frontend
+    depends_on:
+    - gateway
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: 30M
+    image: nginx:alpine
     ports:
-      - '127.0.0.1:5432:5432'
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
-    deploy: { resources: { limits: { cpus: '0.5', memory: 300M } } }
-
-  redis:
-    image: redis:7-alpine
-    container_name: aihunter-redis
+    - 0.0.0.0:3000:80
     restart: unless-stopped
-    ports:
-      - '127.0.0.1:6379:6379'
     volumes:
-      - redisdata:/data
-    deploy: { resources: { limits: { cpus: '0.2', memory: 100M } } }
-
+    - ../frontend:/usr/share/nginx/html:ro
+    - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
   gateway:
     build: ../services/gateway
     container_name: aihunter-gateway
-    restart: unless-stopped
-    ports:
-      - '0.0.0.0:3100:3100'
+    depends_on:
+    - postgres
+    - redis
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 200M
     environment:
-      REDIS_URL: redis://redis:6379
+      AUTH_TOKEN: aihunter2025
       DATABASE_URL: postgresql://aihunter:aihunter2025@postgres:5432/aihunter
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
-      AUTH_TOKEN: aihunter2025
-    depends_on: [postgres, redis]
-    deploy: { resources: { limits: { cpus: '0.3', memory: 200M } } }
-
-  worker:
-    build: ../services/worker
-    container_name: aihunter-worker
-    restart: unless-stopped
-    environment:
       REDIS_URL: redis://redis:6379
-      DATABASE_URL: postgresql://aihunter:aihunter2025@postgres:5432/aihunter
-      CHAINS: ETH,BSC,BASE
-      RPC_URL_ETH: ${RPC_URL_ETH:-}
-      RPC_URL_BSC: ${RPC_URL_BSC:-}
-      RPC_URL_BASE: ${RPC_URL_BASE:-}
-    depends_on: [postgres, redis]
-    deploy: { resources: { limits: { cpus: '0.5', memory: 400M } } }
-
+    ports:
+    - 0.0.0.0:3100:3100
+    restart: unless-stopped
   learning:
     build: ../services/learning
     container_name: aihunter-learning
-    restart: unless-stopped
+    depends_on:
+    - postgres
+    - redis
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 200M
     environment:
-      REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql://aihunter:aihunter2025@postgres:5432/aihunter
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
-      SCHEDULE_INTERVAL: '3600'
-    depends_on: [postgres, redis]
-    deploy: { resources: { limits: { cpus: '0.3', memory: 200M } } }
-
-  frontend:
-    image: nginx:alpine
-    container_name: aihunter-frontend
+      REDIS_URL: redis://redis:6379
     restart: unless-stopped
+  postgres:
+    container_name: aihunter-db
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 300M
+    environment:
+      POSTGRES_DB: aihunter
+      POSTGRES_PASSWORD: aihunter2025
+      POSTGRES_USER: aihunter
+    image: postgres:15-alpine
     ports:
-      - '0.0.0.0:3000:80'
+    - 127.0.0.1:5432:5432
+    restart: unless-stopped
     volumes:
-      - ../frontend:/usr/share/nginx/html:ro
-    depends_on: [gateway]
-    deploy: { resources: { limits: { cpus: '0.1', memory: 30M } } }
-
+    - pgdata:/var/lib/postgresql/data
+    - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+  redis:
+    container_name: aihunter-redis
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 100M
+    image: redis:7-alpine
+    ports:
+    - 127.0.0.1:6379:6379
+    restart: unless-stopped
+    volumes:
+    - redisdata:/data
+  worker:
+    build: ../services/worker
+    container_name: aihunter-worker
+    depends_on:
+    - postgres
+    - redis
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 400M
+    environment:
+      CHAINS: ETH,BSC,BASE
+      DATABASE_URL: postgresql://aihunter:aihunter2025@postgres:5432/aihunter
+      REDIS_URL: redis://redis:6379
+      RPC_URL_BASE: ${RPC_URL_BASE:-https://base-rpc.publicnode.com}
+      RPC_URL_BSC: ${RPC_URL_BSC:-https://bsc-rpc.publicnode.com}
+      RPC_URL_ETH: ${RPC_URL_ETH:-https://ethereum-rpc.publicnode.com}
+    restart: unless-stopped
+version: '3.8'
 volumes:
-  pgdata:
-  redisdata:
+  pgdata: {}
+  redisdata: {}
