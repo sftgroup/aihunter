@@ -40,6 +40,42 @@ app.get('/health', async () => ({ status: 'ok', service: 'aihunter-gateway', ver
 app.get('/api/rank/ping', async () => ({ code: 200, data: 'pong' }));
 app.get('/api/prize/ping', async () => ({ code: 200, data: 'pong' }));
 
+// ===== 真实系统状态聚合接口 =====
+app.get('/api/system/status', async () => {
+  const services = {};
+  
+  // Gateway 自身
+  services.gateway = { status: 'healthy', uptime: process.uptime() };
+  
+  // Redis
+  try {
+    await redis.ping();
+    services.redis = { status: 'healthy' };
+  } catch {
+    services.redis = { status: 'down' };
+  }
+  
+  // PostgreSQL
+  try {
+    await db.query('SELECT 1');
+    services.postgresql = { status: 'healthy' };
+  } catch {
+    services.postgresql = { status: 'down' };
+  }
+  
+  // 获取事件数量
+  try {
+    const result = await db.query('SELECT COUNT(*) as count FROM events WHERE processed = FALSE');
+    services.pending_events = parseInt(result.rows[0].count);
+    const result2 = await db.query('SELECT COUNT(*) as count FROM events');
+    services.total_events = parseInt(result2.rows[0].count);
+    const result3 = await db.query("SELECT COUNT(*) as count FROM trade_experiences WHERE executed_at > NOW() - INTERVAL '24 hours'");
+    services.recent_experiences = parseInt(result3.rows[0].count);
+  } catch {}
+  
+  return { code: 200, data: services };
+});
+
 // ===== SessionKey 管理 =====
 // 用户首次授权创建 SessionKey
 app.post('/api/session/create', async (request) => {
