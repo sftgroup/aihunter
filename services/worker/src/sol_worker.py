@@ -40,6 +40,7 @@ class SolanaWorker:
         self.http = httpx.AsyncClient(timeout=15)
         print(f"✅ SOL Worker 已连接 Redis")
         print(f"🔗 SOL: {self.rpc_url[:45]}...")
+        await self.redis.setex("worker:sol:alive", 30, "1")
     
     async def _rpc_call(self, method: str, params: list = None) -> dict:
         """通用 RPC 调用"""
@@ -224,6 +225,7 @@ class SolanaWorker:
         print("\n🚀 SOL Worker 启动 - 监听 Pump.fun 新代币...\n")
         
         while self.running:
+            await self.redis.setex("worker:sol:alive", 30, "1")
             await self.scan()
             await asyncio.sleep(8)  # 每 8 秒扫一次（SOL 出块快）
     

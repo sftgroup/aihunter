@@ -566,6 +566,7 @@ class ChainWorker:
         
         while self.running:
             try:
+                await self.redis.setex("worker:evm:alive", 30, "1")
                 for chain in self.chains:
                     if chain in self.rpc_urls:
                         await self.scan_chain(chain)
