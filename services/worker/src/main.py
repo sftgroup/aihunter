@@ -551,13 +551,46 @@ class ChainWorker:
                 
                 if signal:
                     await self.redis.publish('trade:signals', json.dumps(signal))
-                try:
-                    async with httpx.AsyncClient(timeout=5) as cl:
-                        await cl.post('http://gateway:3100/api/trade/paper/auto', json=signal)
-                except Exception:
-                    pass
-                    risk_indicator = '🟢' if signal['risk_level'] == 'low' else '🟡' if signal['risk_level'] == 'medium' else '🔴'
-                    print(f"\n{risk_indicator} [{chain}] {signal['symbol']} | 信心: {signal['confidence']}% | 风险: {signal['risk_level']}")
+                    
+                    # ===== 规则过滤：只有符合条件的才执行模拟交易 =====
+                    risk_level = signal.get('risk_level', 'medium')
+                    confidence = signal.get('confidence', 0) or 0
+                    flags = signal.get('flags', []) or []
+                    
+                    should_trade = True
+                    reject_reasons = []
+                    
+                    # 规则1：高风险不买
+                    if risk_level == 'high':
+                        should_trade = False
+                        reject_reasons.append('高风险')
+                    # 规则2：信心分低于40不买
+                    if confidence < 40:
+                        should_trade = False
+                        reject_reasons.append(f'信心过低({confidence}%)')
+                    # 规则3：可增发(mintable)不买
+                    if 'mintable' in flags:
+                        should_trade = False
+                        reject_reasons.append('可增发')
+                    # 规则4：owner_active 且 没有 lp_locked 不买
+                    if 'owner_active' in flags and 'lp_locked' not in flags:
+                        should_trade = False
+                        reject_reasons.append('未弃权+LP未锁')
+                    # 规则5：税过高不买
+                    if 'tax_high' in flags:
+                        should_trade = False
+                        reject_reasons.append('税过高')
+                    
+                    if should_trade:
+                        try:
+                            async with httpx.AsyncClient(timeout=5) as cl:
+                                await cl.post('http://gateway:3100/api/trade/paper/auto', json=signal)
+                        except Exception:
+                            pass
+                    
+                    risk_indicator = '🟢' if risk_level == 'low' else '🟡' if risk_level == 'medium' else '🔴'
+                    status_msg = '✅ 买入' if should_trade else f'⛔ 跳过({",".join(reject_reasons)})'
+                    print(f"\n{risk_indicator} [{chain}] {signal['symbol']} | 信心:{confidence}% | {status_msg}")
                     print(f"  标记: {', '.join(signal['flags'])}")
                 
             except Exception as e:
