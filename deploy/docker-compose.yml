@@ -1,7 +1,6 @@
 version: '3.8'
 
 services:
-  # ========== 存储层 ==========
   postgres:
     image: postgres:15-alpine
     container_name: aihunter-db
@@ -9,55 +8,38 @@ services:
     environment:
       POSTGRES_DB: aihunter
       POSTGRES_USER: aihunter
-      POSTGRES_PASSWORD: aihunter2025
+      POSTGRES_PASSWORD: ***
     ports:
-      - "127.0.0.1:5432:5432"
+      - '127.0.0.1:5432:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 300M
+    deploy: { resources: { limits: { cpus: '0.5', memory: 300M } } }
 
   redis:
     image: redis:7-alpine
     container_name: aihunter-redis
     restart: unless-stopped
     ports:
-      - "127.0.0.1:6379:6379"
+      - '127.0.0.1:6379:6379'
     volumes:
       - redisdata:/data
-    deploy:
-      resources:
-        limits:
-          cpus: '0.2'
-          memory: 100M
+    deploy: { resources: { limits: { cpus: '0.2', memory: 100M } } }
 
-  # ========== 网关层 ==========
   gateway:
     build: ../services/gateway
     container_name: aihunter-gateway
     restart: unless-stopped
     ports:
-      - "0.0.0.0:3100:3100"
+      - '0.0.0.0:3100:3100'
     environment:
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql://aihunter:aihunter2025@postgres:5432/aihunter
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
-      DEEPSEEK_BASE_URL: https://api.deepseek.com/v1
-      AUTH_TOKEN: aihunter-dev-token
-    depends_on:
-      - postgres
-      - redis
-    deploy:
-      resources:
-        limits:
-          cpus: '0.3'
-          memory: 200M
+      AUTH_TOKEN: ***
+    depends_on: [postgres, redis]
+    deploy: { resources: { limits: { cpus: '0.3', memory: 200M } } }
 
-  # ========== Worker 层 ==========
   worker:
     build: ../services/worker
     container_name: aihunter-worker
@@ -65,21 +47,13 @@ services:
     environment:
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql://aihunter:aihunter2025@postgres:5432/aihunter
-      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       CHAINS: ETH,BSC,BASE
       RPC_URL_ETH: ${RPC_URL_ETH:-}
       RPC_URL_BSC: ${RPC_URL_BSC:-}
       RPC_URL_BASE: ${RPC_URL_BASE:-}
-    depends_on:
-      - postgres
-      - redis
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 400M
+    depends_on: [postgres, redis]
+    deploy: { resources: { limits: { cpus: '0.5', memory: 400M } } }
 
-  # ========== 学习 Worker（定时任务，非持续占用） ==========
   learning:
     build: ../services/learning
     container_name: aihunter-learning
@@ -88,15 +62,20 @@ services:
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql://aihunter:aihunter2025@postgres:5432/aihunter
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
-      SCHEDULE_INTERVAL: 3600  # 每小时检查一次是否需要学习
-    depends_on:
-      - postgres
-      - redis
-    deploy:
-      resources:
-        limits:
-          cpus: '0.3'
-          memory: 200M
+      SCHEDULE_INTERVAL: '3600'
+    depends_on: [postgres, redis]
+    deploy: { resources: { limits: { cpus: '0.3', memory: 200M } } }
+
+  frontend:
+    image: nginx:alpine
+    container_name: aihunter-frontend
+    restart: unless-stopped
+    ports:
+      - '0.0.0.0:3000:80'
+    volumes:
+      - ../frontend:/usr/share/nginx/html:ro
+    depends_on: [gateway]
+    deploy: { resources: { limits: { cpus: '0.1', memory: 30M } } }
 
 volumes:
   pgdata:

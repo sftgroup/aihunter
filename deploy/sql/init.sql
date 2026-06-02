@@ -1,6 +1,6 @@
--- AIHunter 数据库初始化（轻量版）
+-- AIHunter 数据库初始化（V1.0-MVP）
 
--- 用户白名单
+-- 白名单地址（5地址内测）
 CREATE TABLE IF NOT EXISTS whitelist_users (
     id SERIAL PRIMARY KEY,
     address VARCHAR(42) UNIQUE NOT NULL,
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS trade_experiences (
 );
 CREATE INDEX IF NOT EXISTS idx_experiences_strategy ON trade_experiences(strategy_type, executed_at DESC);
 
--- 规则版本
+-- 规则版本库
 CREATE TABLE IF NOT EXISTS rule_versions (
     version_id VARCHAR(32) PRIMARY KEY,
     strategy_type VARCHAR(32) NOT NULL,
@@ -63,6 +63,17 @@ CREATE TABLE IF NOT EXISTS orders (
     tx_hash VARCHAR(66),
     pnl_usd DECIMAL,
     created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- SessionKey 授权记录
+CREATE TABLE IF NOT EXISTS session_keys (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(42) NOT NULL,
+    session_key TEXT NOT NULL,
+    permissions JSONB,
+    expires_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    revoked BOOLEAN DEFAULT FALSE
 );
 
 -- 收益仓位

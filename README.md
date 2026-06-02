@@ -1,66 +1,48 @@
 # AIHunter - 链上交易自动化引擎
 
-> 轻量版 | 适配 2C/2G 测试服务器
-> 使用 DeepSeek API 替代本地大模型
+> V1.0-MVP | 非托管 · 免逐笔签名 · 多链兼容 · 自学习闭环
+> 适配 2C/2G 测试服务器 | 使用 DeepSeek API
 
-## 架构（简化版）
+## 架构
 
 ```
-┌───────────────┐     ┌────────────────┐     ┌─────────────────┐
-│  前端 (3000)  │────►│  Gateway (3100)│────►│  Worker (3200)  │
-│  Next.js 面板 │     │  Node/Fastify  │     │  Python/Polars  │
-└───────────────┘     │  DeepSeek 对接 │     │  XGBoost 推理   │
-                      │  规则引擎       │     │  WebSocket 监听  │
-                      └────────────────┘     └─────────────────┘
-                              │                        │
-                              ▼                        ▼
-                      ┌────────────────┐     ┌─────────────────┐
-                      │  Redis (6379)  │     │  PostgreSQL      │
-                      │  缓存/队列     │     │  (5432)          │
-                      └────────────────┘     │  订单/事件/经验  │
-                                             └─────────────────┘
+Frontend (3000) → Gateway (3100) → Worker (链上监听/评分)
+                    │                    │
+                    ▼                    ▼
+               DeepSeek API        PostgreSQL + Redis
+               (情绪/聪明钱/规则)    (事件/订单/经验)
 ```
 
-## 技术栈
+## 核心模块
 
-| 层 | 技术 | 说明 |
-|----|------|------|
-| 前端 | Next.js 14 + wagmi + viem | OKX风格交易面板 |
-| 网关 | Node.js / Fastify | API + WebSocket + DeepSeek对接 |
-| Worker | Python / Polars / XGBoost | 特征计算 + 风险评分 + 链上监听 |
-| 学习 | Python / Optuna | 定时调优（每日凌晨） |
+| 模块 | 技术 | 说明 |
+|------|------|------|
+| 前端 | 纯静态 HTML/JS | OKX 风格面板 |
+| Gateway | Node.js / Fastify | API + WebSocket + DeepSeek |
+| Worker | Python / Polars / XGBoost | 特征计算 + 风险评分 |
+| Learning | Python / Optuna | 自动学习调度 |
 | 存储 | PostgreSQL 15 + Redis 7 | 持久化 + 缓存 |
-| 签名 | signer-agent（Node） | SessionKey本地签名 |
 
-## 2C/2G 资源分配
+## DeepSeek API 用途
+
+- 社交情绪分析（替代本地 NLP）
+- 聪明钱地址识别
+- 策略规则自动生成
+- 每日交易报告总结
+
+## 资源占用
 
 ```
-PostgreSQL     ~300MB
-Redis          ~100MB  
-Gateway        ~200MB
-Worker         ~300MB  (含 XGBoost)
-Signer Agent   ~50MB
-───────────────
-总计           ~950MB  ← 2G 绰绰有余
+PostgreSQL ~300M + Redis ~100M + Gateway ~200M + Worker ~300M + Learning ~100M + Frontend ~30M
+= 约 1GB / 2GB ✓
 ```
-
-## DeepSeek API 替代方案
-
-| 原方案 | 改为 | 说明 |
-|--------|------|------|
-| 本地 NLP 模型 | DeepSeek API | 社交情绪分析、聪明钱识别 |
-| XGBoost 本地训练 | XGBoost 本地训练 | ✅ 保留，<1ms推理 |
-| SHAP 分析 | 每周手动触发 | 计算量大，改低频 |
-| Optuna 调优 | 保留，凌晨跑 | 2C也能跑，就是慢点 |
-| 策略规则生成 | DeepSeek API | 从交易经验提取规则 |
 
 ## 部署
 
 ```bash
-# 一键启动
 cd deploy
+echo "DEEPSEEK_API_KEY=***" > .env
 docker compose up -d
-
-# 查看日志
-docker compose logs -f
 ```
+
+访问 http://服务器IP:3000

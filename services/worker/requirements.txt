@@ -3,4 +3,3 @@ xgboost==2.1.0
 redis==5.0.0
 psycopg2-binary==2.9.9
 openai==1.30.0
-websockets==12.0

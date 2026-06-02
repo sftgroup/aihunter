@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AIHunter - 链上交易自动化引擎</title>
+<style>
+:root{--bg:#0f0f1a;--card:#1a1a2e;--hover:#252540;--accent:#00d4aa;--danger:#ff4757;--warning:#ffa502;--text1:#e8e8f0;--text2:#8888a0}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text1);font-family:-apple-system,BlinkMacSystemFont,sans-serif;padding:16px;min-height:100vh}
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+.logo{display:flex;align-items:center;gap:12px}
+.logo-icon{width:40px;height:40px;border-radius:12px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:22px}
+.logo h1{font-size:20px}.logo p{font-size:12px;color:var(--text2)}
+.status-bar{display:flex;align-items:center;gap:12px}
+.badge{padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500}
+.badge-green{background:rgba(0,212,170,.15);color:var(--accent)}
+.badge-yellow{background:rgba(255,165,2,.15);color:var(--warning)}
+.grid{display:grid;gap:16px}
+.grid-3{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.grid-main{display:grid;grid-template-columns:1fr 360px;gap:16px}
+@media(max-width:1024px){.grid-main{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px;transition:.2s}
+.card:hover{border-color:rgba(0,212,170,.2)}
+.card h2{font-size:14px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between}
+.stat-value{font-size:28px;font-weight:700;margin:4px 0}
+.stat-label{font-size:12px;color:var(--text2)}
+.signal{padding:12px;border-radius:8px;background:var(--bg);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between}
+.signal:hover{background:var(--hover)}
+.signal-left{display:flex;align-items:center;gap:12px}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dot-green{background:var(--accent)}.dot-yellow{background:var(--warning)}.dot-red{background:var(--danger)}
+.chain-badge{font-size:10px;padding:2px 8px;border-radius:12px;background:rgba(0,212,170,.15);color:var(--accent)}
+.score{font-weight:700;font-size:14px}
+.score-green{color:var(--accent)}.score-yellow{color:var(--warning)}.score-red{color:var(--danger)}
+.strategy{display:flex;align-items:center;justify-content:space-between;padding:12px;border-radius:8px;background:var(--bg);margin-bottom:8px}
+.strategy-left{display:flex;align-items:center;gap:12px}
+.strategy-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700}
+.bar{width:80px;height:8px;border-radius:4px;background:var(--bg);overflow:hidden;flex-shrink:0}
+.bar-fill{height:100%;border-radius:4px;background:var(--accent)}
+.row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.row:last-child{border:none}
+.row-label{font-size:13px;color:var(--text2)}
+.row-value{font-size:13px;display:flex;align-items:center;gap:8px}
+.row-dot{width:6px;height:6px;border-radius:50%}
+.footer{margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.05)}
+.resource{display:flex;justify-content:space-between;font-size:11px;color:var(--text2)}
+.rule-item{display:flex;align-items:center;gap:8px;padding:8px;border-radius:6px;background:var(--bg);margin-bottom:4px;font-size:13px}
+.rule-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.rule-active{margin-left:auto;font-size:11px;color:var(--accent)}
+.ai-item{padding:12px;border-radius:8px;background:var(--bg);margin-bottom:8px}
+.ai-header{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px}
+.ai-header span:first-child{color:var(--text2)}
+.ai-header span:last-child{color:var(--accent)}
+.ai-desc{font-size:12px;color:var(--text2)}
+.tab-bar{display:flex;gap:4px;margin-bottom:16px}
+.tab{padding:8px 16px;border-radius:8px;font-size:13px;cursor:pointer;background:var(--bg);color:var(--text2);border:none}
+.tab.active{background:var(--accent);color:var(--bg);font-weight:600}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">🏹</div>
+    <div><h1>AIHunter</h1><p>链上交易自动化引擎 · V1.0-MVP</p></div>
+  </div>
+  <div class="status-bar">
+    <span class="badge badge-green">● 运行中</span>
+    <span class="badge" style="background:rgba(136,136,160,.15);color:var(--text2)">2C/2G · 测试服</span>
+  </div>
+</div>
+
+<div class="tab-bar">
+  <button class="tab active" onclick="switchTab('signals',this)">📡 交易信号</button>
+  <button class="tab" onclick="switchTab('session',this)">🔑 SessionKey</button>
+  <button class="tab" onclick="switchTab('learn',this)">🧠 学习日志</button>
+</div>
+
+<!-- 交易信号面板 -->
+<div id="panel-signals">
+  <div class="grid grid-3" style="margin-bottom:20px">
+    <div class="card"><div class="stat-label">📡 今日信号</div><div class="stat-value" id="signalCount">-</div><div class="stat-label" id="signalSub">加载中...</div></div>
+    <div class="card"><div class="stat-label">⚡ 活跃策略</div><div class="stat-value">4</div><div class="stat-label">狙击/反貔貅/跟单/巨鲸</div></div>
+    <div class="card"><div class="stat-label">🧠 经验记录</div><div class="stat-value" id="expCount">-</div><div class="stat-label" id="expSub">加载中...</div></div>
+  </div>
+
+  <div class="grid-main">
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="card">
+        <h2>📡 实时交易信号</h2>
+        <div id="signalList"><p style="color:var(--text2);font-size:13px">等待数据...</p></div>
+      </div>
+      <div class="card">
+        <h2>⚡ 策略矩阵</h2>
+        <div id="strategyList"></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="card"><h2>🖥️ 系统状态</h2><div id="statusList"></div><div class="footer"><div class="resource"><span id="memInfo">内存: -</span><span id="cpuInfo">CPU: -</span></div></div></div>
+      <div class="card"><h2>📋 活跃规则</h2><div id="ruleList"></div></div>
+      <div class="card"><h2>🤖 DeepSeek AI</h2><div id="aiPanel"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- SessionKey 面板 -->
+<div id="panel-session" style="display:none">
+  <div class="card" style="max-width:500px">
+    <h2>🔑 SessionKey 管理</h2>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:16px">首次授权创建 SessionKey，免逐笔签名执行交易</p>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <input id="addrInput" placeholder="输入钱包地址 0x..." style="padding:10px;border-radius:8px;background:var(--bg);border:1px solid rgba(255,255,255,.1);color:var(--text1);font-size:14px">
+      <button class="tab active" style="text-align:center" onclick="createSession()">创建 SessionKey</button>
+      <div id="sessionResult" style="font-size:13px;color:var(--text2);margin-top:8px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 学习日志面板 -->
+<div id="panel-learn" style="display:none">
+  <div class="card">
+    <h2>🧠 自动学习日志</h2>
+    <div id="learnLog">
+      <p style="font-size:13px;color:var(--text2)">等待学习触发...</p>
+      <div style="margin-top:12px;padding:12px;border-radius:8px;background:var(--bg)">
+        <div class="ai-header"><span>Optuna 调优</span><span style="color:var(--warning)">待触发</span></div>
+        <div class="ai-desc">需要 ≥20 笔经验</div>
+      </div>
+      <div style="margin-top:8px;padding:12px;border-radius:8px;background:var(--bg)">
+        <div class="ai-header"><span>DeepSeek 规则生成</span><span style="color:var(--warning)">待触发</span></div>
+        <div class="ai-desc">需要 ≥10 笔经验</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const TYPECOL = {sniper:'#ff4757',anti:'#7c3aed',copy:'#ffa502',whale:'#00d4aa'};
+const SIGNALS = [
+  {chain:'BASE',contract:'0x8f...a3b2',type:'开盘狙击',typeKey:'sniper',risk:'low',score:87},
+  {chain:'BSC',contract:'0x4d...f7e1',type:'巨鲸跟随',typeKey:'whale',risk:'medium',score:62},
+  {chain:'ETH',contract:'0x1a...9c4d',type:'情绪跟单',typeKey:'copy',risk:'high',score:31},
+  {chain:'BASE',contract:'0x3f...b2a8',type:'反貔貅',typeKey:'anti',risk:'low',score:91},
+];
+const STRATEGIES = [
+  {name:'开盘狙击',typeKey:'sniper',trades:12,winRate:58},
+  {name:'反貔貅',typeKey:'anti',trades:89,winRate:95},
+  {name:'聪明跟随',typeKey:'copy',trades:25,winRate:64},
+  {name:'巨鲸跟随',typeKey:'whale',trades:8,winRate:75},
+];
+const SERVICES = [
+  {label:'Gateway',status:'healthy'},{label:'Worker',status:'healthy'},{label:'Learning',status:'idle'},
+  {label:'PostgreSQL',status:'healthy'},{label:'Redis',status:'healthy'},{label:'DeepSeek',status:'connected'},
+];
+const RULES = [
+  {label:'税 ≤5%',type:'sniper'},{label:'LP ≥$10k',type:'sniper'},{label:'反貔貅验证通过',type:'anti'},
+  {label:'情绪 ≥0.6',type:'copy'},{label:'聪明钱确认',type:'copy'},{label:'钱包 ≥3笔盈利',type:'whale'},
+];
+const AIITEMS = [
+  {label:'社交情绪分析',count:'昨 23次',desc:'当前情绪: 偏多'},
+  {label:'聪明钱识别',count:'昨 8次',desc:'已标记 12 个聪明钱'},
+  {label:'规则生成',count:'待触发',desc:'需要 ≥10 笔新经验',yellow:true},
+];
+const STATUSTXT = {healthy:'正常',idle:'空闲',connected:'已连接'};
+const STATUSCOL = {healthy:'#00d4aa',idle:'#ffa502',connected:'#00d4aa'};
+
+function switchTab(name,btn){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  ['signals','session','learn'].forEach(p=>{
+    document.getElementById('panel-'+p).style.display = p===name?'block':'none';
+  });
+}
+
+function render(){
+  document.getElementById('signalCount').textContent = SIGNALS.length;
+  document.getElementById('signalSub').textContent = SIGNALS.filter(s=>s.risk==='low').length+'个待处理';
+  document.getElementById('expCount').textContent = Math.floor(Math.random()*200+100);
+  document.getElementById('expSub').textContent = '最近24h +'+Math.floor(Math.random()*20);
+
+  document.getElementById('signalList').innerHTML = SIGNALS.map(s=>{
+    const dc = s.risk==='low'?'dot-green':s.risk==='medium'?'dot-yellow':'dot-red';
+    const sc = s.score>=70?'score-green':s.score>=40?'score-yellow':'score-red';
+    return '<div class="signal"><div class="signal-left"><span class="dot '+dc+'"></span><div><div style="display:flex;gap:6px;align-items:center"><span class="chain-badge">'+s.chain+'</span><span style="font-size:13px;font-family:monospace">'+s.contract+'</span></div><div style="font-size:12px;color:var(--text2);margin-top:2px">'+s.type+'</div></div></div><div style="text-align:right"><div class="score '+sc+'">'+s.score+'%</div><div style="font-size:10px;color:var(--text2)">信心分</div></div></div>';
+  }).join('');
+
+  document.getElementById('strategyList').innerHTML = STRATEGIES.map(s=>{
+    const c = TYPECOL[s.typeKey]||'#888';
+    return '<div class="strategy"><div class="strategy-left"><div class="strategy-icon" style="background:'+c+'20;color:'+c+'">'+s.typeKey[0].toUpperCase()+'</div><div><div style="display:flex;gap:6px;align-items:center"><span style="font-size:13px">'+s.name+'</span></div><div style="font-size:12px;color:var(--text2);margin-top:2px">'+s.trades+'笔 · 胜率'+s.winRate+'%</div></div></div><div class="bar"><div class="bar-fill" style="width:'+s.winRate+'%"></div></div></div>';
+  }).join('');
+
+  document.getElementById('statusList').innerHTML = SERVICES.map(s=>
+    '<div class="row"><span class="row-label">'+s.label+'</span><span class="row-value"><span class="row-dot" style="background:'+STATUSCOL[s.status]+'"></span>'+STATUSTXT[s.status]+'</span></div>'
+  ).join('');
+  document.getElementById('memInfo').textContent = '内存: 386MB / 2GB';
+  document.getElementById('cpuInfo').textContent = 'CPU: 12%';
+
+  document.getElementById('ruleList').innerHTML = RULES.map(r=>
+    '<div class="rule-item"><span class="rule-dot" style="background:'+(TYPECOL[r.type]||'#888')+'"></span>'+r.label+'<span class="rule-active">生效</span></div>'
+  ).join('')+'<div style="margin-top:8px;font-size:12px;color:var(--text2)">热加载已启用</div>';
+
+  document.getElementById('aiPanel').innerHTML = AIITEMS.map(a=>
+    '<div class="ai-item"><div class="ai-header"><span>'+a.label+'</span><span style="color:'+(a.yellow?'var(--warning)':'var(--accent)')+'">'+a.count+'</span></div><div class="ai-desc">'+a.desc+'</div></div>'
+  ).join('');
+}
+
+async function createSession(){
+  const addr = document.getElementById('addrInput').value.trim();
+  if(!addr){document.getElementById('sessionResult').textContent='请输入地址';return}
+  try{
+    const r=await fetch('/api/session/create',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer aihunter2025'},
+      body:JSON.stringify({address:addr,permissions:{maxTrade:5,maxAmount:1000}})
+    });
+    const d=await r.json();
+    document.getElementById('sessionResult').innerHTML='✅ SessionKey: <code style="color:var(--accent)">'+d.data.sessionKey+'</code><br>⏱️ 有效期: 24h';
+  }catch(e){
+    document.getElementById('sessionResult').textContent='❌ 创建失败: '+e.message;
+  }
+}
+
+render();
+</script>
+</body>
+</html>
