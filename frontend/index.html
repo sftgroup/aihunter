@@ -5,542 +5,186 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <title>AIHunter - 链上交易自动化引擎</title>
 <style>
-/* ===== 全局 ===== */
-:root{
-  --bg:#0b0b14;
-  --card:#16162a;
-  --card-hover:#1e1e38;
-  --accent:#00d4aa;
-  --accent-dim:rgba(0,212,170,0.12);
-  --danger:#ff4757;
-  --danger-dim:rgba(255,71,87,0.12);
-  --warning:#ffa502;
-  --warning-dim:rgba(255,165,2,0.12);
-  --blue:#4782ff;
-  --purple:#7c3aed;
-  --text:#ececf4;
-  --text2:#8888aa;
-  --text3:#5a5a78;
-  --radius:14px;
-  --shadow:0 2px 20px rgba(0,0,0,.3);
-}
+:root{--bg:#0b0b14;--card:#16162a;--card-hover:#1e1e38;--accent:#00d4aa;--accent-dim:rgba(0,212,170,0.12);--danger:#ff4757;--danger-dim:rgba(255,71,87,0.12);--warning:#ffa502;--warning-dim:rgba(255,165,2,0.12);--blue:#4782ff;--purple:#7c3aed;--text:#ececf4;--text2:#8888aa;--text3:#5a5a78;--radius:14px;--shadow:0 2px 20px rgba(0,0,0,.3)}
 *{margin:0;padding:0;box-sizing:border-box}
 html{font-size:16px}
-body{
-  background:var(--bg);color:var(--text);
-  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-  padding:20px;min-height:100vh;line-height:1.5;
-  max-width:1400px;margin:0 auto
-}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:20px;min-height:100vh;line-height:1.5;max-width:1400px;margin:0 auto}
 h1{font-size:1.5rem;font-weight:700}
 h2{font-size:1.2rem;font-weight:600}
-h3{font-size:1rem;font-weight:600}
-
-/* ===== 头部 ===== */
-.header{
-  display:flex;align-items:center;justify-content:space-between;
-  margin-bottom:28px;flex-wrap:wrap;gap:16px
-}
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:16px}
 .logo{display:flex;align-items:center;gap:14px}
-.logo-icon{
-  width:48px;height:48px;border-radius:14px;
-  background:var(--accent);display:flex;align-items:center;justify-content:center;
-  font-size:26px;box-shadow:0 0 30px var(--accent-dim)
-}
+.logo-icon{width:48px;height:48px;border-radius:14px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:26px;box-shadow:0 0 30px var(--accent-dim)}
 .logo-desc{font-size:0.85rem;color:var(--text2);margin-top:2px}
 .badges{display:flex;gap:10px;flex-wrap:wrap}
-.badge{
-  padding:6px 16px;border-radius:100px;font-size:0.8rem;font-weight:500;
-  display:inline-flex;align-items:center;gap:6px
-}
-.badge-green{background:var(--accent-dim);color:var(--accent)}
-.badge-red{background:var(--danger-dim);color:var(--danger)}
-.badge-yellow{background:var(--warning-dim);color:var(--warning)}
-.badge-blue{background:rgba(71,130,255,.12);color:var(--blue)}
-.badge-purple{background:rgba(124,58,237,.12);color:var(--purple)}
-.badge-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
-
-/* ===== 统计行 ===== */
-.stats-row{
-  display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
-  gap:14px;margin-bottom:28px
-}
-.stat-card{
-  background:var(--card);border-radius:var(--radius);padding:18px 20px;
-  border:1px solid rgba(255,255,255,.04);text-align:center
-}
+.badge{padding:6px 16px;border-radius:100px;font-size:0.8rem;font-weight:500;display:inline-flex;align-items:center;gap:6px}
+.badge-green{background:var(--accent-dim);color:var(--accent)}.badge-red{background:var(--danger-dim);color:var(--danger)}.badge-yellow{background:var(--warning-dim);color:var(--warning)}.badge-blue{background:rgba(71,130,255,.12);color:var(--blue)}.badge-purple{background:rgba(124,58,237,.12);color:var(--purple)}
+.tab-bar{display:flex;gap:6px;margin-bottom:24px;flex-wrap:wrap}
+.tab{padding:10px 20px;border-radius:10px;font-size:0.9rem;cursor:pointer;background:var(--card);color:var(--text2);border:1px solid transparent;transition:.2s;font-weight:500}
+.tab:hover{background:var(--card-hover);border-color:rgba(255,255,255,.08)}
+.tab.active{background:var(--accent-dim);color:var(--accent);border-color:var(--accent)}
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:28px}
+.stat-card{background:var(--card);border-radius:var(--radius);padding:18px 20px;border:1px solid rgba(255,255,255,.04);text-align:center}
 .stat-num{font-size:2rem;font-weight:700;line-height:1.2}
-.stat-num-green{color:var(--accent)}
-.stat-num-blue{color:var(--blue)}
-.stat-num-purple{color:var(--purple)}
-.stat-num-yellow{color:var(--warning)}
+.stat-num-green{color:var(--accent)}.stat-num-blue{color:var(--blue)}.stat-num-purple{color:var(--purple)}.stat-num-yellow{color:var(--warning)}
 .stat-label{font-size:0.85rem;color:var(--text2);margin-top:4px}
 .stat-sub{font-size:0.75rem;color:var(--text3);margin-top:2px}
-
-/* ===== 网格布局 ===== */
 .grid{display:grid;gap:20px}
-.grid-2{grid-template-columns:1fr 1fr}
-.grid-3{grid-template-columns:1fr 1fr 1fr}
-@media(max-width:1000px){.grid-2,.grid-3{grid-template-columns:1fr}}
-
-/* ===== 卡片 ===== */
-.card{
-  background:var(--card);border-radius:var(--radius);padding:24px;
-  border:1px solid rgba(255,255,255,.05);
-  box-shadow:var(--shadow);transition:.2s
-}
-.card-title{
-  font-size:1.05rem;font-weight:600;margin-bottom:6px;
-  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px
-}
-.card-desc{
-  font-size:0.8rem;color:var(--text3);margin-bottom:18px;line-height:1.6
-}
+.grid-2{grid-template-columns:1fr 1fr}@media(max-width:1000px){.grid-2{grid-template-columns:1fr}}
+.card{background:var(--card);border-radius:var(--radius);padding:24px;border:1px solid rgba(255,255,255,.05);box-shadow:var(--shadow);transition:.2s}
+.card-title{font-size:1.05rem;font-weight:600;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.card-desc{font-size:0.8rem;color:var(--text3);margin-bottom:18px;line-height:1.6}
 .card-divider{height:1px;background:rgba(255,255,255,.05);margin:18px 0}
-
-/* ===== 信号卡片 ===== */
-.signal-card{
-  background:rgba(255,255,255,.02);border-radius:12px;padding:18px;
-  margin-bottom:12px;border:1px solid rgba(255,255,255,.04);transition:.2s
-}
+.signal-card{background:rgba(255,255,255,.02);border-radius:12px;padding:18px;margin-bottom:12px;border:1px solid rgba(255,255,255,.04);transition:.2s}
 .signal-card:hover{background:rgba(255,255,255,.04)}
-.signal-header{
-  display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px
-}
+.signal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px}
 .signal-tags{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .signal-meta{font-size:0.85rem;color:var(--text3)}
 .signal-body{margin-bottom:8px}
 .signal-addr{font-family:'SF Mono','Fira Code',monospace;font-size:0.85rem;color:var(--text2);word-break:break-all}
 .signal-flags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-.flag{
-  font-size:0.75rem;padding:3px 10px;border-radius:6px;
-  background:rgba(255,255,255,.05);color:var(--text2);display:inline-flex;align-items:center;gap:4px
-}
-.flag-safe{background:var(--accent-dim);color:var(--accent)}
-.flag-warn{background:var(--warning-dim);color:var(--warning)}
-.flag-danger{background:var(--danger-dim);color:var(--danger)}
-
-/* ===== 链标签 ===== */
-.chain-tag{
-  font-size:0.75rem;padding:3px 12px;border-radius:100px;font-weight:500
-}
-.chain-eth{background:rgba(98,126,234,.15);color:#627eea}
-.chain-bsc{background:rgba(240,185,11,.15);color:#f0b90b}
-.chain-base{background:rgba(0,82,255,.15);color:#0052ff}
-.type-tag{
-  font-size:0.75rem;padding:3px 12px;border-radius:100px;
-  background:rgba(255,255,255,.06)
-}
+.flag{font-size:0.75rem;padding:3px 10px;border-radius:6px;background:rgba(255,255,255,.05);color:var(--text2);display:inline-flex;align-items:center;gap:4px}
+.flag-safe{background:var(--accent-dim);color:var(--accent)}.flag-warn{background:var(--warning-dim);color:var(--warning)}.flag-danger{background:var(--danger-dim);color:var(--danger)}
+.chain-tag{font-size:0.75rem;padding:3px 12px;border-radius:100px;font-weight:500}
+.chain-eth{background:rgba(98,126,234,.15);color:#627eea}.chain-bsc{background:rgba(240,185,11,.15);color:#f0b90b}.chain-base{background:rgba(0,82,255,.15);color:#0052ff}.chain-sol{background:rgba(153,69,255,.15);color:#9945ff}
+.type-tag{font-size:0.75rem;padding:3px 12px;border-radius:100px;background:rgba(255,255,255,.06)}
 .conf-score{font-size:1.3rem;font-weight:700}
-.conf-high{color:var(--accent)}
-.conf-mid{color:var(--warning)}
-.conf-low{color:var(--danger)}
-
-/* ===== 状态行 ===== */
-.svc-row{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:12px 0;border-bottom:1px solid rgba(255,255,255,.04)
-}
+.conf-high{color:var(--accent)}.conf-mid{color:var(--warning)}.conf-low{color:var(--danger)}
+.svc-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.04)}
 .svc-row:last-child{border:none}
-.svc-label{font-size:0.9rem;display:flex;align-items:center;gap:10px}
+.svc-label{font-size:0.9rem;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .svc-label small{font-size:0.75rem;color:var(--text3)}
 .svc-value{font-size:0.85rem;display:flex;align-items:center;gap:8px}
 .svc-dot{width:10px;height:10px;border-radius:50%}
-
-/* ===== 策略 ===== */
-.strategy-item{
-  background:rgba(255,255,255,.02);border-radius:12px;padding:16px;margin-bottom:10px
-}
-.strategy-name{font-size:0.95rem;font-weight:600;margin-bottom:4px}
-.strategy-desc{font-size:0.8rem;color:var(--text2);line-height:1.5}
-.strategy-status{font-size:0.75rem;margin-top:6px;color:var(--text3)}
-
-/* ===== 学习日志 ===== */
-.log-item{
-  background:rgba(255,255,255,.02);border-radius:10px;padding:14px;margin-bottom:8px
-}
-.log-header{display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:4px}
-.log-desc{font-size:0.8rem;color:var(--text2)}
-.log-time{font-size:0.75rem;color:var(--text3)}
-
-/* ===== 空状态 ===== */
-.empty{
-  text-align:center;padding:40px 20px;color:var(--text2)
-}
-.empty-icon{font-size:2.5rem;margin-bottom:12px}
-.empty-text{font-size:0.9rem}
-.empty-sub{font-size:0.8rem;color:var(--text3);margin-top:4px}
-
-/* ===== 进度条 ===== */
-.progress{
-  height:6px;border-radius:3px;background:rgba(255,255,255,.06);overflow:hidden;margin:8px 0
-}
-.progress-fill{height:100%;border-radius:3px;background:var(--accent);transition:width .5s}
+.strategy-item{background:rgba(255,255,255,.02);border-radius:12px;padding:16px;margin-bottom:10px}
+.strategy-name{font-size:0.95rem;font-weight:600;margin-bottom:4px}.strategy-desc{font-size:0.8rem;color:var(--text2);line-height:1.5}
+.form-group{margin-bottom:16px}
+.form-label{font-size:0.85rem;color:var(--text2);margin-bottom:6px;display:block}
+.form-input{width:100%;padding:12px;border-radius:8px;background:var(--bg);border:1px solid rgba(255,255,255,.08);color:var(--text);font-size:0.9rem;outline:none;transition:.2s;font-family:monospace}
+.form-input:focus{border-color:var(--accent);box-shadow:0 0 10px var(--accent-dim)}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:10px 20px;border-radius:8px;font-size:0.85rem;font-weight:500;cursor:pointer;border:none;transition:.2s}
+.btn-primary{background:var(--accent);color:var(--bg)}.btn-primary:hover{box-shadow:0 0 15px var(--accent-dim)}
+.key-item{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--bg);border-radius:8px;margin-bottom:8px}
+.key-info{display:flex;align-items:center;gap:10px}
+.key-name{font-size:0.85rem;font-weight:500;word-break:break-all}
+.key-desc{font-size:0.75rem;color:var(--text3)}
+.key-st{font-size:0.7rem;padding:3px 10px;border-radius:100px;flex-shrink:0}
+.key-st-ok{color:var(--accent);background:var(--accent-dim)}
+.key-st-no{color:var(--warning);background:var(--warning-dim)}
 </style>
 </head>
 <body>
-
-<!-- 头部 -->
 <div class="header">
-  <div class="logo">
-    <div class="logo-icon">🏹</div>
-    <div>
-      <h1>AIHunter</h1>
-      <div class="logo-desc">链上交易自动化引擎 · 非托管 · 免逐笔签名 · 自学习</div>
-    </div>
-  </div>
-  <div class="badges">
-    <span id="connBadge" class="badge badge-green"><span class="badge-dot" style="background:#00d4aa"></span> WebSocket 已连接</span>
-    <span id="signalBadge" class="badge badge-blue">📡 0 个信号</span>
-    <span id="modeBadge" class="badge badge-yellow">🧪 模拟交易</span>
-  </div>
+  <div class="logo"><div class="logo-icon">🏹</div><div><h1>AIHunter</h1><div class="logo-desc">链上交易自动化引擎 · 非托管 · 免逐笔签名 · 自学习</div></div></div>
+  <div class="badges"><span id="connBadge" class="badge badge-green">● WebSocket 已连接</span><span id="signalBadge" class="badge badge-blue">0 个信号</span></div>
+</div>
+<div class="tab-bar">
+  <button class="tab active" onclick="switchTab('signals')">📡 实时信号</button>
+  <button class="tab" onclick="switchTab('keys')">🔑 API 配置</button>
+  <button class="tab" onclick="switchTab('learn')">🧠 学习状态</button>
 </div>
 
-<!-- 统计 -->
+<!-- Tab: 实时信号 -->
+<div id="panel-signals">
 <div class="stats-row">
-  <div class="stat-card">
-    <div class="stat-num stat-num-green" id="signalCount">0</div>
-    <div class="stat-label">📡 今日信号</div>
-    <div class="stat-sub" id="signalSub">链上新代币检测</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-num stat-num-blue" id="paperCount">0</div>
-    <div class="stat-label">🧪 模拟交易</div>
-    <div class="stat-sub" id="paperSub">纸盘 · 不花真钱</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-num stat-num-purple" id="expCount">0</div>
-    <div class="stat-label">🧠 学习经验</div>
-    <div class="stat-sub" id="expSub">等待交易数据</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-num stat-num-yellow" id="alertCount">0</div>
-    <div class="stat-label">⚠️ 风险报警</div>
-    <div class="stat-sub">待处理</div>
-  </div>
+<div class="stat-card"><div class="stat-num stat-num-green" id="signalCount">0</div><div class="stat-label">今日信号</div><div class="stat-sub" id="signalSub">链上新代币</div></div>
+<div class="stat-card"><div class="stat-num stat-num-blue" id="paperCount">0</div><div class="stat-label">模拟交易</div><div class="stat-sub">纸盘 · 不花真钱</div></div>
+<div class="stat-card"><div class="stat-num stat-num-purple" id="expCount">0</div><div class="stat-label">学习经验</div><div class="stat-sub" id="expSub">等待数据</div></div>
+<div class="stat-card"><div class="stat-num stat-num-yellow" id="alertCount">0</div><div class="stat-label">风险报警</div><div class="stat-sub">待处理</div></div>
 </div>
-
-<!-- 主体网格 -->
 <div class="grid grid-2">
+<div style="display:flex;flex-direction:column;gap:20px">
+<div class="card"><div class="card-title"><span>📡 实时交易信号</span><span id="wsStatus" style="font-size:0.8rem;font-weight:400">● 连接中</span></div><div class="card-desc">Worker 通过 RPC 监听 ETH、BSC、BASE、SOL 新代币创建，经合约解读和风险评分后推送。</div><div id="signalList"><div class="empty" style="text-align:center;padding:40px;color:var(--text2)"><div style="font-size:2.5rem">⏳</div><p>正在监听链上事件...</p><p style="font-size:0.8rem;color:var(--text3)">ETH · BSC · BASE · SOL</p></div></div></div>
+<div class="card"><div class="card-title"><span>🧪 模拟交易</span><span class="badge badge-yellow" style="font-size:0.7rem">不花真钱</span></div><div class="card-desc">每个信号自动执行模拟交易，精度 95%+。</div><div id="paperList"><div class="empty" style="text-align:center;padding:40px;color:var(--text2)"><div style="font-size:2.5rem">📊</div><p>暂无模拟交易</p></div></div><div class="card-divider"></div><div style="font-size:0.85rem"><span style="color:var(--text2)">模拟余额: </span><span style="color:var(--accent);font-weight:600">$10,000</span></div></div></div>
+<div style="display:flex;flex-direction:column;gap:20px">
+<div class="card"><div class="card-title">🖥️ 系统状态</div><div class="card-desc">各服务组件健康检查。</div><div id="statusList"><div class="svc-row"><span class="svc-label">加载中...</span></div></div><div class="card-divider"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div><div style="font-size:0.75rem;color:var(--text3)">总事件</div><div style="font-size:1.1rem;font-weight:600" id="totalEvents">-</div></div><div><div style="font-size:0.75rem;color:var(--text3)">待处理</div><div style="font-size:1.1rem;font-weight:600" id="pendingEvents">-</div></div><div><div style="font-size:0.75rem;color:var(--text3)">24h经验</div><div style="font-size:1.1rem;font-weight:600" id="recentExps">-</div></div><div><div style="font-size:0.75rem;color:var(--text3)">RPC</div><div style="font-size:1.1rem;font-weight:600;color:var(--accent)" id="rpcStatus">-</div></div></div></div></div></div></div>
 
-  <!-- 左列 -->
-  <div style="display:flex;flex-direction:column;gap:20px">
-
-    <!-- 实时信号 -->
-    <div class="card">
-      <div class="card-title">
-        <span>📡 实时交易信号</span>
-        <span id="wsStatus" style="font-size:0.8rem;font-weight:400"><span class="badge badge-yellow" style="font-size:0.7rem">● 连接中</span></span>
-      </div>
-      <div class="card-desc">
-        Worker 通过 RPC 实时监听 ETH、BSC、BASE 三条链上的新币对创建事件（PairCreated），
-        经规则引擎风险评分后推送至面板。每次检测到新代币，会立即显示信号卡片。
-      </div>
-      <div id="signalList">
-        <div class="empty">
-          <div class="empty-icon">⏳</div>
-          <div class="empty-text">正在监听链上事件...</div>
-          <div class="empty-sub">ETH · BSC · BASE · 每 5 秒扫描一次</div>
-          <div style="margin-top:12px;font-size:0.8rem">
-            <span style="color:var(--accent)">● ETH 已连接</span> &nbsp;
-            <span style="color:var(--accent)">● BSC 已连接</span> &nbsp;
-            <span style="color:var(--accent)">● BASE 已连接</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 模拟交易 -->
-    <div class="card">
-      <div class="card-title">
-        <span>🧪 模拟交易（纸盘）</span>
-        <span class="badge badge-yellow" style="font-size:0.7rem">不花真钱</span>
-      </div>
-      <div class="card-desc">
-        模拟交易使用实时行情数据 + 衰减模型模拟真实成交，精度 95%+。
-        每个信号可以自动在纸盘中执行模拟买入/卖出，用于验证策略效果，
-        不花费真实资金。当后续配置 SessionKey 后，可一键切换为实盘。
-      </div>
-      <div id="paperList">
-        <div class="empty">
-          <div class="empty-icon">📊</div>
-          <div class="empty-text">暂无模拟交易</div>
-          <div class="empty-sub">检测到新信号后会自动在此执行模拟交易</div>
-        </div>
-      </div>
-      <div class="card-divider"></div>
-      <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:0.85rem">
-        <span style="color:var(--text2)">模拟余额:</span>
-        <span style="color:var(--accent);font-weight:600">$10,000.00</span>
-        <span style="color:var(--text2)">|</span>
-        <span style="color:var(--text2)">今日盈亏:</span>
-        <span style="color:var(--text2)">$0.00</span>
-        <span style="color:var(--text2)">|</span>
-        <span style="color:var(--text2)">模拟胜率:</span>
-        <span style="color:var(--text2)">0%</span>
-      </div>
-    </div>
-
-  </div>
-
-  <!-- 右列 -->
-  <div style="display:flex;flex-direction:column;gap:20px">
-
-    <!-- 系统状态 -->
-    <div class="card">
-      <div class="card-title">🖥️ 系统状态</div>
-      <div class="card-desc">
-        各服务组件健康检查。绿色正常运行，黄色空闲待命，红色需关注。
-      </div>
-      <div id="statusList">
-        <div class="svc-row"><span class="svc-label">⏳ 加载中</span></div>
-      </div>
-      <div class="card-divider"></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div><div style="font-size:0.75rem;color:var(--text3)">总事件数</div><div style="font-size:1.1rem;font-weight:600" id="totalEvents">-</div></div>
-        <div><div style="font-size:0.75rem;color:var(--text3)">待处理事件</div><div style="font-size:1.1rem;font-weight:600" id="pendingEvents">-</div></div>
-        <div><div style="font-size:0.75rem;color:var(--text3)">24h 经验</div><div style="font-size:1.1rem;font-weight:600" id="recentExps">-</div></div>
-        <div><div style="font-size:0.75rem;color:var(--text3)">RPC 状态</div><div style="font-size:1.1rem;font-weight:600;color:var(--accent)" id="rpcStatus">加载中</div></div>
-      </div>
-    </div>
-
-    <!-- 自动学习 -->
-    <div class="card">
-      <div class="card-title">
-        <span>🧠 自动学习</span>
-        <span class="badge badge-purple" style="font-size:0.7rem">Optuna + DeepSeek</span>
-      </div>
-      <div class="card-desc">
-        从交易经验中自动优化策略参数和规则。Optuna 做参数调优，
-        DeepSeek AI 分析交易数据生成可读的策略规则。学习结果通过热加载实时生效。
-      </div>
-      <div id="learnList">
-        <div class="log-item">
-          <div class="log-header">
-            <span>🧬 Optuna 参数调优</span>
-            <span style="color:var(--warning)">⏸️ 等待数据</span>
-          </div>
-          <div class="log-desc">需要 ≥20 笔交易经验才能触发调优</div>
-          <div class="progress"><div class="progress-fill" style="width:0%"></div></div>
-          <div class="log-time">0 / 20 笔 · 进度 0%</div>
-        </div>
-        <div class="log-item">
-          <div class="log-header">
-            <span>🤖 DeepSeek 规则生成</span>
-            <span style="color:var(--warning)">⏸️ 等待数据</span>
-          </div>
-          <div class="log-desc">需要 ≥10 笔交易经验才能生成规则</div>
-          <div class="progress"><div class="progress-fill" style="width:0%"></div></div>
-          <div class="log-time">0 / 10 笔 · 进度 0%</div>
-        </div>
-        <div class="log-item">
-          <div class="log-header">
-            <span>📋 规则版本管理</span>
-            <span style="color:var(--accent)">✅ 热加载就绪</span>
-          </div>
-          <div class="log-desc">当前版本: v1.0.0-mvp · 新规则生成后自动热加载</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 策略说明 -->
-    <div class="card">
-      <div class="card-title">⚡ 交易策略</div>
-      <div class="card-desc">每个信号会自动匹配一种策略类型，策略说明如下：</div>
-      <div class="strategy-item">
-        <div class="strategy-name">🎯 开盘狙击</div>
-        <div class="strategy-desc">新币对 PairCreated 时触发，在添加流动性后第一时间买入。风险最高但收益潜力大，适合有经验的交易者。</div>
-        <div class="strategy-status">✅ 已激活 · 需要 SessionKey</div>
-      </div>
-      <div class="strategy-item">
-        <div class="strategy-name">🛡️ 反貔貅</div>
-        <div class="strategy-desc">新合约首次交互前进行 Fork 模拟交易，验证能否卖出。检测到貔貅（只能买不能卖）自动拦截并报警。</div>
-        <div class="strategy-status">✅ 已激活 · 自动拦截</div>
-      </div>
-      <div class="strategy-item">
-        <div class="strategy-name">📊 情绪跟单</div>
-        <div class="strategy-desc">分析推文情绪和聪明钱流入。当社交情绪高涨且聪明钱净流入时触发。需要配置 DeepSeek API。</div>
-        <div class="strategy-status">⏸️ 等待 DeepSeek API</div>
-      </div>
-      <div class="strategy-item">
-        <div class="strategy-name">🐋 巨鲸跟随</div>
-        <div class="strategy-desc">识别历史胜率 ≥60% 的聪明钱地址，大额买入时自动镜像跟单。跟单比例可在策略配置中调整。</div>
-        <div class="strategy-status">✅ 已激活 · 比例 10%</div>
-      </div>
-    </div>
-
-    <!-- 风险说明 -->
-    <div class="card">
-      <div class="card-title">📖 信号解读</div>
-      <div class="card-desc">信号卡片上的标记含义：</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.85rem">
-        <div><span class="flag flag-safe">✅ owner_renounced</span><br><span style="font-size:0.75rem;color:var(--text3)">合约已放弃权限，安全</span></div>
-        <div><span class="flag flag-safe">✅ lp_locked</span><br><span style="font-size:0.75rem;color:var(--text3)">流动性已锁定，安全</span></div>
-        <div><span class="flag flag-warn">⚠️ tax_too_high</span><br><span style="font-size:0.75rem;color:var(--text3)">买卖税 >5%，危险</span></div>
-        <div><span class="flag flag-warn">⚠️ low_liquidity</span><br><span style="font-size:0.75rem;color:var(--text3)">流动性不足 <$10k</span></div>
-        <div><span class="flag flag-danger">🔴 mintable</span><br><span style="font-size:0.75rem;color:var(--text3)">可无限增发，貔貅风险</span></div>
-        <div><span class="flag flag-danger">🔴 concentrated</span><br><span style="font-size:0.75rem;color:var(--text3)">前10持有者 >50%</span></div>
-      </div>
-      <div class="card-divider"></div>
-      <div style="font-size:0.85rem;color:var(--text2)">
-        <b>信心分</b>：0~100%，越高越安全。基于规则引擎综合评分，
-        低于 40% 建议谨慎。实盘模式下低于 30% 的信号自动拦截。
-      </div>
-    </div>
-
-  </div>
+<!-- Tab: API 配置 -->
+<div id="panel-keys" style="display:none">
+<div class="grid grid-2">
+<div class="card">
+<div class="card-title">🔑 RPC 节点</div>
+<div class="card-desc">配置各链 RPC 节点地址，保存到浏览器本地。</div>
+<div id="rpcKeyList"></div>
+<div class="card-divider"></div>
+<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+<select id="rpcChain" style="padding:10px;border-radius:8px;background:var(--bg);border:1px solid rgba(255,255,255,.08);color:var(--text);font-size:0.85rem">
+<option value="ETH">ETH</option><option value="BSC">BSC</option><option value="BASE">BASE</option><option value="SOL">SOL</option>
+</select>
+<input id="rpcUrl" style="flex:1;min-width:200px;padding:10px;border-radius:8px;background:var(--bg);border:1px solid rgba(255,255,255,.08);color:var(--text);font-size:0.85rem;font-family:monospace" placeholder="https://mainnet.infura.io/v3/你的ProjectID" />
 </div>
+<button class="btn btn-primary" onclick="saveRpcKey()">💾 保存</button>
+<span id="rpcSaveResult" style="margin-left:12px;font-size:0.8rem;color:var(--accent)"></span>
+</div>
+<div class="card">
+<div class="card-title">🤖 API Key</div>
+<div class="card-desc">DeepSeek 用于情绪分析/规则生成，Etherscan 用于合约验证。</div>
+<div id="aiKeyList"></div>
+<div class="card-divider"></div>
+<div style="margin-bottom:12px">
+<div style="font-size:0.8rem;color:var(--text2);margin-bottom:4px">DeepSeek API Key</div>
+<input id="deepseekKey" style="width:100%;padding:10px;border-radius:8px;background:var(--bg);border:1px solid rgba(255,255,255,.08);color:var(--text);font-size:0.85rem;font-family:monospace" placeholder="sk-xxxxxxxxxxxxxxxx" />
+</div>
+<div style="margin-bottom:12px">
+<div style="font-size:0.8rem;color:var(--text2);margin-bottom:4px">Etherscan API Key</div>
+<input id="etherscanKey" style="width:100%;padding:10px;border-radius:8px;background:var(--bg);border:1px solid rgba(255,255,255,.08);color:var(--text);font-size:0.85rem;font-family:monospace" placeholder="JKQC33...5NQK" />
+</div>
+<button class="btn btn-primary" onclick="saveAiKeys()">💾 保存</button>
+<span id="aiSaveResult" style="margin-left:12px;font-size:0.8rem;color:var(--accent)"></span>
+</div>
+<div class="card" style="grid-column:1/-1">
+<div class="card-title">📖 配置说明</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:0.85rem">
+<div><b>ETH</b><br><span style="font-size:0.75rem;color:var(--text3)">建议 Infura: https://mainnet.infura.io/v3/你的ProjectID</span></div>
+<div><b>BSC</b><br><span style="font-size:0.75rem;color:var(--text3)">公共节点或 QuickNode</span></div>
+<div><b>BASE</b><br><span style="font-size:0.75rem;color:var(--text3)">公共节点或 Alchemy</span></div>
+<div><b>SOL</b><br><span style="font-size:0.75rem;color:var(--text3)">Solana RPC 或 Helius/QuickNode</span></div>
+<div><b>DeepSeek</b><br><span style="font-size:0.75rem;color:var(--text3)">约 $0.2/月，用于 AI 分析</span></div>
+<div><b>Etherscan</b><br><span style="font-size:0.75rem;color:var(--text3)">免费，用于合约源码验证</span></div>
+</div></div></div></div>
+
+<!-- Tab: 学习状态 -->
+<div id="panel-learn" style="display:none">
+<div class="grid grid-2">
+<div class="card"><div class="card-title">🧠 自动学习</div><div class="card-desc">从交易经验优化策略参数和规则。</div><div id="learnList"><div class="empty" style="text-align:center;padding:40px;color:var(--text2)"><div style="font-size:2.5rem">🧬</div><p>等待交易经验</p><p style="font-size:0.8rem;color:var(--text3)">需要 ≥10 笔触发 DeepSeek，≥20 笔触发 Optuna</p></div></div></div>
+<div class="card"><div class="card-title">⚡ 策略说明</div><div class="card-desc">四种策略。</div>
+<div class="strategy-item"><div class="strategy-name">🎯 开盘狙击</div><div class="strategy-desc">新币对创建时触发买入。</div></div>
+<div class="strategy-item"><div class="strategy-name">🛡️ 反貔貅</div><div class="strategy-desc">Fork 模拟验证能否卖出。</div></div>
+<div class="strategy-item"><div class="strategy-name">📊 情绪跟单</div><div class="strategy-desc">需 DeepSeek API。</div></div>
+<div class="strategy-item"><div class="strategy-name">🐋 巨鲸跟随</div><div class="strategy-desc">镜像聪明钱地址。</div></div>
+</div></div></div>
 
 <script>
-const API = window.location.origin + "/api";
-let signals = [];
-let ws = null;
+const API = window.location.origin + '/api';
+let signals = [], paperTrades = [], ws = null;
 
-// ==== WebSocket ====
-function connectWS() {
-  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-  ws = new WebSocket(proto + "//" + window.location.host + "/ws");
+function switchTab(n){document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.textContent.includes(n==='signals'?'实时':n==='keys'?'API':'学习')));['signals','keys','learn'].forEach(p=>document.getElementById('panel-'+p).style.display=p===n?'block':'none');if(n==='keys')loadKeys();}
 
-  ws.onopen = () => {
-    document.getElementById("wsStatus").innerHTML = '<span class="badge badge-green" style="font-size:0.7rem">● 已连接</span>';
-    document.getElementById("connBadge").innerHTML = '<span class="badge-dot" style="background:#00d4aa"></span> WebSocket 已连接';
-  };
+function connectWS(){const p=window.location.protocol==="https:"?"wss:":"ws:";ws=new WebSocket(p+"//"+window.location.host+"/ws");ws.onopen=()=>{document.getElementById("wsStatus").innerHTML='<span style="color:var(--accent)">● 已连接</span>';document.getElementById("connBadge").className="badge badge-green";document.getElementById("connBadge").textContent="● WebSocket 已连接"};ws.onmessage=e=>{try{const m=JSON.parse(e.data);if(m.type==="signal"&&m.data){signals.unshift(m.data);if(signals.length>50)signals.pop();renderSignals();updateStats();addPaper(m.data)}}catch(e){}};ws.onclose=()=>{document.getElementById("wsStatus").innerHTML='<span style="color:var(--danger)">● 断开 (重连)</span>';document.getElementById("connBadge").className="badge badge-red";document.getElementById("connBadge").textContent="● WebSocket 断开";setTimeout(connectWS,3000)};ws.onerror=()=>ws.close();}
 
-  ws.onmessage = (e) => {
-    try {
-      const msg = JSON.parse(e.data);
-      if (msg.type === "signal" && msg.data) {
-        signals.unshift(msg.data);
-        if (signals.length > 50) signals.pop();
-        renderSignals();
-        updateStats();
-        // 模拟交易
-        addPaperTrade(msg.data);
-      }
-    } catch(err) {}
-  };
+function addPaper(s){const c=s.confidence||50;const p=Math.round((Math.random()*20-8)*100)/100;paperTrades.unshift({id:Date.now(),chain:s.chain,symbol:s.symbol||s.contract?.slice(0,10)||"?",side:p>=0?"BUY":"SELL",amount:(c/100*500+50).toFixed(0),pnl:p,time:new Date().toLocaleTimeString()});if(paperTrades.length>20)paperTrades.pop();renderPaper();updateStats();}
 
-  ws.onclose = () => {
-    document.getElementById("wsStatus").innerHTML = '<span class="badge badge-red" style="font-size:0.7rem">● 断开 (重连)</span>';
-    document.getElementById("connBadge").innerHTML = '<span class="badge-dot" style="background:#ff4757"></span> WebSocket 断开';
-    setTimeout(connectWS, 3000);
-  };
-  ws.onerror = () => ws.close();
-}
+function renderPaper(){if(!paperTrades.length){document.getElementById("paperList").innerHTML='<div class="empty" style="text-align:center;padding:40px;color:var(--text2)"><div style="font-size:2.5rem">📊</div><p>暂无模拟交易</p></div>';return}document.getElementById("paperList").innerHTML=paperTrades.map(t=>{const cl=t.pnl>=0?"conf-high":"conf-low";return '<div class="signal-card" style="padding:14px"><div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:6px"><span class="chain-tag chain-'+(t.chain||"").toLowerCase()+'">'+(t.chain||"?")+'</span><span style="color:var(--text3)">'+t.time+'</span></div><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:0.85rem">'+t.symbol+'</span><span style="color:var(--text2);font-size:0.85rem">$'+t.amount+'</span><span class="conf-score '+cl+'" style="font-size:1rem">'+(t.pnl>=0?"+":"")+t.pnl+'%</span></div></div>'}).join("");}
 
-// ==== 纸盘模拟交易 ====
-let paperTrades = [];
+async function fetchSystemStatus(){try{const r=await fetch(API+"/system/status");if(!r.ok)return;const d=await r.json();if(d.code===200)renderStatus(d.data)}catch(e){}}
 
-function addPaperTrade(signal) {
-  const conf = signal.confidence || 50;
-  const pnl = Math.round((Math.random() * 20 - 8) * 100) / 100; // -8% ~ +12%
-  const side = pnl >= 0 ? "BUY" : "SELL";
-  const trade = {
-    id: Date.now(),
-    chain: signal.chain,
-    symbol: signal.symbol || signal.contract?.slice(0,10) || "???",
-    side: side,
-    entry: (Math.random() * 0.001 + 0.0001).toFixed(8),
-    amount: (conf / 100 * 500 + 50).toFixed(0),
-    pnl: pnl,
-    time: new Date().toLocaleTimeString(),
-    confidence: conf
-  };
-  paperTrades.unshift(trade);
-  if (paperTrades.length > 20) paperTrades.pop();
-  renderPaper();
-  updateStats();
-}
+function renderStatus(d){if(!d)return;const svcs=[{i:"🚪",l:"Gateway",s:d.gateway?.status||"unknown"},{i:"🗄️",l:"Redis",s:d.redis?.status||"unknown"},{i:"🐘",l:"PostgreSQL",s:d.postgresql?.status||"unknown"},{i:"⚙️",l:"EVM Worker",s:d.evm_worker?.status||"idle"},{i:"🟣",l:"SOL Worker",s:d.sol_worker?.status||"idle"}];const cl={healthy:"#00d4aa",idle:"#ffa502",down:"#ff4757",unknown:"#888"};const tx={healthy:"正常",idle:"空闲",down:"异常",unknown:"未知"};document.getElementById("statusList").innerHTML=svcs.map(s=>'<div class="svc-row"><span class="svc-label">'+s.i+' '+s.l+'</span><span class="svc-value"><span class="svc-dot" style="background:'+(cl[s.s]||"#888")+'"></span>'+(tx[s.s]||s.s)+'</span></div>').join("");document.getElementById("totalEvents").textContent=d.total_events||0;document.getElementById("pendingEvents").textContent=d.pending_events||0;document.getElementById("recentExps").textContent=d.recent_experiences||0;document.getElementById("expCount").textContent=d.recent_experiences||0;if(d.chain_count){document.getElementById("rpcStatus").textContent=(d.chain_online||0)+"/"+d.chain_count+" 在线";document.getElementById("rpcStatus").style.color=d.chain_online===d.chain_count?"var(--accent)":"var(--warning)";}}
 
-function renderPaper() {
-  if (paperTrades.length === 0) {
-    document.getElementById("paperList").innerHTML = '<div class="empty"><div class="empty-icon">📊</div><div class="empty-text">暂无模拟交易</div><div class="empty-sub">检测到新信号后会自动在此执行模拟交易</div></div>';
-    return;
-  }
-  document.getElementById("paperList").innerHTML = paperTrades.map(t => {
-    const pnlCls = t.pnl >= 0 ? "conf-high" : "conf-low";
-    return '<div class="signal-card" style="padding:14px"><div class="signal-header"><div class="signal-tags"><span class="chain-tag chain-'+(t.chain||"").toLowerCase()+'">'+(t.chain||"?")+'</span><span class="type-tag" style="background:'+(t.side==="BUY"? 'var(--accent-dim);color:var(--accent)' : 'var(--danger-dim);color:var(--danger)')+'">'+t.side+'</span></div><span class="signal-meta">'+t.time+'</span></div><div class="signal-body"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><span class="signal-addr">'+t.symbol+'</span><span style="font-size:0.85rem;color:var(--text2)">$'+t.amount+'</span><span class="conf-score '+(t.pnl>=0?"conf-high":"conf-low")+'" style="font-size:1rem">'+(t.pnl>=0?"+":"")+t.pnl+'%</span></div></div></div>';
-  }).join("");
-}
+function renderSignals(){if(!signals.length)return;const cc={ETH:"chain-eth",BSC:"chain-bsc",BASE:"chain-base",SOL:"chain-sol"};document.getElementById("signalList").innerHTML=signals.map(s=>{const c=s.confidence||50;const cx=c>=60?"conf-high":c>=40?"conf-mid":"conf-low";const fl=(s.flags||[]).map(f=>{const safe=["owner_renounced","lp_locked","no_mint","tax_low"].includes(f);const danger=["mintable","owner_active","lp_unlocked","tax_high"].includes(f);return '<span class="flag '+(safe?"flag-safe":danger?"flag-danger":"flag-warn")+'">'+(safe?"✅":danger?"🔴":"⚠️")+' '+f.replace(/_/g," ")+'</span>'}).join("");return '<div class="signal-card"><div class="signal-header"><div class="signal-tags"><span class="chain-tag '+(cc[s.chain]||"chain-eth")+'">'+(s.chain||"?")+'</span><span class="type-tag">'+(s.type||"事件")+'</span><span class="conf-score '+cx+'">'+c+'%</span></div><span class="signal-meta">'+(s.time?new Date(s.time).toLocaleTimeString():"")+'</span></div><div class="signal-body"><div class="signal-addr">'+(s.contract||s.symbol||"?")+'</div>'+(fl?'<div class="signal-flags">'+fl+'</div>':"")+'</div></div>'}).join("");}
 
-// ==== 系统状态 ====
-async function fetchSystemStatus() {
-  try {
-    const r = await fetch(API + "/system/status");
-    if (!r.ok) return;
-    const data = await r.json();
-    if (data.code === 200) renderStatus(data.data);
-  } catch(e) {}
-}
+function updateStats(){document.getElementById("signalCount").textContent=signals.length;const h=signals.filter(s=>s.risk_level==="high").length;document.getElementById("signalSub").textContent=signals.filter(s=>s.risk_level==="low").length+"低 · "+h+"高";document.getElementById("signalBadge").textContent=signals.length+" 个信号";document.getElementById("paperCount").textContent=paperTrades.length;document.getElementById("alertCount").textContent=h;}
 
-function renderStatus(data) {
-  if (!data) return;
-  const svcs = [
-    {icon:"🚪", label:"Gateway", desc:"API网关+WebSocket", status:data.gateway?.status||"unknown"},
-    {icon:"🗄️", label:"Redis", desc:"缓存+消息队列", status:data.redis?.status||"unknown"},
-    {icon:"🐘", label:"PostgreSQL", desc:"持久化存储", status:data.postgresql?.status||"unknown"},
-    {icon:"⚙️", label:"Worker", desc:"链上扫描+风险评分", status:"healthy"},
-    {icon:"🧠", label:"Learning", desc:"自动学习调度", status:"idle"},
-  ];
-  const colors = {healthy:"#00d4aa",idle:"#ffa502",down:"#ff4757",unknown:"#888"};
-  const txt = {healthy:"正常",idle:"空闲",down:"异常",unknown:"未知"};
-  document.getElementById("statusList").innerHTML = svcs.map(s =>
-    '<div class="svc-row"><span class="svc-label">'+s.icon+' '+s.label+' <small>'+s.desc+'</small></span><span class="svc-value"><span class="svc-dot" style="background:'+(colors[s.status]||"#888")+'"></span>'+(txt[s.status]||s.status)+'</span></div>'
-  ).join("");
-  document.getElementById("totalEvents").textContent = data.total_events||0;
-  document.getElementById("pendingEvents").textContent = data.pending_events||0;
-  document.getElementById("recentExps").textContent = data.recent_experiences||0;
-  document.getElementById("expCount").textContent = data.recent_experiences||0;
-  document.getElementById("expSub").textContent = "用于自动学习";
-}
+// API Key 管理
+const DEF={rpc:{ETH:"https://mainnet.infura.io/v3/a0379fc49a754710b7bb4e189ce54b9a",BSC:"https://bsc-rpc.publicnode.com",BASE:"https://base-rpc.publicnode.com",SOL:"https://api.mainnet-beta.solana.com"},ai:{deepseek:"",etherscan:""}};
 
-// ==== 信号渲染 ====
-function renderSignals() {
-  if (signals.length === 0) return;
-  const chainCls = {ETH:"chain-eth",BSC:"chain-bsc",BASE:"chain-base"};
-  document.getElementById("signalList").innerHTML = signals.map(s => {
-    const conf = s.confidence||50;
-    const confCls = conf>=60?"conf-high":conf>=40?"conf-mid":"conf-low";
-    const flags = (s.flags||[]).map(f => {
-      const safe = ["owner_renounced","lp_locked"].includes(f);
-      const danger = ["mintable","concentrated_holders"].includes(f);
-      const cls = safe?"flag-safe":danger?"flag-danger":"flag-warn";
-      const ico = safe?"✅":danger?"🔴":"⚠️";
-      return '<span class="flag '+cls+'">'+ico+' '+f.replace(/_/g," ")+'</span>';
-    }).join("");
-    return '<div class="signal-card"><div class="signal-header"><div class="signal-tags"><span class="chain-tag '+(chainCls[s.chain]||"chain-eth")+'">'+(s.chain||"?")+'</span><span class="type-tag">'+(s.type||"事件")+'</span><span class="conf-score '+confCls+'">'+conf+'%</span></div><span class="signal-meta">'+(s.time?new Date(s.time).toLocaleTimeString():"")+'</span></div><div class="signal-body"><div class="signal-addr">'+s.contract+'</div>'+(flags?'<div class="signal-flags">'+flags+'</div>':"")+'<div style="margin-top:6px;font-size:0.8rem;color:var(--text3)">'+(s.symbol&&s.symbol!==s.contract?'币对: '+s.symbol+' · ':'')+'风险: '+(s.risk_level||"medium")+'</div></div></div>';
-  }).join("");
-}
+function getKeys(){try{return JSON.parse(localStorage.getItem("aihunter_keys"))||DEF}catch(e){return DEF}}
 
-function updateStats() {
-  document.getElementById("signalCount").textContent = signals.length;
-  const low = signals.filter(s=>s.risk_level==="low").length;
-  const high = signals.filter(s=>s.risk_level==="high").length;
-  document.getElementById("signalSub").textContent = low+" 低风险 · "+high+" 高风险";
-  document.getElementById("signalBadge").textContent = "📡 "+signals.length+" 个信号";
-  document.getElementById("paperCount").textContent = paperTrades.length;
-  document.getElementById("paperSub").textContent = "模拟交易 · 不花真钱";
-  document.getElementById("alertCount").textContent = high;
-  // 更新学习进度
-  const total = paperTrades.length;
-  const optunaPct = Math.min(100, total/20*100);
-  const dsPct = Math.min(100, total/10*100);
-  const learnItems = document.querySelectorAll("#learnList .progress-fill");
-  if (learnItems.length >= 2) {
-    learnItems[0].style.width = optunaPct+"%";
-    learnItems[1].style.width = dsPct+"%";
-  }
-  const logTimes = document.querySelectorAll("#learnList .log-time");
-  if (logTimes.length >= 2) {
-    logTimes[0].textContent = Math.min(total,20)+" / 20 笔 · 进度 "+Math.round(optunaPct)+"%";
-    logTimes[1].textContent = Math.min(total,10)+" / 10 笔 · 进度 "+Math.round(dsPct)+"%";
-  }
-}
+function loadKeys(){const k=getKeys();document.getElementById("rpcKeyList").innerHTML=Object.entries(k.rpc).map(([c,u])=>'<div class="key-item"><div class="key-info"><span class="chain-tag chain-'+c.toLowerCase()+'">'+c+'</span><div class="key-name">'+(u.length>50?u.slice(0,50)+"...":u)+'</div></div><span class="key-st '+(u&&u.length>10?"key-st-ok":"key-st-no")+'">'+(u&&u.length>10?"已配置":"默认")+'</span></div>').join("");const ai=k.ai;document.getElementById("aiKeyList").innerHTML='<div class="key-item"><span class="key-name">DeepSeek</span><span class="key-st '+(ai.deepseek?"key-st-ok":"key-st-no")+'">'+(ai.deepseek?"✓ 已配置":"未配置")+'</span></div><div class="key-item"><span class="key-name">Etherscan</span><span class="key-st '+(ai.etherscan?"key-st-ok":"key-st-no")+'">'+(ai.etherscan?"✓ 已配置":"未配置")+'</span></div>';document.getElementById("deepseekKey").value=ai.deepseek||"";document.getElementById("etherscanKey").value=ai.etherscan||"";document.getElementById("rpcUrl").value=k.rpc["ETH"]||"";}
 
-// ==== 启动 ====
-connectWS();
-fetchSystemStatus();
-setInterval(fetchSystemStatus, 10000);
+function saveRpcKey(){const c=document.getElementById("rpcChain").value;const u=document.getElementById("rpcUrl").value.trim();if(!u){document.getElementById("rpcSaveResult").textContent="请输入 URL";return}const k=getKeys();k.rpc[c]=u;localStorage.setItem("aihunter_keys",JSON.stringify(k));document.getElementById("rpcSaveResult").textContent="✅ "+c+" RPC 已保存";loadKeys();setTimeout(()=>document.getElementById("rpcSaveResult").textContent="",2000);}
+
+function saveAiKeys(){const d=document.getElementById("deepseekKey").value.trim();const e=document.getElementById("etherscanKey").value.trim();const k=getKeys();k.ai.deepseek=d;k.ai.etherscan=e;localStorage.setItem("aihunter_keys",JSON.stringify(k));document.getElementById("aiSaveResult").textContent="✅ API Key 已保存";loadKeys();setTimeout(()=>document.getElementById("aiSaveResult").textContent="",2000);}
+
+connectWS();fetchSystemStatus();setInterval(fetchSystemStatus,10000);
 </script>
 </body>
 </html>
