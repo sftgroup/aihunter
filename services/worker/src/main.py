@@ -560,9 +560,7 @@ class ChainWorker:
                 signal = await self.analyze_contract(chain, token0, token1, pair_addr, tx_hash)
                 
                 if signal:
-                    await self.redis.publish('trade:signals', json.dumps(signal))
-                    
-                    # ===== 规则过滤：只有符合条件的才执行模拟交易 =====
+                    # 规则过滤
                     risk_level = signal.get('risk_level', 'medium')
                     confidence = signal.get('confidence', 0) or 0
                     flags = signal.get('flags', []) or []
@@ -570,23 +568,21 @@ class ChainWorker:
                     should_trade = True
                     reject_reasons = []
                     
-                    # 核心判断逻辑：
-                    # 1. 高风险 + 信心<60 → 跳过
-                    # 2. 可增发(mintable) + 没锁LP(lp_unlocked) → 跳过（貔貅特征）
-                    # 3. 税过高(tax_high) → 跳过
-                    # 4. 其他情况允许买入
-                    
                     if risk_level == 'high' and confidence < 60:
                         should_trade = False
                         reject_reasons.append('高风险+信心不足')
-                    
                     if 'mintable' in flags and 'lp_locked' not in flags:
                         should_trade = False
                         reject_reasons.append('貔貅特征(可增发+LP未锁)')
-                    
                     if 'tax_high' in flags and confidence < 70:
                         should_trade = False
                         reject_reasons.append('税过高')
+                    
+                    # 将模拟交易判断写入信号
+                    signal['paper_trade'] = 'yes' if should_trade else 'no'
+                    signal['paper_reason'] = '规则通过' if should_trade else ('; '.join(reject_reasons))
+                    
+                    await self.redis.publish('trade:signals', json.dumps(signal))
                     
                     if should_trade:
                         try:

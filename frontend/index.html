@@ -7,46 +7,48 @@
 <style>
 :root{--bg:#0b0b14;--card:#1a1a2e;--accent:#00d4aa;--danger:#ff4757;--warning:#ffa502;--text:#ececf4;--text2:#8888aa;--radius:12px}
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:var(--bg);color:var(--text);font-family:sans-serif;padding:20px;max-width:1400px;margin:0 auto}
+body{background:var(--bg);color:var(--text);font-family:sans-serif;padding:20px;max-width:1400px;margin:0 auto;min-height:100vh}
 .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px}
 .logo{display:flex;align-items:center;gap:12px}
 .logo-icon{width:40px;height:40px;border-radius:10px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:20px}
-.badge{padding:4px 12px;border-radius:100px;font-size:0.8rem}
+.badge{padding:4px 12px;border-radius:100px;font-size:0.8rem;display:inline-flex;align-items:center;gap:4px}
 .badge-green{background:rgba(0,212,170,.15);color:var(--accent)}
 .badge-blue{background:rgba(71,130,255,.12);color:#4782ff}
+.badge-yellow{background:rgba(255,165,2,.12);color:var(--warning)}
 .tab-bar{display:flex;gap:4px;margin-bottom:20px;flex-wrap:wrap}
 .tab{padding:8px 16px;border-radius:8px;font-size:0.9rem;cursor:pointer;background:var(--card);color:var(--text2);border:none;font-weight:500}
 .tab.active{background:rgba(0,212,170,.15);color:var(--accent)}
 .card{background:var(--card);border-radius:var(--radius);padding:20px;margin-bottom:16px;border:1px solid rgba(255,255,255,.05)}
-.card-title{font-size:1rem;font-weight:600;margin-bottom:12px}
+.card-title{font-size:1rem;font-weight:600;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
 .panel{display:none}.panel.active{display:block}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 @media(max-width:800px){.grid-2{grid-template-columns:1fr}}
 .stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
 .stat-card{background:var(--card);border-radius:var(--radius);padding:16px;text-align:center}
 .stat-num{font-size:1.6rem;font-weight:700}
-.stat-num-green{color:var(--accent)}.stat-num-blue{color:#4782ff}
+.stat-num-green{color:var(--accent)}.stat-num-blue{color:#4782ff}.stat-num-yellow{color:var(--warning)}
 .green{color:var(--accent)}.red{color:var(--danger)}
-.signal-card{padding:14px;background:rgba(255,255,255,.02);border-radius:10px;margin-bottom:10px}
-.signal-tags{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.signal-card{padding:14px;background:rgba(255,255,255,.02);border-radius:10px;margin-bottom:10px;border:1px solid rgba(255,255,255,.04)}
+.signal-tags{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
 .chain-tag{padding:2px 10px;border-radius:100px;font-size:0.75rem}
-.chain-eth{background:rgba(98,126,234,.15);color:#627eea}
-.chain-bsc{background:rgba(240,185,11,.15);color:#f0b90b}
-.chain-base{background:rgba(0,82,255,.15);color:#0052ff}
-.chain-sol{background:rgba(153,69,255,.15);color:#9945ff}
+.chain-eth{background:rgba(98,126,234,.15);color:#627eea}.chain-bsc{background:rgba(240,185,11,.15);color:#f0b90b}
+.chain-base{background:rgba(0,82,255,.15);color:#0052ff}.chain-sol{background:rgba(153,69,255,.15);color:#9945ff}
 .conf-score{font-size:1.1rem;font-weight:700}
 .conf-high{color:var(--accent)}.conf-mid{color:var(--warning)}.conf-low{color:var(--danger)}
 .flag{padding:2px 8px;border-radius:4px;font-size:0.7rem}
 .flag-safe{background:rgba(0,212,170,.12);color:var(--accent)}
 .flag-warn{background:rgba(255,165,2,.12);color:var(--warning)}
 .flag-danger{background:rgba(255,71,87,.12);color:var(--danger)}
+.trade-tag{font-size:0.7rem;padding:2px 8px;border-radius:4px}
+.trade-yes{background:rgba(0,212,170,.12);color:var(--accent)}
+.trade-no{background:rgba(255,71,87,.12);color:var(--danger)}
+.trade-pending{background:rgba(255,165,2,.12);color:var(--warning)}
 .signal-addr{font-family:monospace;font-size:0.8rem;color:var(--text2);word-break:break-all}
-.signal-flags{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
 .signal-meta{font-size:0.8rem;color:var(--text3)}
 .svc-row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:0.85rem}
 .svc-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
 table{width:100%;border-collapse:collapse;font-size:0.8rem}
-th{padding:8px;text-align:left;color:var(--text3);border-bottom:1px solid rgba(255,255,255,.06)}
+th{padding:8px;text-align:left;color:var(--text3);border-bottom:1px solid rgba(255,255,255,.06);font-weight:500}
 td{padding:8px;border-bottom:1px solid rgba(255,255,255,.04)}
 input,select{width:100%;padding:10px;border-radius:8px;background:var(--bg);border:1px solid rgba(255,255,255,.08);color:var(--text);font-size:0.85rem;font-family:monospace;outline:none}
 input:focus{border-color:var(--accent)}
@@ -69,6 +71,7 @@ input:focus{border-color:var(--accent)}
   <button class="tab" onclick="switchTab('system')">⚙️ 系统</button>
 </div>
 
+<!-- ===== 信号 ===== -->
 <div id="panel-signals" class="panel active">
   <div class="card">
     <div class="card-title">📡 实时信号 <span id="wsStatus" style="font-size:0.8rem;color:var(--warning)">● 连接中</span></div>
@@ -76,19 +79,36 @@ input:focus{border-color:var(--accent)}
   </div>
 </div>
 
+<!-- ===== 交易 ===== -->
 <div id="panel-trades" class="panel">
   <div class="stat-row">
-    <div class="stat-card"><div class="stat-num stat-num-green" id="paperBalance">$10,000</div><div>余额</div></div>
-    <div class="stat-card"><div class="stat-num" id="paperTotalPnl" style="color:#888">$0.00</div><div>盈亏</div></div>
-    <div class="stat-card"><div class="stat-num stat-num-blue" id="paperWinRate">0%</div><div>胜率</div></div>
-    <div class="stat-card"><div class="stat-num" id="paperTotalTrades">0</div><div>交易数</div></div>
+    <div class="stat-card"><div class="stat-num stat-num-green" id="paperBalance">$10,000</div><div>模拟余额</div></div>
+    <div class="stat-card"><div class="stat-num" id="paperTotalPnl" style="color:#888">$0.00</div><div>模拟盈亏</div></div>
+    <div class="stat-card"><div class="stat-num stat-num-blue" id="paperWinRate">0%</div><div>模拟胜率</div></div>
+    <div class="stat-card"><div class="stat-num" id="paperTotalTrades">0</div><div>模拟交易</div></div>
   </div>
-  <div class="grid-2">
-    <div class="card"><div class="card-title">📈 持仓</div><div id="openPositions"><div class="empty"><p>暂无</p></div></div></div>
-    <div class="card"><div class="card-title">📜 记录</div><div id="closedTrades"><div class="empty"><p>暂无</p></div></div></div>
+  <div style="margin-bottom:12px">
+    <button class="tab active" onclick="switchTradeTab('paper')">🧪 模拟交易</button>
+    <button class="tab" onclick="switchTradeTab('real')">💰 真实交易</button>
+  </div>
+  <div id="trade-paper" class="panel active">
+    <div class="grid-2">
+      <div class="card"><div class="card-title">📈 当前持仓</div><div id="openPositions"><div class="empty"><p>暂无</p></div></div></div>
+      <div class="card"><div class="card-title">📜 交易记录</div><div id="closedTrades"><div class="empty"><p>暂无</p></div></div></div>
+    </div>
+  </div>
+  <div id="trade-real" class="panel">
+    <div class="card">
+      <div class="card-title">💰 真实交易</div>
+      <div class="empty">
+        <p>🔑 配置 SessionKey 后可开启实盘交易</p>
+        <p style="font-size:0.8rem;color:var(--text2);margin-top:8px">SessionKey 用于免逐笔签名，限额可控，可随时撤销</p>
+      </div>
+    </div>
   </div>
 </div>
 
+<!-- ===== 配置 ===== -->
 <div id="panel-config" class="panel">
   <div class="grid-2">
     <div class="card">
@@ -112,7 +132,7 @@ input:focus{border-color:var(--accent)}
       <span id="aiResult" style="margin-left:8px;font-size:0.8rem"></span>
     </div>
     <div class="card">
-      <div class="card-title">🔗 RPC</div>
+      <div class="card-title">🔗 RPC 节点</div>
       <div id="rpcList"></div>
       <div style="margin:12px 0;display:flex;gap:8px;flex-wrap:wrap">
         <select id="rpcChain" style="width:auto">
@@ -129,13 +149,14 @@ input:focus{border-color:var(--accent)}
   </div>
 </div>
 
+<!-- ===== 系统 ===== -->
 <div id="panel-system" class="panel">
   <div class="card">
-    <div class="card-title">🖥️ 状态</div>
+    <div class="card-title">🖥️ 服务状态</div>
     <div id="statusList"></div>
   </div>
   <div class="card">
-    <div class="card-title">📊 统计</div>
+    <div class="card-title">📊 统计数据</div>
     <div class="grid-2">
       <div>事件: <b id="totalEvents">-</b></div>
       <div>待处理: <b id="pendingEvents">-</b></div>
@@ -153,24 +174,34 @@ var signals = [];
 var ws = null;
 
 function switchTab(name) {
-  var tabs = document.querySelectorAll('.tab');
-  for (var i = 0; i < tabs.length; i++) {
-    tabs[i].classList.remove('active');
-  }
-  var tabMap = {signals:0, trades:1, config:2, system:3};
-  tabs[tabMap[name]].classList.add('active');
-  
-  var panels = ['signals','trades','config','system'];
-  for (var j = 0; j < panels.length; j++) {
-    var el = document.getElementById('panel-' + panels[j]);
-    if (el) {
-      el.className = panels[j] === name ? 'panel active' : 'panel';
-    }
-  }
-  
+  var tabs = document.querySelectorAll('.tab-bar > .tab');
+  for (var i = 0; i < tabs.length; i++) tabs[i].classList.remove('active');
+  var map = {signals:0, trades:1, config:2, system:3};
+  tabs[map[name]].classList.add('active');
+  ['signals','trades','config','system'].forEach(function(p){
+    var el = document.getElementById('panel-'+p);
+    if (el) el.className = p === name ? 'panel active' : 'panel';
+  });
   if (name === 'trades') loadTrades();
   if (name === 'config') loadConfig();
   if (name === 'system') loadSystem();
+}
+
+function switchTradeTab(name) {
+  var btns = document.querySelectorAll('#panel-trades .tab-bar ~ .tab');
+  // 实际用父级选择
+  var parent = document.getElementById('panel-trades');
+  var tabs = parent.querySelectorAll('.tab');
+  for (var i = 0; i < tabs.length; i++) tabs[i].classList.remove('active');
+  // 找到对应按钮
+  for (var j = 0; j < tabs.length; j++) {
+    if (name === 'paper' && tabs[j].textContent.indexOf('模拟') >= 0) tabs[j].classList.add('active');
+    if (name === 'real' && tabs[j].textContent.indexOf('真实') >= 0) tabs[j].classList.add('active');
+  }
+  var p1 = document.getElementById('trade-paper');
+  var p2 = document.getElementById('trade-real');
+  if (p1) p1.className = name === 'paper' ? 'panel active' : 'panel';
+  if (p2) p2.className = name === 'real' ? 'panel active' : 'panel';
 }
 
 function connectWS() {
@@ -189,13 +220,11 @@ function connectWS() {
         var key = d.chain + '_' + (d.contract || d.symbol || '');
         var found = false;
         for (var k = 0; k < signals.length; k++) {
-          if (signals[k]._key === key) {
-            found = true;
-            break;
-          }
+          if (signals[k]._key === key) { found = true; break; }
         }
         if (!found) {
           d._key = key;
+          d._time = new Date().getTime();
           signals.unshift(d);
           if (signals.length > 50) signals.pop();
           renderSignals();
@@ -221,6 +250,8 @@ function renderSignals() {
     var s = signals[i];
     var c = s.confidence || 50;
     var cx = c >= 60 ? 'conf-high' : (c >= 40 ? 'conf-mid' : 'conf-low');
+    
+    // 标记
     var fl = '';
     if (s.flags) {
       for (var f = 0; f < s.flags.length; f++) {
@@ -231,10 +262,19 @@ function renderSignals() {
         fl += '<span class="flag ' + cls + '">' + ico + ' ' + s.flags[f].replace(/_/g,' ') + '</span>';
       }
     }
+    
+    // 模拟交易状态
+    var pt = s.paper_trade || 'pending';
+    var ptCls = pt === 'yes' ? 'trade-yes' : (pt === 'no' ? 'trade-no' : 'trade-pending');
+    var ptTxt = pt === 'yes' ? '✅ 已买入' : (pt === 'no' ? '⛔ 跳过' : '⏳ 待判断');
+    var ptReason = s.paper_reason || '';
+    if (ptReason) ptTxt += ' · ' + ptReason;
+    
     html += '<div class="signal-card">';
     html += '<div class="signal-tags"><span class="chain-tag ' + (cc[s.chain] || 'chain-eth') + '">' + (s.chain || '?') + '</span><span class="conf-score ' + cx + '">' + c + '%</span><span class="signal-meta">' + (s.time ? new Date(s.time).toLocaleTimeString() : '') + '</span></div>';
     html += '<div class="signal-addr">' + (s.contract || s.symbol || '?') + '</div>';
-    if (fl) html += '<div class="signal-flags">' + fl + '</div>';
+    if (fl) html += '<div style="margin-top:4px">' + fl + '</div>';
+    html += '<div style="margin-top:6px"><span class="trade-tag ' + ptCls + '">🧪 ' + ptTxt + '</span></div>';
     html += '</div>';
   }
   document.getElementById('signalList').innerHTML = html;
@@ -259,9 +299,9 @@ function loadTrades() {
       if (ops.length === 0) {
         document.getElementById('openPositions').innerHTML = '<div class="empty"><p>暂无持仓</p></div>';
       } else {
-        var h = '<table><tr><th>链</th><th>代币</th><th>金额</th><th>信心</th></tr>';
+        var h = '<table><tr><th>链</th><th>代币</th><th>金额</th><th>信心</th><th>滑点</th></tr>';
         for (var i = 0; i < ops.length; i++) {
-          h += '<tr><td>' + ops[i].chain + '</td><td>' + (ops[i].symbol || '').slice(0,14) + '</td><td>$' + ops[i].amount_usd + '</td><td>' + ops[i].confidence + '%</td></tr>';
+          h += '<tr><td>' + ops[i].chain + '</td><td>' + (ops[i].symbol || '').slice(0,14) + '</td><td>$' + ops[i].amount_usd + '</td><td>' + ops[i].confidence + '%</td><td>' + ops[i].price_impact + '%</td></tr>';
         }
         h += '</table>';
         document.getElementById('openPositions').innerHTML = h;
@@ -332,9 +372,8 @@ function loadConfig() {
       if (d.code !== 200) return;
       var ai = d.data || {};
       document.getElementById('aiApiKey').value = ai['ai.api_key'] || '';
-      var prov = ai['ai.provider'] || 'deepseek';
-      document.getElementById('aiProvider').value = prov;
-      document.getElementById('aiConfigStatus').innerHTML = '<div class="key-item"><span>' + prov + '</span><span class="badge ' + (ai['ai.api_key'] ? 'badge-green' : '') + '">' + (ai['ai.api_key'] ? '已配置' : '未配置') + '</span></div>';
+      document.getElementById('aiProvider').value = ai['ai.provider'] || 'deepseek';
+      document.getElementById('aiConfigStatus').innerHTML = '<div class="key-item"><span>' + (ai['ai.provider'] || '未设置') + '</span><span class="badge ' + (ai['ai.api_key'] ? 'badge-green' : '') + '">' + (ai['ai.api_key'] ? '已配置' : '未配置') + '</span></div>';
     } catch(e) {}
   };
   xhr.send();
