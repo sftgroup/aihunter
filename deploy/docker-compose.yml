@@ -93,14 +93,14 @@ services:
           cpus: '0.5'
           memory: 400M
     environment:
-      CHAINS: ETH,BSC,BASE
+      CHAINS: ETH,BSC,BASE,SOL
       DATABASE_URL: postgresql://aihunter:aihunter2025@postgres:5432/aihunter
       REDIS_URL: redis://redis:6379
       RPC_URL_BASE: ${RPC_URL_BASE:-https://base-rpc.publicnode.com}
       RPC_URL_BSC: ${RPC_URL_BSC:-https://bsc-rpc.publicnode.com}
       RPC_URL_ETH: ${RPC_URL_ETH:-https://ethereum-rpc.publicnode.com}
+      RPC_URL_SOL: ${RPC_URL_SOL:-https://api.mainnet-beta.solana.com}
     restart: unless-stopped
-version: '3.8'
 volumes:
   pgdata: {}
   redisdata: {}
