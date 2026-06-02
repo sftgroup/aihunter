@@ -2,256 +2,255 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>AIHunter - 链上交易自动化引擎</title>
 <style>
-:root{--bg:#0b0b14;--card:#16162a;--card-hover:#1e1e38;--accent:#00d4aa;--accent-dim:rgba(0,212,170,0.12);--danger:#ff4757;--danger-dim:rgba(255,71,87,0.12);--warning:#ffa502;--warning-dim:rgba(255,165,2,0.12);--blue:#4782ff;--purple:#7c3aed;--text:#ececf4;--text2:#8888aa;--text3:#5a5a78;--radius:14px;--shadow:0 2px 20px rgba(0,0,0,.3)}
+:root{--bg:#0b0b14;--card:#1a1a2e;--card-hover:#252540;--accent:#00d4aa;--accent-dim:rgba(0,212,170,0.12);--danger:#ff4757;--danger-dim:rgba(255,71,87,0.12);--warning:#ffa502;--warning-dim:rgba(255,165,2,0.12);--blue:#4782ff;--text:#ececf4;--text2:#8888aa;--text3:#5a5a78;--radius:12px}
 *{margin:0;padding:0;box-sizing:border-box}
 html{font-size:16px}
-body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:20px;min-height:100vh;line-height:1.5;max-width:1400px;margin:0 auto}
-h1{font-size:1.5rem;font-weight:700}
-h2{font-size:1.2rem;font-weight:600}
-.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:16px}
-.logo{display:flex;align-items:center;gap:14px}
-.logo-icon{width:48px;height:48px;border-radius:14px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:26px;box-shadow:0 0 30px var(--accent-dim)}
-.logo-desc{font-size:0.85rem;color:var(--text2);margin-top:2px}
-.badges{display:flex;gap:10px;flex-wrap:wrap}
-.badge{padding:6px 16px;border-radius:100px;font-size:0.8rem;font-weight:500;display:inline-flex;align-items:center;gap:6px}
-.badge-green{background:var(--accent-dim);color:var(--accent)}.badge-red{background:var(--danger-dim);color:var(--danger)}.badge-yellow{background:var(--warning-dim);color:var(--warning)}.badge-blue{background:rgba(71,130,255,.12);color:var(--blue)}
-.tab-bar{display:flex;gap:6px;margin-bottom:24px;flex-wrap:wrap}
-.tab{padding:10px 20px;border-radius:10px;font-size:0.9rem;cursor:pointer;background:var(--card);color:var(--text2);border:1px solid transparent;transition:.2s;font-weight:500}
-.tab:hover{background:var(--card-hover);border-color:rgba(255,255,255,.08)}
-.tab.active{background:var(--accent-dim);color:var(--accent);border-color:var(--accent)}
-.grid{display:grid;gap:20px}
-.grid-2{grid-template-columns:1fr 1fr}@media(max-width:1000px){.grid-2{grid-template-columns:1fr}}
-.card{background:var(--card);border-radius:var(--radius);padding:24px;border:1px solid rgba(255,255,255,.05);box-shadow:var(--shadow);transition:.2s}
-.card-title{font-size:1.05rem;font-weight:600;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
-.card-desc{font-size:0.8rem;color:var(--text3);margin-bottom:18px;line-height:1.6}
-.card-divider{height:1px;background:rgba(255,255,255,.05);margin:18px 0}
-.signal-card{background:rgba(255,255,255,.02);border-radius:12px;padding:18px;margin-bottom:12px;border:1px solid rgba(255,255,255,.04);transition:.2s}
-.signal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px}
-.signal-tags{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.signal-meta{font-size:0.85rem;color:var(--text3)}
-.signal-body{margin-bottom:8px}
-.signal-addr{font-family:monospace;font-size:0.85rem;color:var(--text2);word-break:break-all}
-.signal-flags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-.flag{font-size:0.75rem;padding:3px 10px;border-radius:6px;background:rgba(255,255,255,.05);color:var(--text2);display:inline-flex;align-items:center;gap:4px}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,sans-serif;padding:20px;max-width:1400px;margin:0 auto;min-height:100vh}
+h1{font-size:1.4rem}
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px}
+.logo{display:flex;align-items:center;gap:12px}
+.logo-icon{width:40px;height:40px;border-radius:10px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:22px}
+.logo-desc{font-size:0.8rem;color:var(--text2)}
+.badge{padding:4px 12px;border-radius:100px;font-size:0.8rem;font-weight:500;display:inline-flex;align-items:center;gap:6px}
+.badge-green{background:var(--accent-dim);color:var(--accent)}.badge-red{background:var(--danger-dim);color:var(--danger)}.badge-blue{background:rgba(71,130,255,.12);color:var(--blue)}
+.tab-bar{display:flex;gap:4px;margin-bottom:20px;flex-wrap:wrap}
+.tab{padding:8px 16px;border-radius:8px;font-size:0.9rem;cursor:pointer;background:var(--card);color:var(--text2);border:none;transition:.2s;font-weight:500}
+.tab:hover{background:var(--card-hover)}.tab.active{background:var(--accent-dim);color:var(--accent)}
+.card{background:var(--card);border-radius:var(--radius);padding:20px;border:1px solid rgba(255,255,255,.05);margin-bottom:16px}
+.card-title{font-size:1rem;font-weight:600;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.card-desc{font-size:0.8rem;color:var(--text3);margin-bottom:16px;line-height:1.5}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:800px){.grid-2{grid-template-columns:1fr}}
+.stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px}
+.stat-card{background:var(--card);border-radius:var(--radius);padding:16px;text-align:center;border:1px solid rgba(255,255,255,.04)}
+.stat-num{font-size:1.6rem;font-weight:700}
+.stat-num-green{color:var(--accent)}.stat-num-blue{color:var(--blue)}.stat-num-yellow{color:var(--warning)}
+.stat-label{font-size:0.8rem;color:var(--text2);margin-top:2px}
+.signal-card{background:rgba(255,255,255,.02);border-radius:10px;padding:14px;margin-bottom:10px;border:1px solid rgba(255,255,255,.04)}
+.signal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px}
+.signal-tags{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.signal-meta{font-size:0.8rem;color:var(--text3)}
+.signal-addr{font-family:monospace;font-size:0.8rem;color:var(--text2);word-break:break-all}
+.signal-flags{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+.flag{font-size:0.7rem;padding:2px 8px;border-radius:4px;display:inline-flex;align-items:center;gap:3px}
 .flag-safe{background:var(--accent-dim);color:var(--accent)}.flag-warn{background:var(--warning-dim);color:var(--warning)}.flag-danger{background:var(--danger-dim);color:var(--danger)}
-.chain-tag{font-size:0.75rem;padding:3px 12px;border-radius:100px;font-weight:500}
+.chain-tag{font-size:0.7rem;padding:2px 10px;border-radius:100px;font-weight:500}
 .chain-eth{background:rgba(98,126,234,.15);color:#627eea}.chain-bsc{background:rgba(240,185,11,.15);color:#f0b90b}.chain-base{background:rgba(0,82,255,.15);color:#0052ff}.chain-sol{background:rgba(153,69,255,.15);color:#9945ff}
-.type-tag{font-size:0.75rem;padding:3px 12px;border-radius:100px;background:rgba(255,255,255,.06)}
-.conf-score{font-size:1.3rem;font-weight:700}
+.conf-score{font-size:1.1rem;font-weight:700}
 .conf-high{color:var(--accent)}.conf-mid{color:var(--warning)}.conf-low{color:var(--danger)}
-.svc-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.svc-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.04)}
 .svc-row:last-child{border:none}
-.svc-label{font-size:0.9rem;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.svc-label small{font-size:0.75rem;color:var(--text3)}
+.svc-label{font-size:0.85rem;display:flex;align-items:center;gap:8px}
 .svc-value{font-size:0.85rem;display:flex;align-items:center;gap:8px}
-.svc-dot{width:10px;height:10px;border-radius:50%}
+.svc-dot{width:8px;height:8px;border-radius:50%}
+table{width:100%;border-collapse:collapse;font-size:0.8rem}
+th{padding:8px;text-align:left;color:var(--text3);border-bottom:1px solid rgba(255,255,255,.06);font-weight:500}
+td{padding:8px;border-bottom:1px solid rgba(255,255,255,.04)}
+.green{color:var(--accent)}.red{color:var(--danger)}
 .form-group{margin-bottom:12px}
-.form-label{font-size:0.8rem;color:var(--text2);margin-bottom:4px}
-.form-input{width:100%;padding:10px;border-radius:8px;background:var(--bg);border:1px solid rgba(255,255,255,.08);color:var(--text);font-size:0.85rem;outline:none;transition:.2s;font-family:monospace}
-.form-input:focus{border-color:var(--accent);box-shadow:0 0 10px var(--accent-dim)}
-.form-select{padding:10px;border-radius:8px;background:var(--bg);border:1px solid rgba(255,255,255,.08);color:var(--text);font-size:0.85rem}
-.btn{padding:10px 20px;border-radius:8px;font-size:0.85rem;font-weight:500;cursor:pointer;border:none;transition:.2s}
-.btn-primary{background:var(--accent);color:var(--bg)}.btn-primary:hover{box-shadow:0 0 15px var(--accent-dim)}
+.form-label{font-size:0.8rem;color:var(--text2);margin-bottom:4px;display:block}
+input,select{width:100%;padding:10px;border-radius:8px;background:var(--bg);border:1px solid rgba(255,255,255,.08);color:var(--text);font-size:0.85rem;outline:none;font-family:monospace}
+input:focus{border-color:var(--accent)}
+.btn{padding:8px 18px;border-radius:8px;font-size:0.85rem;font-weight:500;cursor:pointer;border:none;transition:.2s}
+.btn-primary{background:var(--accent);color:var(--bg)}
 .btn-sm{padding:6px 14px;font-size:0.8rem}
-.key-item{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg);border-radius:8px;margin-bottom:6px}
-.key-info{display:flex;align-items:center;gap:10px}
-.key-name{font-size:0.8rem;word-break:break-all}
-.key-st{font-size:0.7rem;padding:3px 10px;border-radius:100px;flex-shrink:0}
+.empty{text-align:center;padding:30px;color:var(--text2)}
+.empty .icon{font-size:2rem;margin-bottom:8px}
+.key-item{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg);border-radius:6px;margin-bottom:4px;font-size:0.8rem;word-break:break-all}
+.key-st{font-size:0.7rem;padding:2px 8px;border-radius:100px;flex-shrink:0}
 .key-st-ok{color:var(--accent);background:var(--accent-dim)}
 .key-st-no{color:var(--warning);background:var(--warning-dim)}
-.trade-table{width:100%;border-collapse:collapse;font-size:0.8rem}
-.trade-table th{padding:10px 8px;text-align:left;color:var(--text3);border-bottom:1px solid rgba(255,255,255,.06);font-weight:500}
-.trade-table td{padding:10px 8px;border-bottom:1px solid rgba(255,255,255,.04)}
-.profit{color:var(--accent)}.loss{color:var(--danger)}
-.empty-state{text-align:center;padding:40px;color:var(--text2)}
-.empty-state .icon{font-size:2.5rem;margin-bottom:12px}
 </style>
 </head>
 <body>
 <div class="header">
-  <div class="logo"><div class="logo-icon">🏹</div><div><h1>AIHunter</h1><div class="logo-desc">链上交易自动化引擎 · 非托管 · 免逐笔签名</div></div></div>
+  <div class="logo"><div class="logo-icon">🏹</div><div><h1>AIHunter</h1><div class="logo-desc">链上交易自动化引擎 · 非托管 · 免逐笔签名 · 自学习</div></div></div>
   <div class="badges"><span id="connBadge" class="badge badge-green">● WebSocket</span><span id="signalBadge" class="badge badge-blue">0 信号</span></div>
 </div>
-
 <div class="tab-bar">
-  <button class="tab active" onclick="switchTab('signals')">📡 实时信号</button>
-  <button class="tab" onclick="switchTab('trades')">💼 模拟交易</button>
-  <button class="tab" onclick="switchTab('keys')">🔑 API 配置</button>
-  <button class="tab" onclick="switchTab('system')">⚙️ 系统</button>
+  <button class="tab active" onclick="showTab('signals')">📡 信号</button>
+  <button class="tab" onclick="showTab('trades')">💼 交易</button>
+  <button class="tab" onclick="showTab('keys')">🔑 配置</button>
+  <button class="tab" onclick="showTab('system')">⚙️ 系统</button>
 </div>
 
-<!-- Tab: 实时信号 -->
 <div id="panel-signals">
-  <div class="card"><div class="card-title">📡 实时交易信号</div><div class="card-desc">链上新代币检测 + 合约解读 + 自动模拟交易</div><div id="signalList"><div class="empty-state"><div class="icon">⏳</div><p>正在监听 ETH · BSC · BASE · SOL</p></div></div></div>
-</div>
+<div class="card">
+<div class="card-title">📡 实时信号 <span id="wsStatus" style="font-size:0.8rem;font-weight:400;color:var(--warning)">● 连接中</span></div>
+<div class="card-desc">Worker 通过 RPC 实时监听 ETH、BSC、BASE、SOL 四条链，新代币出现时自动推送。重复的交易对会被去重。</div>
+<div id="signalList"><div class="empty"><div class="icon">⏳</div><p>正在监听链上事件...</p></div></div>
+</div></div>
 
-<!-- Tab: 模拟交易 -->
 <div id="panel-trades" style="display:none">
-  <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:20px">
-    <div class="card" style="flex:1;min-width:150px"><div class="stat-label">💰 模拟余额</div><div style="font-size:1.8rem;font-weight:700;color:var(--accent)" id="paperBalance">$10,000</div></div>
-    <div class="card" style="flex:1;min-width:150px"><div class="stat-label">📊 总盈亏</div><div style="font-size:1.8rem;font-weight:700;color:var(--text2)" id="paperTotalPnl">$0.00</div></div>
-    <div class="card" style="flex:1;min-width:150px"><div class="stat-label">🎯 胜率</div><div style="font-size:1.8rem;font-weight:700;color:var(--blue)" id="paperWinRate">0%</div></div>
-    <div class="card" style="flex:1;min-width:150px"><div class="stat-label">🔄 交易数</div><div style="font-size:1.8rem;font-weight:700" id="paperTotalTrades">0</div></div>
-  </div>
-  <div class="grid grid-2">
-    <div class="card"><div class="card-title">📈 当前持仓</div><div id="openPositions"><div class="empty-state"><div class="icon">📂</div><p>暂无持仓</p></div></div></div>
-    <div class="card"><div class="card-title">📜 交易记录</div><div id="closedTrades"><div class="empty-state"><div class="icon">📋</div><p>交易记录将持久保存</p></div></div></div>
-  </div>
+<div class="stat-row">
+<div class="stat-card"><div class="stat-num stat-num-green" id="paperBalance">$10,000</div><div class="stat-label">模拟余额</div></div>
+<div class="stat-card"><div class="stat-num" id="paperTotalPnl" style="color:var(--text2)">$0.00</div><div class="stat-label">总盈亏</div></div>
+<div class="stat-card"><div class="stat-num stat-num-blue" id="paperWinRate">0%</div><div class="stat-label">胜率</div></div>
+<div class="stat-card"><div class="stat-num" id="paperTotalTrades">0</div><div class="stat-label">总交易</div></div>
 </div>
+<div class="grid-2">
+<div class="card"><div class="card-title">📈 当前持仓</div><div id="openPositions"><div class="empty"><div class="icon">📂</div><p>暂无持仓</p></div></div></div>
+<div class="card"><div class="card-title">📜 交易记录</div><div id="closedTrades"><div class="empty"><div class="icon">📋</div><p>数据持久化到数据库，刷新不丢失</p></div></div></div>
+</div></div>
 
-<!-- Tab: API 配置 -->
 <div id="panel-keys" style="display:none">
-  <div class="grid grid-2">
-    <div class="card">
-      <div class="card-title">🤖 AI 供应商</div>
-      <div class="card-desc">选择 AI 供应商并输入 API Key。支持 OpenAI 格式的多种供应商。</div>
-      <div id="aiConfigStatus"></div>
-      <div class="card-divider"></div>
-      <div class="form-group"><label class="form-label">供应商</label>
-        <select id="aiProvider" class="form-select" style="width:100%">
-          <option value="deepseek">DeepSeek (api.deepseek.com)</option>
-          <option value="openai">OpenAI (api.openai.com)</option>
-          <option value="moonshot">Moonshot (api.moonshot.cn)</option>
-          <option value="claude">Claude (api.anthropic.com)</option>
-          <option value="groq">Groq (api.groq.com)</option>
-        </select>
-      </div>
-      <div class="form-group"><label class="form-label">API Key</label><input id="aiApiKey" class="form-input" placeholder="sk-..." /></div>
-      <button class="btn btn-primary btn-sm" onclick="saveAiConfig()">💾 保存并测试</button>
-      <span id="aiConfigResult" style="margin-left:12px;font-size:0.8rem"></span>
-    </div>
-    <div class="card">
-      <div class="card-title">🔗 RPC 节点（多 Key 轮询）</div>
-      <div class="card-desc">可以为每条链配置多个 RPC 节点，当某个节点限流时自动切换。</div>
-      <div id="rpcKeyList"></div>
-      <div class="card-divider"></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-        <select id="rpcChain" class="form-select">
-          <option value="ETH">ETH</option><option value="BSC">BSC</option><option value="BASE">BASE</option><option value="SOL">SOL</option>
-        </select>
-        <input id="rpcUrl" class="form-input" style="flex:1;min-width:200px" placeholder="https://..." />
-        <button class="btn btn-primary btn-sm" onclick="addRpcKey()">➕ 添加</button>
-      </div>
-      <span id="rpcSaveResult" style="font-size:0.8rem"></span>
-    </div>
-  </div>
+<div class="grid-2">
+<div class="card">
+<div class="card-title">🤖 AI 供应商</div>
+<div class="card-desc">支持 OpenAI 格式的多种供应商。配置后用于情绪分析、聪明钱识别、规则生成。</div>
+<div id="aiConfigStatus"></div>
+<div style="margin:12px 0">
+<div class="form-label">供应商</div>
+<select id="aiProvider"><option value="deepseek">DeepSeek</option><option value="openai">OpenAI</option><option value="moonshot">Moonshot</option><option value="claude">Claude</option><option value="groq">Groq</option></select>
 </div>
+<div class="form-group"><div class="form-label">API Key</div><input id="aiApiKey" placeholder="sk-..." /></div>
+<button class="btn btn-primary btn-sm" onclick="saveAi()">💾 保存并测试</button>
+<span id="aiResult" style="margin-left:8px;font-size:0.8rem"></span>
+</div>
+<div class="card">
+<div class="card-title">🔗 RPC 节点</div>
+<div class="card-desc">每条链可配置多个 RPC 节点，节点间自动轮询。</div>
+<div id="rpcKeyList"></div>
+<div class="card-divider" style="height:1px;background:rgba(255,255,255,.05);margin:12px 0"></div>
+<div style="display:flex;gap:8px;flex-wrap:wrap">
+<select id="rpcChain" style="width:auto"><option value="ETH">ETH</option><option value="BSC">BSC</option><option value="BASE">BASE</option><option value="SOL">SOL</option></select>
+<input id="rpcUrl" style="flex:1;min-width:150px" placeholder="https://..." />
+<button class="btn btn-primary btn-sm" onclick="addRpc()">➕添加</button>
+</div>
+<span id="rpcResult" style="font-size:0.8rem"></span>
+</div></div></div>
 
-<!-- Tab: 系统 -->
 <div id="panel-system" style="display:none">
-  <div class="grid grid-2">
-    <div class="card"><div class="card-title">🖥️ 服务状态</div><div id="statusList"></div><div class="card-divider"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div><div style="font-size:0.75rem;color:var(--text3)">总事件</div><div style="font-size:1.1rem;font-weight:600" id="totalEvents">-</div></div><div><div style="font-size:0.75rem;color:var(--text3)">持仓</div><div style="font-size:1.1rem;font-weight:600" id="openPosCount">-</div></div><div><div style="font-size:0.75rem;color:var(--text3)">模拟盈亏</div><div style="font-size:1.1rem;font-weight:600" id="paperPnl">-</div></div><div><div style="font-size:0.75rem;color:var(--text3)">RPC</div><div style="font-size:1.1rem;font-weight:600;color:var(--accent)" id="rpcStatus">-</div></div></div></div>
-    <div class="card"><div class="card-title">⚡ 策略说明</div>
-      <div style="padding:12px;background:var(--bg);border-radius:8px;margin-bottom:8px"><div style="font-weight:600;margin-bottom:4px">🎯 开盘狙击</div><div style="font-size:0.8rem;color:var(--text2)">新币对创建时触发买入，自动执行模拟交易</div></div>
-      <div style="padding:12px;background:var(--bg);border-radius:8px;margin-bottom:8px"><div style="font-weight:600;margin-bottom:4px">📊 模拟交易规则</div><div style="font-size:0.8rem;color:var(--text2)">• 先买才能卖<br>• 买入金额受信心分影响（$100~$500）<br>• 流动池影响价格（池越浅滑点越高）<br>• 5~30秒后自动平仓<br>• 数据存入数据库，刷新不丢</div></div>
-    </div>
-  </div>
+<div class="card">
+<div class="card-title">🖥️ 系统状态 <span style="font-size:0.8rem;font-weight:400;color:var(--text3)" id="refreshTime">自动刷新中</span></div>
+<div id="statusList"></div>
 </div>
+<div class="card">
+<div class="card-title">📊 统计数据</div>
+<div class="grid-2">
+<div><div class="stat-label">总事件数</div><div style="font-size:1.2rem;font-weight:600" id="totalEvents">-</div></div>
+<div><div class="stat-label">待处理事件</div><div style="font-size:1.2rem;font-weight:600" id="pendingEvents">-</div></div>
+<div><div class="stat-label">当前持仓</div><div style="font-size:1.2rem;font-weight:600" id="openPosCount">-</div></div>
+<div><div class="stat-label">模拟盈亏</div><div style="font-size:1.2rem;font-weight:600" id="paperPnl">-</div></div>
+<div><div class="stat-label">RPC 节点</div><div style="font-size:1.2rem;font-weight:600" id="rpcStatus">-</div></div>
+<div><div class="stat-label">24h 经验</div><div style="font-size:1.2rem;font-weight:600" id="recentExps">-</div></div>
+</div></div>
+<div class="card">
+<div class="card-title">⚡ 策略规则</div>
+<div style="font-size:0.85rem;line-height:1.6">
+<b>模拟交易过滤规则：</b><br>
+✅ 高风险+信心&lt;60 → 跳过<br>
+✅ 可增发+LP未锁 → 跳过（貔貅）<br>
+✅ 税过高+信心&lt;70 → 跳过<br>
+✅ 其他情况 → 买入
+</div></div></div>
 
 <script>
-const API = window.location.origin + '/api';
-let signals = [], ws = null;
+const API=window.location.origin+'/api';let signals=[],ws=null;
 
-function switchTab(n){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.textContent.includes(n==='signals'?'实时':n==='trades'?'模拟':n==='keys'?'API':'系统')));
+function showTab(n){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.textContent.includes(n==='signals'?'信号':n==='trades'?'交易':n==='keys'?'配置':'系统')));
   ['signals','trades','keys','system'].forEach(p=>document.getElementById('panel-'+p).style.display=p===n?'block':'none');
-  if(n==='trades')loadPortfolio();
+  if(n==='trades')loadTrades();
   if(n==='keys')loadConfig();
-  if(n==='system')fetchSystemStatus();
+  if(n==='system')loadSystem();
 }
 
-// ==== WebSocket ====
-function connectWS(){const p=window.location.protocol==="https:"?"wss:":"ws:";ws=new WebSocket(p+"//"+window.location.host+"/ws");
-ws.onopen=()=>{document.getElementById("connBadge").innerHTML='● WebSocket 已连接';document.getElementById("connBadge").className="badge badge-green"};
-ws.onmessage=e=>{try{const m=JSON.parse(e.data);if(m.type==="signal"&&m.data){signals.unshift(m.data);if(signals.length>50)signals.pop();renderSignals();updateBadge()}}catch(e){}};
-ws.onclose=()=>{document.getElementById("connBadge").innerHTML='● 断开';document.getElementById("connBadge").className="badge badge-red";setTimeout(connectWS,3000)};ws.onerror=()=>ws.close();}
+function connectWS(){
+  const p=window.location.protocol==="https:"?"wss:":"ws:";
+  ws=new WebSocket(p+"//"+window.location.host+"/ws");
+  ws.onopen=()=>{document.getElementById('wsStatus').innerHTML='● <span style="color:var(--accent)">已连接</span>';
+    document.getElementById('connBadge').innerHTML='● WebSocket 已连接';document.getElementById('connBadge').className='badge badge-green'};
+  ws.onmessage=e=>{try{const m=JSON.parse(e.data);
+    if(m.type==='signal'&&m.data){var key=m.data.chain+'_'+(m.data.contract||m.data.symbol||'');var dup=signals.find(function(s){return s._key===key});if(!dup){m.data._key=key;signals.unshift(m.data);if(signals.length>50)signals.pop();renderSignals();document.getElementById('signalBadge').textContent=signals.length+' 信号'}}
+  }catch(e){}};
+  ws.onclose=()=>{document.getElementById('wsStatus').innerHTML='● <span style="color:var(--danger)">断开</span>';
+    document.getElementById('connBadge').innerHTML='● 断开';document.getElementById('connBadge').className='badge badge-red';setTimeout(connectWS,3000)};
+  ws.onerror=()=>ws.close();}
 
-// ==== 信号 ====
-function renderSignals(){if(!signals.length)return;const cc={ETH:"chain-eth",BSC:"chain-bsc",BASE:"chain-base",SOL:"chain-sol"}
-document.getElementById("signalList").innerHTML=signals.map(s=>{const c=s.confidence||50;const cx=c>=60?"conf-high":c>=40?"conf-mid":"conf-low"
-const fl=(s.flags||[]).map(f=>{const safe=["owner_renounced","lp_locked","no_mint","tax_low"].includes(f);const danger=["mintable","owner_active","lp_unlocked","tax_high"].includes(f);return '<span class="flag '+(safe?"flag-safe":danger?"flag-danger":"flag-warn")+'">'+(safe?"✅":danger?"🔴":"⚠️")+' '+f.replace(/_/g," ")+'</span>'}).join("")
-return '<div class="signal-card"><div class="signal-header"><div class="signal-tags"><span class="chain-tag '+(cc[s.chain]||"chain-eth")+'">'+(s.chain||"?")+'</span><span class="type-tag">'+(s.type||"事件")+'</span><span class="conf-score '+cx+'">'+c+'%</span></div><span class="signal-meta">'+(s.time?new Date(s.time).toLocaleTimeString():"")+'</span></div><div class="signal-body"><div class="signal-addr">'+(s.contract||s.symbol||"?")+'</div>'+(fl?'<div class="signal-flags">'+fl+'</div>':"")+'</div></div>'}).join("")}
+function renderSignals(){
+  if(!signals.length)return;
+  const cc={ETH:'chain-eth',BSC:'chain-bsc',BASE:'chain-base',SOL:'chain-sol'};
+  document.getElementById('signalList').innerHTML=signals.map(s=>{
+    const c=s.confidence||50;const cx=c>=60?'conf-high':c>=40?'conf-mid':'conf-low';
+    const fl=(s.flags||[]).map(f=>{const safe=['owner_renounced','lp_locked','no_mint','tax_low'].includes(f);
+      const danger=['mintable','owner_active','lp_unlocked','tax_high'].includes(f);
+      return '<span class="flag '+(safe?'flag-safe':danger?'flag-danger':'flag-warn')+'">'+(safe?'✅':danger?'🔴':'⚠️')+' '+f.replace(/_/g,' ')+'</span>'}).join('');
+    return '<div class="signal-card"><div class="signal-header"><div class="signal-tags"><span class="chain-tag '+(cc[s.chain]||'chain-eth')+'">'+(s.chain||'?')+'</span><span class="conf-score '+cx+'">'+c+'%</span></div><span class="signal-meta">'+(s.time?new Date(s.time).toLocaleTimeString():'')+'</span></div><div class="signal-addr">'+(s.contract||s.symbol||'?')+'</div>'+(fl?'<div class="signal-flags">'+fl+'</div>':'')+'</div>'}).join('');
+}
 
-function updateBadge(){document.getElementById("signalBadge").textContent=signals.length+" 信号"}
+// 交易
+async function loadTrades(){
+  try{const r=await fetch(API+'/trade/portfolio?userId=paper');if(!r.ok)return;const d=await r.json();if(d.code!==200)return;const p=d.data;
+    document.getElementById('paperBalance').textContent='$'+p.balance.toFixed(2);
+    const pnl=parseFloat(p.stats.totalPnl);document.getElementById('paperTotalPnl').textContent=(pnl>=0?'+':'')+'$'+pnl.toFixed(2);
+    document.getElementById('paperTotalPnl').style.color=pnl>=0?'var(--accent)':'var(--danger)';
+    document.getElementById('paperWinRate').textContent=p.stats.winRate;document.getElementById('paperTotalTrades').textContent=p.stats.totalTrades;
+    const ops=p.openPositions||[];
+    if(ops.length===0)document.getElementById('openPositions').innerHTML='<div class="empty"><div class="icon">📂</div><p>暂无持仓</p></div>';
+    else{document.getElementById('openPositions').innerHTML='<table><tr><th>链</th><th>代币</th><th>金额</th><th>信心</th><th>滑点</th></tr>'+ops.map(o=>'<tr><td>'+o.chain+'</td><td>'+(o.symbol||'').slice(0,14)+'</td><td>$'+o.amount_usd+'</td><td>'+o.confidence+'%</td><td>'+o.price_impact+'%</td></tr>').join('')+'</table>';}
+    const cls=p.closedTrades||[];
+    if(cls.length===0)document.getElementById('closedTrades').innerHTML='<div class="empty"><div class="icon">📋</div><p>暂无记录</p></div>';
+    else{document.getElementById('closedTrades').innerHTML='<table><tr><th>代币</th><th>盈亏</th><th>收益率</th></tr>'+cls.slice(0,30).map(o=>{const pnl=parseFloat(o.pnl_pct);return '<tr><td>'+(o.symbol||'').slice(0,14)+'</td><td class="'+(pnl>=0?'green':'red')+'">'+(pnl>=0?'+':'')+'$'+parseFloat(o.pnl_usd||0).toFixed(2)+'</td><td class="'+(pnl>=0?'green':'red')+'">'+(pnl>=0?'+':'')+pnl.toFixed(2)+'%</td></tr>'}).join('')+'</table>';}
+  }catch(e){}}
 
-// ==== 模拟交易 ====
-async function loadPortfolio(){
+// 系统
+async function loadSystem(){
   try{
-    const r=await fetch(API+"/trade/portfolio?userId=paper");if(!r.ok)return;const d=await r.json();if(d.code!==200)return
-    const p=d.data;document.getElementById("paperBalance").textContent="$"+p.balance.toFixed(2)
-    const stats=p.stats;document.getElementById("paperTotalPnl").textContent=(stats.totalPnl>=0?"+":"")+"$"+stats.totalPnl
-    document.getElementById("paperTotalPnl").style.color=parseFloat(stats.totalPnl)>=0?"var(--accent)":"var(--danger)"
-    document.getElementById("paperWinRate").textContent=stats.winRate;document.getElementById("paperTotalTrades").textContent=stats.totalTrades
-    // 持仓
-    const ops=p.openPositions||[]
-    if(ops.length===0){document.getElementById("openPositions").innerHTML='<div class="empty-state"><div class="icon">📂</div><p>暂无持仓</p></div>'}else{
-      document.getElementById("openPositions").innerHTML='<table class="trade-table"><tr><th>链</th><th>代币</th><th>买入价</th><th>金额</th><th>滑点</th><th>信心</th></tr>'+ops.map(o=>'<tr><td>'+o.chain+'</td><td>'+o.symbol.slice(0,14)+'</td><td>$'+parseFloat(o.entry_price).toFixed(8)+'</td><td>$'+o.amount_usd+'</td><td>'+o.price_impact+'%</td><td>'+o.confidence+'%</td></tr>').join('')+'</table>'
-    }
-    // 已平仓
-    const cls=p.closedTrades||[]
-    if(cls.length===0){document.getElementById("closedTrades").innerHTML='<div class="empty-state"><div class="icon">📋</div><p>暂无交易记录</p></div>'}else{
-      document.getElementById("closedTrades").innerHTML='<table class="trade-table"><tr><th>代币</th><th>盈亏</th><th>收益率</th><th>时间</th></tr>'+cls.slice(0,20).map(o=>{const pnl=parseFloat(o.pnl_pct);return '<tr><td>'+(o.symbol||"").slice(0,14)+'</td><td class="'+(pnl>=0?"profit":"loss")+'">'+(pnl>=0?"+":"")+'$'+parseFloat(o.pnl_usd||0).toFixed(2)+'</td><td class="'+(pnl>=0?"profit":"loss")+'">'+(pnl>=0?"+":"")+pnl.toFixed(2)+'%</td><td style="color:var(--text3);font-size:0.75rem">'+new Date(o.closed_at||o.created_at).toLocaleTimeString()+'</td></tr>'}).join('')+'</table>'
-    }
-  }catch(e){}
-}
+    const r=await fetch(API+'/system/status');if(!r.ok)return;const d=await r.json();if(d.code!==200)return;const s=d.data;
+    const svcs=[{i:'🚪',l:'Gateway',st:s.gateway?.status||'unknown'},{i:'🗄️',l:'Redis',st:s.redis?.status||'unknown'},{i:'🐘',l:'PostgreSQL',st:s.postgresql?.status||'unknown'},{i:'⚙️',l:'EVM Worker',st:s.evm_worker?.status||'idle'},{i:'🟣',l:'SOL Worker',st:s.sol_worker?.status||'idle'}];
+    const cl={healthy:'#00d4aa',idle:'#ffa502',down:'#ff4757'};const tx={healthy:'正常',idle:'空闲',down:'异常'};
+    document.getElementById('statusList').innerHTML=svcs.map(x=>'<div class="svc-row"><span class="svc-label">'+x.i+' '+x.l+'</span><span class="svc-value"><span class="svc-dot" style="background:'+(cl[x.st]||'#888')+'"></span>'+(tx[x.st]||x.st)+'</span></div>').join('');
+    document.getElementById('totalEvents').textContent=s.total_events||0;document.getElementById('pendingEvents').textContent=s.pending_events||0;
+    document.getElementById('openPosCount').textContent=s.open_positions||0;
+    const pp=parseFloat(s.paper_pnl||0);document.getElementById('paperPnl').textContent=(pp>=0?'+':'')+'$'+pp.toFixed(2);document.getElementById('paperPnl').style.color=pp>=0?'var(--accent)':'var(--danger)';
+    document.getElementById('recentExps').textContent=s.recent_experiences||0;
+    document.getElementById('refreshTime').textContent='更新于 '+new Date().toLocaleTimeString();
+    if(s.chain_count){document.getElementById('rpcStatus').textContent=(s.chain_online||0)+'/'+s.chain_count+' 在线';
+    document.getElementById('rpcStatus').style.color=s.chain_online===s.chain_count?'var(--accent)':'var(--warning)';}
+  }catch(e){}}
 
-// ==== AI 配置 ====
+// API 配置
 async function loadConfig(){
-  try{
-    const r=await fetch(API+"/config/ai");if(!r.ok)return;const d=await r.json();if(d.code!==200)return
-    const ai=d.data||{};document.getElementById("aiApiKey").value=ai["ai.api_key"]||""
-    const prov=ai["ai.provider"]||"deepseek";document.getElementById("aiProvider").value=prov
-    document.getElementById("aiConfigStatus").innerHTML='<div class="key-item"><span class="key-name">当前: '+(prov)+'</span><span class="key-st '+(ai["ai.api_key"]?"key-st-ok":"key-st-no")+'">'+(ai["ai.api_key"]?"✅ 已配置":"未配置")+'</span></div>'
-    // 加载 RPC
-    const r2=await fetch(API+"/config/rpc");const d2=await r2.json();if(d2.code!==200)return
-    const rpcs=d2.data||{}
-    document.getElementById("rpcKeyList").innerHTML=Object.entries(rpcs).map(([k,v])=>{
+  try{const r=await fetch(API+'/config/ai');if(!r.ok)return;const d=await r.json();if(d.code!==200)return;const ai=d.data||{};
+    document.getElementById('aiApiKey').value=ai['ai.api_key']||'';
+    const prov=ai['ai.provider']||'deepseek';document.getElementById('aiProvider').value=prov;
+    document.getElementById('aiConfigStatus').innerHTML='<div class="key-item"><span>'+(prov)+'</span><span class="key-st '+(ai['ai.api_key']?'key-st-ok':'key-st-no')+'">'+(ai['ai.api_key']?'已配置':'未配置')+'</span></div>';
+    const r2=await fetch(API+'/config/rpc');const d2=await r2.json();
+    const rpcs=d2.data||{};const chainNames={eth:'ETH',bsc:'BSC',base:'BASE',sol:'SOL'};
+    let html='';
+    Object.entries(rpcs).forEach(([k,v])=>{
       let urls=[];try{urls=JSON.parse(v)}catch(e){urls=[v]}
-      return urls.map(u=>'<div class="key-item"><div class="key-info"><span class="chain-tag chain-'+k.replace('rpc.','').toLowerCase()+'">'+k.replace('rpc.','')+'</span><span class="key-name">'+u.slice(0,50)+'</span></div><span class="key-st key-st-ok">已配置</span></div>').join('')
-    }).join('')||'<div style="color:var(--text2);padding:8px">暂无自定义 RPC（使用默认节点）</div>'
-  }catch(e){}
-}
+      urls.forEach(u=>{html+='<div class="key-item"><span>'+k.replace('rpc.','')+'</span><span style="font-size:0.75rem;color:var(--text3)">'+u.slice(0,45)+'</span><span class="key-st key-st-ok">已配置</span></div>'});
+    });
+    document.getElementById('rpcKeyList').innerHTML=html||'<div style="color:var(--text2);padding:8px;font-size:0.8rem">暂无自定义 RPC（使用默认节点）</div>';
+  }catch(e){}}
 
-async function saveAiConfig(){
-  const provider=document.getElementById("aiProvider").value;const key=document.getElementById("aiApiKey").value.trim()
-  if(!key){document.getElementById("aiConfigResult").textContent="请输入 API Key";document.getElementById("aiConfigResult").style.color="var(--danger)";return}
-  document.getElementById("aiConfigResult").textContent="测试连接中..."
-  try{
-    const r=await fetch(API+"/config/ai",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider,apiKey:key})})
-    const d=await r.json()
-    if(d.code===200){document.getElementById("aiConfigResult").textContent="✅ "+d.message;document.getElementById("aiConfigResult").style.color="var(--accent)";loadConfig()}
-    else{document.getElementById("aiConfigResult").textContent="❌ "+d.error;document.getElementById("aiConfigResult").style.color="var(--danger)"}
-  }catch(e){document.getElementById("aiConfigResult").textContent="❌ 连接失败"}
-}
+async function saveAi(){
+  const p=document.getElementById('aiProvider').value;const k=document.getElementById('aiApiKey').value.trim();
+  if(!k){document.getElementById('aiResult').textContent='请输入 API Key';document.getElementById('aiResult').style.color='var(--danger)';return}
+  document.getElementById('aiResult').textContent='测试中...';
+  try{const r=await fetch(API+'/config/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:p,apiKey:k})});
+    const d=await r.json();document.getElementById('aiResult').textContent=d.code===200?'✅ 已保存':❌ '+d.error;
+    document.getElementById('aiResult').style.color=d.code===200?'var(--accent)':'var(--danger)';if(d.code===200)loadConfig();
+  }catch(e){}}
 
-async function addRpcKey(){
-  const chain=document.getElementById("rpcChain").value;const url=document.getElementById("rpcUrl").value.trim()
-  if(!url){document.getElementById("rpcSaveResult").textContent="请输入 URL";return}
-  try{
-    const r=await fetch(API+"/config/rpc",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chain,url})})
-    const d=await r.json()
-    if(d.code===200){document.getElementById("rpcSaveResult").textContent="✅ "+d.message;document.getElementById("rpcSaveResult").style.color="var(--accent)";loadConfig()}
-    else{document.getElementById("rpcSaveResult").textContent="❌ "+d.error;document.getElementById("rpcSaveResult").style.color="var(--danger)"}
-  }catch(e){}
-}
+async function addRpc(){
+  const c=document.getElementById('rpcChain').value;const u=document.getElementById('rpcUrl').value.trim();
+  if(!u){document.getElementById('rpcResult').textContent='请输入 URL';return}
+  try{const r=await fetch(API+'/config/rpc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chain:c,url:u})});
+    const d=await r.json();document.getElementById('rpcResult').textContent=d.code===200?'✅ 已添加':❌ '+d.error;
+    document.getElementById('rpcResult').style.color=d.code===200?'var(--accent)':'var(--danger)';if(d.code===200)loadConfig();
+  }catch(e){}}
 
-// ==== 系统状态 ====
-async function fetchSystemStatus(){
-  try{const r=await fetch(API+"/system/status");if(!r.ok)return;const d=await r.json();if(d.code!==200)return;const s=d.data
-    const svcs=[{i:"🚪",l:"Gateway",st:s.gateway?.status||"unknown"},{i:"🗄️",l:"Redis",st:s.redis?.status||"unknown"},{i:"🐘",l:"PostgreSQL",st:s.postgresql?.status||"unknown"},{i:"⚙️",l:"EVM Worker",st:s.evm_worker?.status||"idle"},{i:"🟣",l:"SOL Worker",st:s.sol_worker?.status||"idle"}]
-    const cl={healthy:"#00d4aa",idle:"#ffa502",down:"#ff4757",unknown:"#888"};const tx={healthy:"正常",idle:"空闲",down:"异常",unknown:"未知"}
-    document.getElementById("statusList").innerHTML=svcs.map(x=>'<div class="svc-row"><span class="svc-label">'+x.i+' '+x.l+'</span><span class="svc-value"><span class="svc-dot" style="background:'+(cl[x.st]||"#888")+'"></span>'+(tx[x.st]||x.st)+'</span></div>').join("")
-    document.getElementById("totalEvents").textContent=s.total_events||0;document.getElementById("openPosCount").textContent=s.open_positions||0
-    document.getElementById("paperPnl").textContent=(parseFloat(s.paper_pnl||0)>=0?"+":"")+"$"+(s.paper_pnl||"0.00")
-    document.getElementById("paperPnl").style.color=parseFloat(s.paper_pnl||0)>=0?"var(--accent)":"var(--danger)"
-    if(s.chain_count){document.getElementById("rpcStatus").textContent=(s.chain_online||0)+"/"+s.chain_count+" 在线"}
-  }catch(e){}
-}
-
-connectWS();fetchSystemStatus();setInterval(fetchSystemStatus,10000);setInterval(loadPortfolio,15000);
+connectWS();
+loadSystem();
+loadTrades();
+setInterval(loadSystem,5000);
+setInterval(loadTrades,10000);
 </script>
 </body>
 </html>
