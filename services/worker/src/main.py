@@ -551,6 +551,11 @@ class ChainWorker:
                 
                 if signal:
                     await self.redis.publish('trade:signals', json.dumps(signal))
+                try:
+                    async with httpx.AsyncClient(timeout=5) as cl:
+                        await cl.post('http://gateway:3100/api/trade/paper/auto', json=signal)
+                except Exception:
+                    pass
                     risk_indicator = '🟢' if signal['risk_level'] == 'low' else '🟡' if signal['risk_level'] == 'medium' else '🔴'
                     print(f"\n{risk_indicator} [{chain}] {signal['symbol']} | 信心: {signal['confidence']}% | 风险: {signal['risk_level']}")
                     print(f"  标记: {', '.join(signal['flags'])}")
