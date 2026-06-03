@@ -1,4 +1,5 @@
 """
+from lending_arb import LendingArbitrageEngine, LendingRateMonitor
 AIHunter Worker - 链上数据监听与合约解读引擎
 
 功能：
@@ -600,6 +601,7 @@ class ChainWorker:
         self.http = None
         self.xgb_model = None
         self.running = True
+        self.lending_engine = None
         self.last_block = {}
         self.seen_tx_hashes = set()  # 已处理的交易哈希，用于去重
         self.rpc_urls = {}
@@ -619,11 +621,14 @@ class ChainWorker:
         self.redis = await redis.from_url(self.redis_url)
         self.db = psycopg2.connect(self.db_url)
         self.http = httpx.AsyncClient(timeout=15)
+        self.lending_engine = LendingArbitrageEngine(self.db, self.redis, self.http)
         
         for chain in self.chains:
             url = self.rpc_urls.get(chain)
             if url:
                 self.analyzers[chain] = ContractAnalyzer(self.http, url, chain)
+                if self.lending_engine:
+                    self.lending_engine.add_chain(chain, url)
         
         self._load_model()
         print(f"✅ Worker 已连接")
@@ -1090,6 +1095,10 @@ class ChainWorker:
                     if chain in self.rpc_urls:
                         await self.scan_chain(chain)
                         await asyncio.sleep(1)
+                # 每3分钟跑一轮利率采集
+                if int(time.time()) % 180 < 10:
+                    if self.lending_engine:
+                        await self.lending_engine.run_cycle()
                 await asyncio.sleep(5)
             except Exception as e:
                 print(f"❌ 异常: {e}")
