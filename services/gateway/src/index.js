@@ -46,7 +46,7 @@ await app.register(websocket);
 app.addHook('preHandler', async (request, reply) => {
   const publicRoutes = ['/health', '/api/rank/ping', '/api/prize/ping', '/api/system/status', '/ws',
     '/api/config/ai', '/api/config/rpc', '/api/trade/paper', '/api/trade/paper/result', '/api/trade/portfolio'];
-  if (publicRoutes.includes(request.url) || request.url.startsWith('/api/config/') || request.url.startsWith('/api/trade/') || request.url.startsWith('/api/learning/') || request.url.startsWith('/api/rules/') || request.url.startsWith('/api/backtest/')) return;
+  if (publicRoutes.includes(request.url) || request.url.startsWith('/api/config/') || request.url.startsWith('/api/trade/') || request.url.startsWith('/api/learning/') || request.url.startsWith('/api/rules/') || request.url.startsWith('/api/backtest/') || request.url.startsWith('/api/strategies') || request.url.startsWith('/api/lending/')) return;
   const auth = request.headers.authorization;
   if (!auth || auth !== `Bearer ${AUTH_TOKEN}`) {
     return reply.status(401).send({ error: 'Unauthorized' });
@@ -705,6 +705,50 @@ app.get('/api/learning/history', async (request) => {
   return { code: 200, data: rows.rows };
 });
 
+// ===== 策略配置 API =====
+app.get('/api/strategies', async () => {
+  const result = await db.query(
+    `SELECT id, strategy_type, enabled, is_atomic, hf_threshold, capital_ratio, params, created_at
+     FROM strategies WHERE user_id = 'paper' ORDER BY id`
+  );
+  return { code: 200, data: result.rows };
+});
+
+app.post('/api/strategies', async (request) => {
+  const { strategy_type, enabled, capital_ratio, hf_threshold, params } = request.body;
+  if (strategy_type) {
+    await db.query(
+      `INSERT INTO strategies (strategy_type, user_id, enabled, capital_ratio, hf_threshold, params)
+       VALUES ($1, 'paper', $2, $3, $4, $5)
+       ON CONFLICT (strategy_type) DO UPDATE SET
+         enabled = COALESCE($2, strategies.enabled),
+         capital_ratio = COALESCE($3, strategies.capital_ratio),
+         hf_threshold = COALESCE($4, strategies.hf_threshold),
+         params = COALESCE($5, strategies.params),
+         updated_at = NOW()`,
+      [strategy_type, enabled !== undefined ? enabled : true,
+       capital_ratio || 0.25, hf_threshold || 1.5,
+       params ? JSON.stringify(params) : '{}']
+    );
+    return { code: 200, message: '策略已保存' };
+  }
+  return { code: 400, error: '缺少 strategy_type' };
+});
+
+app.get('/api/lending/positions', async () => {
+  const result = await db.query(
+    `SELECT * FROM lending_positions WHERE status = 'active' ORDER BY created_at DESC`
+  );
+  return { code: 200, data: result.rows };
+});
+
+app.get('/api/lending/rates', async () => {
+  const result = await db.query(
+    `SELECT DISTINCT ON (chain, protocol, token) chain, protocol, token, supply_apy, borrow_apy, recorded_at
+     FROM rate_snapshots ORDER BY chain, protocol, token, recorded_at DESC`
+  );
+  return { code: 200, data: result.rows };
+});
 app.post('/api/experiences', async (request) => {
   const exp = request.body;
   await db.query(
