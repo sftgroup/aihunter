@@ -1502,5 +1502,33 @@ function loadStrategiesPanel() {
 }
 </script>
 
+
+<script>
+function loadBacktestPanel() {
+  var el = document.getElementById("btOfflineResult");
+  if (el) el.innerHTML = "<div class=\"empty\"><p>选择参数后开始</p></div>";
+  var chart = document.getElementById("btOfflineChartArea");
+  if (chart) chart.style.display = "none";
+}
+function runOfflineBacktest() {
+  var h=document.getElementById("btOfflineHours").value;
+  var c=document.getElementById("btOfflineChain").value;
+  var a=parseFloat(document.getElementById("btOfflineAmount").value)||100;
+  var rd=document.getElementById("btOfflineResult");
+  rd.innerHTML = "⏳...";
+  var ca=document.getElementById("btOfflineChartArea");
+  if (ca) ca.style.display = "none";
+  var xhr=new XMLHttpRequest();
+  xhr.open("GET", API+"/backtest/offline?hours="+encodeURIComponent(h)+"&chain="+encodeURIComponent(c)+"&perAmount="+a, true);
+  xhr.onload=function(){
+    try{var d=JSON.parse(xhr.responseText);if(d.code!==200){rd.innerHTML="<span style=\"color:var(--danger)\">"+(d.error||"失败")+"</span>";return}
+    var dt=d.data;if(dt&&dt.total>0){rd.innerHTML="<div>总盈亏:$"+dt.stats.total_pnl.toFixed(2)+" 胜率:"+dt.stats.win_rate+" 回撤:"+dt.stats.max_drawdown.toFixed(1)+"% 夏普:"+dt.stats.sharpe_ratio.toFixed(2)+" 笔数:"+dt.total+"</div>";}
+    else{rd.innerHTML="<span style=\"color:var(--warning)\">"+(dt.message||"无数据")+"</span>";}
+    }catch(e){rd.innerHTML="<span style=\"color:var(--danger)\">"+e.message+"</span>"}
+  };
+  xhr.send();
+}
+</script>
+
 </body>
 </html>
