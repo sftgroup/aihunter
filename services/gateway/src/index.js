@@ -46,7 +46,7 @@ await app.register(websocket);
 app.addHook('preHandler', async (request, reply) => {
   const publicRoutes = ['/health', '/api/rank/ping', '/api/prize/ping', '/api/system/status', '/ws',
     '/api/config/ai', '/api/config/rpc', '/api/trade/paper', '/api/trade/paper/result', '/api/trade/portfolio'];
-  if (publicRoutes.includes(request.url) || request.url.startsWith('/api/config/') || request.url.startsWith('/api/trade/') || request.url.startsWith('/api/learning/')) return;
+  if (publicRoutes.includes(request.url) || request.url.startsWith('/api/config/') || request.url.startsWith('/api/trade/') || request.url.startsWith('/api/learning/') || request.url.startsWith('/api/rules/')) return;
   const auth = request.headers.authorization;
   if (!auth || auth !== `Bearer ${AUTH_TOKEN}`) {
     return reply.status(401).send({ error: 'Unauthorized' });

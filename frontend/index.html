@@ -68,6 +68,7 @@ input:focus{border-color:var(--accent)}
 <div class="tab-bar">
   <button class="tab active" onclick="switchTab('signals')">📡 信号</button>
   <button class="tab" onclick="switchTab('trades')">💼 交易</button>
+  <button class="tab" onclick="switchTab('rules')">📋 规则</button>
   <button class="tab" onclick="switchTab('config')">🔑 配置</button>
   <button class="tab" onclick="switchTab('system')">⚙️ 系统</button>
 </div>
@@ -204,6 +205,129 @@ input:focus{border-color:var(--accent)}
   </div>
 </div>
 
+<!-- ===== 规则 ===== -->
+<div id="panel-rules" class="panel">
+  <div class="card">
+    <div class="card-title">🤖 DeepSeek 动态规则 <span id="rulesStrategy" style="font-size:0.8rem;color:var(--text2)">signal_follow</span></div>
+    <div style="margin-bottom:12px">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span style="font-size:0.8rem;color:var(--text2)">策略：</span>
+        <select id="rulesStrategySelect" onchange="loadDynamicRules()" style="width:auto">
+          <option value="signal_follow">signal_follow</option>
+          <option value="flip">flip</option>
+        </select>
+        <button class="btn" onclick="refreshDynamicRules()" style="padding:4px 12px;font-size:0.8rem">🔄 刷新</button>
+      </div>
+    </div>
+    <div id="dynamicRulesList">
+      <div class="empty"><p>加载中...</p></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🧱 硬编码风险评分规则</div>
+    <div style="overflow-x:auto">
+      <table>
+        <tr><th>#</th><th>特征</th><th>条件</th><th>风险调整</th></tr>
+        <tr><td>1</td><td>Owner放弃</td><td>已放弃 / 活跃</td><td><span class="green">-0.12</span> / <span class="red">+0.10</span></td></tr>
+        <tr><td>2</td><td>可增发</td><td>可增发 / 不可增发</td><td><span class="red">+0.15</span> / <span class="green">-0.08</span></td></tr>
+        <tr><td>3</td><td>买入税</td><td>>15% / >5% / ≤5%</td><td><span class="red">+0.15</span> / <span class="red">+0.08</span> / <span class="green">-0.05</span></td></tr>
+        <tr><td>4</td><td>卖出税</td><td>>15% / >5% / ≤5%</td><td><span class="red">+0.15</span> / <span class="red">+0.08</span> / <span class="green">-0.05</span></td></tr>
+        <tr><td>5</td><td>蜜罐检测</td><td>蜜罐 / 高税警告</td><td><span class="red">+0.30</span> / <span class="red">+0.15</span></td></tr>
+        <tr><td>6</td><td>LP锁仓</td><td>已锁 / 未锁</td><td><span class="green">-0.10</span> / <span class="red">+0.10</span></td></tr>
+        <tr><td>7</td><td>LP锁定天数</td><td>>365天 / <30天</td><td><span class="green">-0.05</span> / <span class="red">+0.05</span></td></tr>
+        <tr><td>8</td><td>初始流动性</td><td><$1,000 / >$50,000</td><td><span class="red">+0.08</span> / <span class="green">-0.05</span></td></tr>
+        <tr><td>9</td><td>池深1%滑点</td><td><$500 / >$10,000</td><td><span class="red">+0.08</span> / <span class="green">-0.05</span></td></tr>
+        <tr><td>10</td><td>Top10持有者</td><td>>80% / >50%</td><td><span class="red">+0.15</span> / <span class="red">+0.05</span></td></tr>
+        <tr><td>11</td><td>独立交易者(1h)</td><td><5人 / >50人</td><td><span class="red">+0.05</span> / <span class="green">-0.05</span></td></tr>
+        <tr><td>12</td><td>买卖比(1h)</td><td>>3(买压) / <0.3(卖压)</td><td><span class="red">+0.05</span> / <span class="red">+0.08</span></td></tr>
+        <tr><td>13</td><td>Wash刷量</td><td>>0.5</td><td><span class="red">+0.10</span></td></tr>
+        <tr><td>14</td><td>波动率(5m)</td><td>>50%</td><td><span class="red">+0.05</span></td></tr>
+        <tr><td>15</td><td>交易量衰减</td><td>斜率<-0.5</td><td><span class="red">+0.08</span></td></tr>
+      </table>
+    </div>
+    <div style="margin-top:12px;font-size:0.85rem">
+      <div><b>风险分级</b>: <span class="green">&lt;0.3 → low ✅</span> | <span style="color:var(--warning)">0.3~0.6 → medium ⚠️</span> | <span class="red">&gt;0.6 → high 🔴</span></div>
+      <div style="margin-top:8px"><b>交易过滤</b>（3条硬拒绝规则）:</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+        <span class="flag flag-danger">🔴 高风险+信心<60 ❌</span>
+        <span class="flag flag-danger">🔴 可增发+LP未锁(貔貅) ❌</span>
+        <span class="flag flag-danger">🔴 税过高+信心<70 ❌</span>
+        <span class="flag flag-safe">✅ 规则通过 → 自动模拟买入</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">⚙️ Optuna 优化参数 <span style="font-size:0.8rem;color:var(--text2)">（每30条经验自动调优）</span></div>
+    <div id="optunaParams" style="font-size:0.85rem">
+      <div class="empty"><p>加载中...</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 规则 ===== -->
+<div id="panel-rules" class="panel">
+  <div class="card">
+    <div class="card-title">🤖 DeepSeek 动态规则 <span id="rulesStrategy" style="font-size:0.8rem;color:var(--text2)">signal_follow</span></div>
+    <div style="margin-bottom:12px">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span style="font-size:0.8rem;color:var(--text2)">策略：</span>
+        <select id="rulesStrategySelect" onchange="loadDynamicRules()" style="width:auto">
+          <option value="signal_follow">signal_follow</option>
+          <option value="flip">flip</option>
+        </select>
+        <button class="btn" onclick="refreshDynamicRules()" style="padding:4px 12px;font-size:0.8rem">🔄 刷新</button>
+        <span id="rulesUpdateTime" style="font-size:0.75rem;color:var(--text2)"></span>
+      </div>
+    </div>
+    <div id="dynamicRulesList">
+      <div class="empty"><p>加载中...</p></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🧱 硬编码风险评分规则</div>
+    <div style="overflow-x:auto">
+      <table>
+        <tr><th>#</th><th>特征</th><th>条件</th><th>风险调整</th></tr>
+        <tr><td>1</td><td>Owner放弃</td><td>已放弃 / 活跃</td><td><span class="green">-0.12</span> / <span class="red">+0.10</span></td></tr>
+        <tr><td>2</td><td>可增发</td><td>不可增发 / 可增发</td><td><span class="green">-0.08</span> / <span class="red">+0.15</span></td></tr>
+        <tr><td>3</td><td>买入税</td><td>≤5% / >5% / >15%</td><td><span class="green">-0.05</span> / <span class="red">+0.08</span> / <span class="red">+0.15</span></td></tr>
+        <tr><td>4</td><td>卖出税</td><td>≤5% / >5% / >15%</td><td><span class="green">-0.05</span> / <span class="red">+0.08</span> / <span class="red">+0.15</span></td></tr>
+        <tr><td>5</td><td>蜜罐检测</td><td>蜜罐 / 高税警告</td><td><span class="red">+0.30</span> / <span class="red">+0.15</span></td></tr>
+        <tr><td>6</td><td>LP锁仓</td><td>已锁 / 未锁</td><td><span class="green">-0.10</span> / <span class="red">+0.10</span></td></tr>
+        <tr><td>7</td><td>LP锁定天数</td><td>&gt;365天 / &lt;30天</td><td><span class="green">-0.05</span> / <span class="red">+0.05</span></td></tr>
+        <tr><td>8</td><td>初始流动性</td><td>&lt;$1,000 / &gt;$50,000</td><td><span class="red">+0.08</span> / <span class="green">-0.05</span></td></tr>
+        <tr><td>9</td><td>池深1%滑点</td><td>&lt;$500 / &gt;$10,000</td><td><span class="red">+0.08</span> / <span class="green">-0.05</span></td></tr>
+        <tr><td>10</td><td>Top10持有者</td><td>&gt;50% / &gt;80%</td><td><span class="red">+0.05</span> / <span class="red">+0.15</span></td></tr>
+        <tr><td>11</td><td>独立交易者(1h)</td><td>&lt;5人 / &gt;50人</td><td><span class="red">+0.05</span> / <span class="green">-0.05</span></td></tr>
+        <tr><td>12</td><td>买卖比(1h)</td><td>&gt;3 / &lt;0.3</td><td><span class="red">+0.05</span> / <span class="red">+0.08</span></td></tr>
+        <tr><td>13</td><td>Wash刷量</td><td>&gt;0.5</td><td><span class="red">+0.10</span></td></tr>
+        <tr><td>14</td><td>波动率(5m)</td><td>&gt;50%</td><td><span class="red">+0.05</span></td></tr>
+        <tr><td>15</td><td>交易量衰减</td><td>斜率&lt;-0.5</td><td><span class="red">+0.08</span></td></tr>
+      </table>
+    </div>
+    <div style="margin-top:12px;font-size:0.85rem">
+      <div><b>风险分级</b>: <span class="green">&lt;0.3 → low ✅</span> | <span style="color:var(--warning)">0.3~0.6 → medium ⚠️</span> | <span class="red">&gt;0.6 → high 🔴</span></div>
+      <div style="margin-top:8px"><b>交易过滤</b>（3条硬拒绝规则）:</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+        <span class="flag flag-danger">🔴 高风险+信心&lt;60 ❌</span>
+        <span class="flag flag-danger">🔴 可增发+LP未锁(貔貅) ❌</span>
+        <span class="flag flag-danger">🔴 税过高+信心&lt;70 ❌</span>
+        <span class="flag flag-safe">✅ 规则通过 → 自动模拟买入</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">⚙️ Optuna 优化参数 <span style="font-size:0.8rem;color:var(--text2)">（每30条经验自动调优）</span></div>
+    <div id="optunaParams" style="font-size:0.85rem">
+      <div class="empty"><p>加载中...</p></div>
+    </div>
+  </div>
+</div>
+
 <!-- ===== 配置 ===== -->
 <div id="panel-config" class="panel">
   <div class="grid-2">
@@ -273,9 +397,9 @@ var ws = null;
 function switchTab(name) {
   var tabs = document.querySelectorAll('.tab-bar > .tab');
   for (var i = 0; i < tabs.length; i++) tabs[i].classList.remove('active');
-  var map = {signals:0, trades:1, config:2, system:3};
+  var map = {signals:0, trades:1, rules:2, config:3, system:4};
   tabs[map[name]].classList.add('active');
-  ['signals','trades','config','system'].forEach(function(p){
+  ['signals','trades','rules','config','system'].forEach(function(p){
     var el = document.getElementById('panel-'+p);
     if (el) el.className = p === name ? 'panel active' : 'panel';
   });
@@ -289,6 +413,7 @@ function switchTab(name) {
       }
     }, 200);
   }
+  if (name === 'rules') loadRulesPanel();
   if (name === 'config') loadConfig();
   if (name === 'system') loadSystem();
 }
@@ -401,6 +526,92 @@ function getExplorerUrl(chain, contract) {
     case 'BASE': return 'https://basescan.org/address/' + cleanAddr;
     default: return 'https://solscan.io/token/' + cleanAddr;
   }
+}
+
+function loadRulesPanel() {
+  loadDynamicRules();
+  loadOptunaParams();
+}
+
+function loadDynamicRules() {
+  var strategy = document.getElementById("rulesStrategySelect").value;
+  var xhr = new XMLHttpRequest();
+  xhr.open("GET", API + "/rules/" + strategy, true);
+  xhr.onload = function() {
+    try {
+      var d = JSON.parse(xhr.responseText);
+      if (d.code !== 200) {
+        document.getElementById("dynamicRulesList").innerHTML = '<div class="empty"><p>加载失败</p></div>';
+        return;
+      }
+      var rules = d.data;
+      if (!rules || rules.length === 0) {
+        document.getElementById("dynamicRulesList").innerHTML = '<div class="empty"><p>暂无规则，等待 DeepSeek 生成...</p></div>';
+        return;
+      }
+      var now = new Date().toLocaleTimeString();
+      document.getElementById("rulesUpdateTime").textContent = "🕐 " + now;
+      var html = '<div style="display:flex;flex-direction:column;gap:10px">';
+      for (var i = 0; i < rules.length; i++) {
+        var r = rules[i];
+        var isBuy = r.action === "BUY";
+        var actionCls = isBuy ? "flag-safe" : "flag-danger";
+        var actionIcon = isBuy ? "🟢" : "🔴";
+        var winRatePct = (r.expected_win_rate * 100).toFixed(0);
+        html += '<div style="background:rgba(255,255,255,0.02);border-radius:8px;padding:12px;border:1px solid rgba(255,255,255,0.05)">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:4px">';
+        html += '<span class="' + actionCls + '" style="padding:2px 10px;border-radius:4px;font-size:0.8rem;font-weight:600">' + actionIcon + ' ' + r.action + '</span>';
+        html += '<span style="font-size:0.75rem;color:var(--text2)">预期胜率: <b>' + winRatePct + '%</b></span>';
+        html += '</div>';
+        html += '<div style="font-size:0.8rem;color:var(--text);font-family:monospace;word-break:break-word;line-height:1.5">' + (r.condition || "无条件") + '</div>';
+        html += '</div>';
+      }
+      html += '</div>';
+      document.getElementById("dynamicRulesList").innerHTML = html;
+    } catch(e) {
+      document.getElementById("dynamicRulesList").innerHTML = '<div class="empty"><p>加载出错</p></div>';
+    }
+  };
+  xhr.send();
+}
+
+function refreshDynamicRules() {
+  document.getElementById("dynamicRulesList").innerHTML = '<div class="empty"><p>刷新中...</p></div>';
+  loadDynamicRules();
+}
+
+function loadOptunaParams() {
+  var xhr = new XMLHttpRequest();
+  xhr.open("GET", API + "/learning/params/signal_follow", true);
+  xhr.onload = function() {
+    try {
+      var d = JSON.parse(xhr.responseText);
+      if (d.code !== 200 || !d.data) {
+        document.getElementById("optunaParams").innerHTML = '<div class="empty"><p>暂无数据</p></div>';
+        return;
+      }
+      var data = d.data;
+      var html = '';
+      html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:4px">';
+      if (data.params) {
+        var p = data.params;
+        html += '<div class="stat-card" style="padding:10px"><div style="font-size:1rem;font-weight:700;color:var(--accent)">' + (p.max_slippage * 100).toFixed(1) + '%</div><div style="font-size:0.7rem;color:var(--text2)">滑点容忍度</div></div>';
+        html += '<div class="stat-card" style="padding:10px"><div style="font-size:1rem;font-weight:700;color:var(--accent)">' + (p.position_pct * 100).toFixed(0) + '%</div><div style="font-size:0.7rem;color:var(--text2)">单笔仓位</div></div>';
+        html += '<div class="stat-card" style="padding:10px"><div style="font-size:1rem;font-weight:700;color:var(--accent)">' + (p.min_confidence * 100).toFixed(0) + '%</div><div style="font-size:0.7rem;color:var(--text2)">信心分阈值</div></div>';
+        html += '<div class="stat-card" style="padding:10px"><div style="font-size:1rem;font-weight:700;color:var(--accent)">' + ((p.take_profit_pct || 0.3) * 100).toFixed(0) + '%</div><div style="font-size:0.7rem;color:var(--text2)">止盈比例</div></div>';
+        html += '<div class="stat-card" style="padding:10px"><div style="font-size:1rem;font-weight:700;color:var(--danger)">' + ((p.stop_loss_pct || 0.2) * 100).toFixed(0) + '%</div><div style="font-size:0.7rem;color:var(--text2)">止损比例</div></div>';
+        html += '<div class="stat-card" style="padding:10px"><div style="font-size:1rem;font-weight:700;color:var(--accent)">' + ((p.trade_ratio || 1) * 100).toFixed(0) + '%</div><div style="font-size:0.7rem;color:var(--text2)">交易比例</div></div>';
+        html += '</div>';
+        html += '<div style="margin-top:8px;font-size:0.75rem;color:var(--text2)">📊 经验: ' + (data.experience_count || 0) + '条 | 评分: ' + (data.score ? (data.score * 100).toFixed(1) + '%' : '-') + '</div>';
+      } else {
+        html += '<div class="empty" style="grid-column:1/-1"><p>Optuna 尚未完成首次调优</p></div>';
+      }
+      document.getElementById("optunaParams").innerHTML = html;
+    } catch(e) {
+      document.getElementById("optunaParams").innerHTML = '<div class="empty"><p>加载失败</p></div>';
+    }
+  };
+  xhr.send();
 }
 
 function loadTrades() {
