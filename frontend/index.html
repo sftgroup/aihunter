@@ -70,6 +70,7 @@ input:focus{border-color:var(--accent)}
   <button class="tab" onclick="switchTab('trades')">💼 交易</button>
   <button class="tab" onclick="switchTab('rules')">📋 规则</button>
   <button class="tab" onclick="switchTab('config')">🔑 配置</button>
+  <button class="tab" onclick="switchTab('backtest')">🔙 回测</button>
   <button class="tab" onclick="switchTab('system')">⚙️ 系统</button>
 </div>
 
@@ -388,6 +389,40 @@ input:focus{border-color:var(--accent)}
   </div>
 </div>
 
+<!-- ===== 离线回测 ===== -->
+<div id="panel-backtest" class="panel">
+  <div class="card">
+    <div class="card-title">🔙 离线回测 <span style="font-size:0.8rem;color:var(--text2)">基于历史价格数据模拟交易</span></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+      <span style="font-size:0.8rem;color:var(--text2)">时间范围</span>
+      <select id="btOfflineHours" style="width:auto">
+        <option value="1">过去1小时</option>
+        <option value="6" selected>过去6小时</option>
+        <option value="24">过去24小时</option>
+        <option value="168">过去7天</option>
+      </select>
+      <span style="font-size:0.8rem;color:var(--text2)">链</span>
+      <select id="btOfflineChain" style="width:auto">
+        <option value="all">全部</option>
+        <option value="SOL">SOL</option>
+        <option value="ETH">ETH</option>
+        <option value="BSC">BSC</option>
+        <option value="BASE">BASE</option>
+      </select>
+      <span style="font-size:0.8rem;color:var(--text2)">每笔 $</span>
+      <input id="btOfflineAmount" type="number" value="100" style="width:80px" />
+      <button class="btn" onclick="runOfflineBacktest()">🔄 开始离线回测</button>
+      <span id="btOfflineStatus" style="font-size:0.8rem;color:var(--text2)"></span>
+    </div>
+    <div id="btOfflineResult" style="min-height:100px">
+      <div class="empty"><p>选择参数后点击"开始离线回测"</p></div>
+    </div>
+    <div id="btOfflineChartArea" style="display:none;height:250px;margin-top:12px">
+      <div id="btOfflineChart" style="width:100%;height:100%"></div>
+    </div>
+  </div>
+</div>
+
 <script>
 var API = window.location.origin + '/api';
 var signals = [];
@@ -397,9 +432,9 @@ var ws = null;
 function switchTab(name) {
   var tabs = document.querySelectorAll('.tab-bar > .tab');
   for (var i = 0; i < tabs.length; i++) tabs[i].classList.remove('active');
-  var map = {signals:0, trades:1, rules:2, config:3, system:4};
+  var map = {signals:0, trades:1, rules:2, config:3, backtest:4, system:5};
   tabs[map[name]].classList.add('active');
-  ['signals','trades','rules','config','system'].forEach(function(p){
+  ['signals','trades','rules','config','backtest','system'].forEach(function(p){
     var el = document.getElementById('panel-'+p);
     if (el) el.className = p === name ? 'panel active' : 'panel';
   });
@@ -414,6 +449,7 @@ function switchTab(name) {
     }, 200);
   }
   if (name === 'rules') loadRulesPanel();
+  if (name === 'backtest') loadBacktestPanel();
   if (name === 'config') loadConfig();
   if (name === 'system') loadSystem();
 }
@@ -526,6 +562,103 @@ function getExplorerUrl(chain, contract) {
     case 'BASE': return 'https://basescan.org/address/' + cleanAddr;
     default: return 'https://solscan.io/token/' + cleanAddr;
   }
+}
+
+function loadBacktestPanel() {
+  document.getElementById('btOfflineResult').innerHTML = '<div class="empty"><p>选择参数后点击"开始离线回测"</p></div>';
+  document.getElementById('btOfflineChartArea').style.display = 'none';
+}
+
+var btOfflineChartInstance = null;
+
+function runOfflineBacktest() {
+  var hours = document.getElementById('btOfflineHours').value;
+  var chain = document.getElementById('btOfflineChain').value;
+  var amount = parseFloat(document.getElementById('btOfflineAmount').value) || 100;
+  
+  var resultDiv = document.getElementById('btOfflineResult');
+  resultDiv.innerHTML = '<span style="color:var(--text2)">⏳ 正在运行离线回测...</span>';
+  document.getElementById('btOfflineChartArea').style.display = 'none';
+  document.getElementById('btOfflineStatus').textContent = '⏳ 计算中...';
+  
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', API + '/backtest/offline?hours=' + encodeURIComponent(hours) + '&chain=' + encodeURIComponent(chain) + '&perAmount=' + amount, true);
+  xhr.onload = function() {
+    document.getElementById('btOfflineStatus').textContent = '';
+    try {
+      var d = JSON.parse(xhr.responseText);
+      if (d.code !== 200) {
+        resultDiv.innerHTML = '<span style="color:var(--danger)">' + (d.error || '回测失败') + '</span>';
+        return;
+      }
+      var data = d.data;
+      if (!data || data.total === 0) {
+        resultDiv.innerHTML = '<span style="color:var(--warning)">' + (data.message || '该时段无数据') + '</span>';
+        return;
+      }
+      
+      var s = data.stats;
+      var timeLabel = hours >= 24 ? (hours/24 + '天') : hours + '小时';
+      
+      // 统计卡片
+      var html = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px">' +
+        '<div class="stat-card" style="padding:10px"><div style="font-size:1.2rem;font-weight:700;color:' + (s.total_pnl >= 0 ? 'var(--accent)' : 'var(--danger)') + '">' + (s.total_pnl >= 0 ? '+' : '') + '$' + s.total_pnl.toFixed(2) + '</div><div style="font-size:0.7rem;color:var(--text2)">总盈亏</div></div>' +
+        '<div class="stat-card" style="padding:10px"><div style="font-size:1.2rem;font-weight:700;color:var(--accent)">' + s.win_rate + '</div><div style="font-size:0.7rem;color:var(--text2)">胜率 (' + s.wins + '/' + (s.wins + s.losses) + ')</div></div>' +
+        '<div class="stat-card" style="padding:10px"><div style="font-size:1.2rem;font-weight:700;color:var(--warning)">' + s.max_drawdown.toFixed(1) + '%</div><div style="font-size:0.7rem;color:var(--text2)">最大回撤</div></div>' +
+        '<div class="stat-card" style="padding:10px"><div style="font-size:1.2rem;font-weight:700;color:' + (s.sharpe_ratio >= 1 ? 'var(--accent)' : 'var(--warning)') + '">' + s.sharpe_ratio.toFixed(2) + '</div><div style="font-size:0.7rem;color:var(--text2)">夏普比率</div></div>' +
+        '</div>';
+      
+      html += '<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:0.8rem;margin-bottom:8px">' +
+        '<span style="color:var(--text2)">⏱ ' + timeLabel + '</span>' +
+        '<span style="color:var(--text2)">🪙 ' + data.total + '笔交易</span>' +
+        '<span style="color:var(--text2)">📊 平均盈亏: ' + (s.avg_pnl >= 0 ? '+' : '') + '$' + s.avg_pnl.toFixed(2) + '</span>' +
+        '</div>';
+      
+      // 按链统计
+      if (data.chain_stats) {
+        html += '<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:0.8rem;margin-bottom:8px">';
+        for (var c in data.chain_stats) {
+          var cs = data.chain_stats[c];
+          var cp = cs.pnl >= 0 ? '+' : '';
+          html += '<span style="background:rgba(255,255,255,0.03);padding:4px 10px;border-radius:4px">' + c + ': ' + cs.trades + '笔 ' + cp + '$' + cs.pnl.toFixed(0) + ' (' + (cs.trades > 0 ? (cs.wins/cs.trades*100).toFixed(0) : '0') + '%)</span>';
+        }
+        html += '</div>';
+      }
+      
+      resultDiv.innerHTML = html;
+      
+      // 累计盈亏曲线
+      if (data.cum_pnl && data.cum_pnl.length > 1) {
+        document.getElementById('btOfflineChartArea').style.display = 'block';
+        var times = data.cum_pnl.map(function(p) { return new Date(p.x).toLocaleString('zh-CN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}); });
+        var vals = data.cum_pnl.map(function(p) { return p.y; });
+        
+        if (!btOfflineChartInstance) {
+          btOfflineChartInstance = echarts.init(document.getElementById('btOfflineChart'));
+        }
+        btOfflineChartInstance.setOption({
+          tooltip: { trigger: 'axis', formatter: function(ps) { return ps[0].axisValue + '<br/>累计盈亏: $' + ps[0].value.toFixed(2); }, textStyle: { fontSize: 10 } },
+          grid: { left: 50, right: 10, top: 8, bottom: 20 },
+          xAxis: { type: 'category', data: times, axisLabel: { color: '#8888aa', fontSize: 8, rotate: 30 }, axisLine: { show: false } },
+          yAxis: { type: 'value', axisLabel: { color: '#8888aa', fontSize: 8, formatter: '$ {value}' }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.04)' } } },
+          series: [{
+            type: 'line', data: vals, smooth: true, symbol: 'none',
+            lineStyle: { color: '#4782ff', width: 2 },
+            areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+              colorStops: [{ offset: 0, color: 'rgba(71,130,255,0.2)' }, { offset: 1, color: 'rgba(71,130,255,0.02)' }] } },
+            markLine: { silent: true, symbol: 'none',
+              data: [{ yAxis: 0, label: { formatter: '盈亏平衡', color: '#8888aa', fontSize: 9 }, lineStyle: { color: 'rgba(136,136,170,0.2)', type: 'dashed' } }]
+            }
+          }]
+        }, true);
+        btOfflineChartInstance.resize();
+      }
+      
+    } catch(e) {
+      resultDiv.innerHTML = '<span style="color:var(--danger)">回测失败: ' + e.message + '</span>';
+    }
+  };
+  xhr.send();
 }
 
 function loadRulesPanel() {

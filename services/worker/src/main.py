@@ -903,6 +903,14 @@ class ChainWorker:
                          price_data['liquidity_usd'], price_data['token_reserve'],
                          price_data['paired_reserve'])
                     )
+                    # 同时写入历史价格表（离线回测用）
+                    cur.execute(
+                        """INSERT INTO historical_prices (chain, contract, symbol, price, liquidity_usd, token_reserve, paired_reserve, recorded_at)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())""",
+                        (chain, token, symbol or '', price_data['price'],
+                         price_data['liquidity_usd'], price_data['token_reserve'],
+                         price_data['paired_reserve'])
+                    )
                     self.db.commit()
             except Exception as e:
                 print(f"  ⚠️ 价格快照写入失败: {e}")

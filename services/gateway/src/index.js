@@ -46,7 +46,7 @@ await app.register(websocket);
 app.addHook('preHandler', async (request, reply) => {
   const publicRoutes = ['/health', '/api/rank/ping', '/api/prize/ping', '/api/system/status', '/ws',
     '/api/config/ai', '/api/config/rpc', '/api/trade/paper', '/api/trade/paper/result', '/api/trade/portfolio'];
-  if (publicRoutes.includes(request.url) || request.url.startsWith('/api/config/') || request.url.startsWith('/api/trade/') || request.url.startsWith('/api/learning/') || request.url.startsWith('/api/rules/')) return;
+  if (publicRoutes.includes(request.url) || request.url.startsWith('/api/config/') || request.url.startsWith('/api/trade/') || request.url.startsWith('/api/learning/') || request.url.startsWith('/api/rules/') || request.url.startsWith('/api/backtest/')) return;
   const auth = request.headers.authorization;
   if (!auth || auth !== `Bearer ${AUTH_TOKEN}`) {
     return reply.status(401).send({ error: 'Unauthorized' });
@@ -716,6 +716,159 @@ app.post('/api/experiences', async (request) => {
   );
   await redis.publish('learning:trigger', JSON.stringify({ strategy: exp.strategy_type }));
   return { code: 200, message: '经验已记录' };
+});
+
+// ===== 离线回测 API =====
+app.get('/api/backtest/offline', async (request) => {
+  const { chain, hours, perAmount } = request.query;
+  const perAmt = parseFloat(perAmount) || 100;
+  const hrs = parseInt(hours) || 6;
+  
+  let where = [];
+  let values = [];
+  let idx = 1;
+  
+  if (chain && chain !== 'all') {
+    where.push(`chain = $${idx}`);
+    values.push(chain);
+    idx++;
+  }
+  where.push(`recorded_at > NOW() - $${idx}::interval`);
+  values.push(hrs + ' hours');
+  
+  // 获取历史价格数据（按链+合约分组，时间排序）
+  const result = await db.query(
+    `SELECT chain, contract, symbol, price, liquidity_usd, recorded_at
+     FROM historical_prices
+     WHERE ${where.join(' AND ')}
+     ORDER BY chain, contract, recorded_at ASC`,
+    values
+  );
+  
+  const rows = result.rows;
+  if (rows.length < 10) {
+    return { code: 200, data: { total: 0, message: '历史价格数据不足，需要至少10条记录' } };
+  }
+  
+  // 按合约分组
+  const groups = {};
+  for (const r of rows) {
+    const key = r.chain + ':' + r.contract;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push({
+      time: r.recorded_at,
+      price: parseFloat(r.price),
+      liquidity_usd: parseFloat(r.liquidity_usd || 0),
+      chain: r.chain,
+      contract: r.contract,
+      symbol: r.symbol || ''
+    });
+  }
+  
+  // 对每个合约运行回测
+  let allTrades = [];
+  let totalPnl = 0;
+  let wins = 0;
+  const totalTrades = [];
+  
+  for (const [key, prices] of Object.entries(groups)) {
+    if (prices.length < 3) continue;
+    
+    // 用 python 脚本做回测
+    const { spawnSync } = require('child_process');
+    const input = JSON.stringify({
+      price_data: prices,
+      params: {
+        per_amount: perAmt,
+        take_profit_pct: 30,
+        stop_loss_pct: 20,
+        max_slippage: 5,
+        min_confidence: 50
+      }
+    });
+    
+    const proc = spawnSync('python3', ['-c', `
+import json, sys
+sys.path.insert(0, '/app')
+from backtest_offline import run_backtest
+data = json.loads(sys.stdin.read())
+result = run_backtest(data['price_data'], data['params'])
+print(json.dumps(result))
+    `], { input, timeout: 10000, maxBuffer: 1024 * 1024 });
+    
+    if (proc.status === 0) {
+      try {
+        const btResult = JSON.parse(proc.stdout.toString());
+        if (btResult.trades) {
+          allTrades = allTrades.concat(btResult.trades);
+          if (btResult.stats) {
+            totalPnl += btResult.stats.total_pnl || 0;
+            wins += btResult.stats.wins || 0;
+          }
+        }
+      } catch(e) {}
+    }
+  }
+  
+  if (allTrades.length === 0) {
+    return { code: 200, data: { total: 0, message: '回测完成，但未产生任何交易' } };
+  }
+  
+  // 排序
+  allTrades.sort((a, b) => new Date(a.exit_time) - new Date(b.exit_time));
+  
+  // 统计
+  const total = allTrades.length;
+  const winRate = total > 0 ? (wins / total * 100).toFixed(1) : '0.0';
+  const avgPnl = totalPnl / total;
+  
+  // 最大回撤
+  let cum = 0, peak = 0, maxDd = 0;
+  const cumPnl = [];
+  for (const t of allTrades) {
+    cum += t.pnl_usd || 0;
+    if (cum > peak) peak = cum;
+    const dd = peak > 0 ? ((cum - peak) / peak) * 100 : 0;
+    if (dd < maxDd) maxDd = dd;
+    cumPnl.push({ x: t.exit_time, y: parseFloat(cum.toFixed(2)) });
+  }
+  
+  // 夏普
+  let sumSq = 0;
+  for (const t of allTrades) {
+    sumSq += Math.pow((t.pnl_usd || 0) - avgPnl, 2);
+  }
+  const stdDev = total > 0 ? Math.sqrt(sumSq / total) : 0.001;
+  const sharpe = stdDev > 0 ? (avgPnl / stdDev) * Math.sqrt(365) : 0;
+  
+  // 按链统计
+  const chainStats = {};
+  for (const t of allTrades) {
+    const c = t.chain || 'unknown';
+    if (!chainStats[c]) chainStats[c] = { trades: 0, wins: 0, pnl: 0 };
+    chainStats[c].trades++;
+    if (t.pnl_usd > 0) chainStats[c].wins++;
+    chainStats[c].pnl += t.pnl_usd;
+  }
+  
+  return {
+    code: 200,
+    data: {
+      total,
+      stats: {
+        total_pnl: parseFloat(totalPnl.toFixed(2)),
+        win_rate: winRate + '%',
+        wins,
+        losses: total - wins,
+        max_drawdown: parseFloat(maxDd.toFixed(2)),
+        sharpe_ratio: parseFloat(sharpe.toFixed(3)),
+        avg_pnl: parseFloat(avgPnl.toFixed(2))
+      },
+      chain_stats: chainStats,
+      cum_pnl: cumPnl,
+      trades: allTrades.slice(0, 200)
+    }
+  };
 });
 
 // ===== WebSocket =====
