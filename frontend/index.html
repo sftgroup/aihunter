@@ -70,6 +70,7 @@ input:focus{border-color:var(--accent)}
   <button class="tab" onclick="switchTab('trades')">💼 交易</button>
   <button class="tab" onclick="switchTab('rules')">📋 规则</button>
   <button class="tab" onclick="switchTab('config')">🔑 配置</button>
+  <button class="tab" onclick="switchTab('strategies')">🎯 策略</button>
   <button class="tab" onclick="switchTab('backtest')">🔙 回测</button>
   <button class="tab" onclick="switchTab('system')">⚙️ 系统</button>
 </div>
@@ -329,6 +330,11 @@ input:focus{border-color:var(--accent)}
   </div>
 </div>
 
+<!-- ===== 策略 ===== -->
+<div id="panel-strategies" class="panel">
+  <div class="card"><div class="card-title">🎯 策略配置</div><div id="strategyList"><div class="empty"><p>加载中...</p></div></div></div>
+</div>
+
 <!-- ===== 配置 ===== -->
 <div id="panel-config" class="panel">
   <div class="grid-2">
@@ -432,9 +438,9 @@ var ws = null;
 function switchTab(name) {
   var tabs = document.querySelectorAll('.tab-bar > .tab');
   for (var i = 0; i < tabs.length; i++) tabs[i].classList.remove('active');
-  var map = {signals:0, trades:1, rules:2, config:3, backtest:4, system:5};
+  var map = {signals:0, trades:1, rules:2, config:3, strategies:4, backtest:5, system:6};
   tabs[map[name]].classList.add('active');
-  ['signals','trades','rules','config','backtest','system'].forEach(function(p){
+  ['signals','trades','rules','config','strategies','backtest','system'].forEach(function(p){
     var el = document.getElementById('panel-'+p);
     if (el) el.className = p === name ? 'panel active' : 'panel';
   });
@@ -1478,5 +1484,23 @@ loadSystem();
 setInterval(loadSystem, 5000);
 setInterval(loadTrades, 10000);
 </script>
+
+<script>
+function loadStrategiesPanel() {
+  var x = new XMLHttpRequest();
+  x.open("GET", API+"/strategies", true);
+  x.onload = function(){
+    try{var d=JSON.parse(x.responseText),s=d.data||[],types=["SNIPER","ARBITRAGE","MATURE_MEME","LENDING_ARB"];
+    var h="<div style=display:grid;grid-template-columns:repeat(2,1fr);gap:12px>";
+    for(var i=0;i<types.length;i++){var t=types[i],c={enabled:true,capital_ratio:0.25};
+      for(var j=0;j<s.length;j++){if(s[j].strategy_type===t){c=s[j];break}}
+      h+="<div class=card style=padding:12px><b>"+t+"</b> "+(c.enabled?"\u2705":"\u274c")+"<br><span style=font-size:0.8rem;color:var(--text2)>"+(c.capital_ratio*100).toFixed(0)+"%</span></div>";}
+    h+="</div>";document.getElementById("strategyList").innerHTML=h;
+    }catch(e){}
+  };
+  x.send();
+}
+</script>
+
 </body>
 </html>
