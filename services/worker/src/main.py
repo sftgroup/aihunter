@@ -1,6 +1,7 @@
 from src.lending_arb import LendingArbitrageEngine, LendingRateMonitor
 from src.arbitrage import ArbitrageEngine
 from src.mature_meme import MatureMemeEngine
+from src.risk_engine import RiskEngine
 """
 AIHunter Worker - 链上数据监听与合约解读引擎
 
@@ -606,6 +607,7 @@ class ChainWorker:
         self.lending_engine = None
         self.arb_engine = None
         self.meme_engine = None
+        self.risk_engine = None
         self.last_block = {}
         self.seen_tx_hashes = set()  # 已处理的交易哈希，用于去重
         self.rpc_urls = {}
@@ -628,6 +630,7 @@ class ChainWorker:
         self.lending_engine = LendingArbitrageEngine(self.db, self.redis, self.http)
         self.arb_engine = ArbitrageEngine(self.db, self.redis, self.http)
         self.meme_engine = MatureMemeEngine(self.db, self.redis, self.http)
+        self.risk_engine = RiskEngine(self.db, self.redis, self.http)
         
         for chain in self.chains:
             url = self.rpc_urls.get(chain)
@@ -637,6 +640,8 @@ class ChainWorker:
                     self.lending_engine.add_chain(chain, url)
                     if self.arb_engine:
                         self.arb_engine.add_chain(chain, url)
+                    if self.risk_engine:
+                        self.risk_engine.add_chain(chain, url)
         
         self._load_model()
         print(f"✅ Worker 已连接")
@@ -1113,6 +1118,9 @@ class ChainWorker:
                 if int(time.time()) % 120 < 10:
                     if self.meme_engine:
                         await self.meme_engine.run_cycle()
+                if int(time.time()) % 240 < 10:
+                    if self.risk_engine:
+                        await self.risk_engine.run_cycle()
                 await asyncio.sleep(5)
             except Exception as e:
                 print(f"❌ 异常: {e}")

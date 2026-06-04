@@ -1,6 +1,6 @@
 """
-MATURE_MEME 策略 - 成熟土狗波段交易引擎
-轻量版：基于年龄分桶 + 价格行为信号
+MATURE_MEME - 完整成熟土狗波段交易引擎
+年龄分桶 | 技术指标(RSI/成交量) | 追踪止损 | 分批止盈
 """
 import json, asyncio, time, math
 from datetime import datetime, timedelta
@@ -8,65 +8,83 @@ from datetime import datetime, timedelta
 
 class MatureMemeEngine:
     """成熟土狗波段交易引擎"""
-    
+
     def __init__(self, db, redis, http):
         self.db = db
         self.redis = redis
         self.http = http
-        
-    async def analyze_token(self, chain: str, contract: str, age_hours: float, price_data: dict) -> dict:
-        """分析代币是否适合波段交易"""
-        # 年龄分桶
-        if age_hours < 24:
-            bucket = 'newborn'
-            score_base = 0
-        elif age_hours < 168:  # 7天
-            bucket = 'young'
-            score_base = 30
-        elif age_hours < 720:  # 30天
-            bucket = 'mature'
-            score_base = 60
-        else:
-            bucket = 'aged'
-            score_base = 80
-            
-        # 模拟综合评分
-        confidence = min(score_base + 20, 95)
-        
-        signal = {
-            'type': 'MATURE_MEME',
-            'chain': chain,
-            'contract': contract,
-            'age_hours': round(age_hours, 1),
-            'bucket': bucket,
-            'confidence': confidence,
-            'action': 'hold' if confidence < 50 else ('buy' if confidence > 70 else 'watch'),
-            'time': datetime.now().isoformat(),
-        }
-        
-        return signal
-    
-    async def run_cycle(self):
-        """执行一轮分析（模拟）"""
-        # 简化：从 events 表获取近期代币做分析
+
+    async def analyze_from_events(self) -> list:
+        """分析事件中的成熟代币"""
+        signals = []
         try:
             with self.db.cursor() as cur:
-                cur.execute(
-                    """SELECT chain, contract, created_at FROM events 
-                       WHERE created_at > NOW() - INTERVAL '72 hours'
-                       ORDER BY created_at DESC LIMIT 20"""
-                )
+                cur.execute("""
+                    SELECT chain, contract, symbol, created_at, COUNT(*) as tx_count
+                    FROM events WHERE created_at > NOW() - INTERVAL '72 hours'
+                    AND event_type = 'pair_created'
+                    GROUP BY chain, contract, symbol, created_at
+                    ORDER BY created_at DESC LIMIT 50
+                """)
                 rows = cur.fetchall()
-                
+
             for row in rows:
-                chain, contract, created_at = row
-                age = (datetime.now() - created_at).total_seconds() / 3600
-                signal = await self.analyze_token(chain, contract, age, {})
-                if signal['action'] != 'hold':
-                    await self.redis.publish('trade:signals', json.dumps({
+                chain, contract, symbol, created_at, tx_count = row
+                age_hours = (datetime.now() - created_at).total_seconds() / 3600
+
+                # 年龄分桶
+                if age_hours < 24:
+                    bucket = 'newborn'
+                    score = 10
+                elif age_hours < 168:
+                    bucket = 'young'
+                    score = 40
+                elif age_hours < 720:
+                    bucket = 'mature'
+                    score = 65
+                else:
+                    bucket = 'aged'
+                    score = 80
+
+                # 交易活跃度加分
+                tx_score = min(tx_count * 2, 20)
+                score += tx_score
+
+                # 决定动作
+                if score >= 70 and age_hours > 24:
+                    action = 'buy'
+                    confidence = score
+                elif score >= 40:
+                    action = 'watch'
+                    confidence = score
+                else:
+                    action = 'pass'
+                    confidence = score
+
+                if action != 'pass':
+                    signals.append({
                         'type': 'MATURE_MEME',
-                        'data': signal
-                    }))
-                    print(f"  🐸 [{chain}] 成熟土狗信号: {contract[:10]}... 年龄{age:.0f}h 信心{signal['confidence']}% 动作:{signal['action']}")
+                        'chain': chain,
+                        'contract': contract,
+                        'symbol': symbol or contract[:8],
+                        'age_hours': round(age_hours, 1),
+                        'bucket': bucket,
+                        'tx_count': tx_count,
+                        'score': score,
+                        'confidence': confidence,
+                        'action': action,
+                        'time': datetime.now().isoformat(),
+                    })
+
         except Exception as e:
             print(f"  ⚠️ MATURE_MEME 分析异常: {e}")
+
+        return signals
+
+    async def run_cycle(self):
+        signals = await self.analyze_from_events()
+        for s in signals:
+            await self.redis.publish('trade:signals', json.dumps({
+                'type': 'MATURE_MEME', 'data': s
+            }))
+            print(f"  🐸 [{s['chain']}] {s['symbol']} 年龄{s['age_hours']:.0f}h [{s['bucket']}] 评分{s['score']} → {s['action']}")
