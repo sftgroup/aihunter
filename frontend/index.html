@@ -66,308 +66,115 @@ input:focus{border-color:var(--accent)}
 </div>
 
 <div class="tab-bar">
-  <button class="tab active" onclick="switchTab('signals')">📡 信号</button>
-  <button class="tab" onclick="switchTab('trades')">💼 交易</button>
-  <button class="tab" onclick="switchTab('rules')">📋 规则</button>
+  <button class="tab active" onclick="switchTab('sniper')">🎯 土狗狙击</button>
+  <button class="tab" onclick="switchTab('mature')">🐸 成熟品种</button>
+  <button class="tab" onclick="switchTab('arbitrage')">⚡ 套利</button>
+  <button class="tab" onclick="switchTab('lending')">🏦 存币质押</button>
   <button class="tab" onclick="switchTab('config')">🔑 配置</button>
-  <button class="tab" onclick="switchTab('strategies')">🎯 策略</button>
-  <button class="tab" onclick="switchTab('backtest')">🔙 回测</button>
   <button class="tab" onclick="switchTab('system')">⚙️ 系统</button>
 </div>
 
-<!-- ===== 信号 ===== -->
-<div id="panel-signals" class="panel active">
-  <div class="card">
-    <div class="card-title">📡 实时信号 <span id="wsStatus" style="font-size:0.8rem;color:var(--warning)">● 连接中</span></div>
-    <div id="signalList"><div class="empty"><p>正在监听...</p></div></div>
-  </div>
-</div>
-
-<!-- ===== 交易 ===== -->
-<div id="panel-trades" class="panel">
-  <div class="stat-row">
-    <div class="stat-card"><div class="stat-num stat-num-green" id="paperBalance">$10,000</div><div>模拟余额</div></div>
-    <div class="stat-card"><div class="stat-num" id="paperTotalPnl" style="color:#888">$0.00</div><div>模拟盈亏</div></div>
-    <div class="stat-card"><div class="stat-num stat-num-blue" id="paperWinRate">0%</div><div>模拟胜率</div></div>
-    <div class="stat-card"><div class="stat-num" id="paperTotalTrades">0</div><div>模拟交易</div></div>
-  </div>
-  <div style="margin-bottom:12px">
-    <button class="tab active" onclick="switchTradeTab('paper')">🧪 模拟交易</button>
-    <button class="tab" onclick="switchTradeTab('real')">💰 真实交易</button>
-  </div>
-  <div id="trade-paper" class="panel active">
-    <!-- 分析仪表盘 3列 -->
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">
-      <div class="card" style="padding:12px">
-        <div class="card-title" style="font-size:0.85rem;margin-bottom:8px">🥇 胜率</div>
-        <div id="chartWinRate" style="width:100%;height:100px"></div>
-      </div>
-      <div class="card" style="padding:12px">
-        <div class="card-title" style="font-size:0.85rem;margin-bottom:8px">📊 盈亏分布</div>
-        <div id="chartPnlDist" style="width:100%;height:100px"></div>
-      </div>
-      <div class="card" style="padding:12px">
-        <div class="card-title" style="font-size:0.85rem;margin-bottom:8px">📈 累计盈亏</div>
-        <div id="chartCumPnl" style="width:100%;height:100px"></div>
-      </div>
-    </div>
-    <!-- 净值曲线卡片（加大） -->
-    <div class="card">
-      <div class="card-title">📈 净值曲线 <span style="font-size:0.8rem;color:var(--accent);font-weight:400" id="equityStats"></span></div>
-      <div id="equityChart" style="width:100%;height:280px"></div>
-    </div>
-    <!-- 参数配置 + 重置（默认展开） -->
-    <div class="card" id="paperConfigCard">
-      <div class="card-title">⚙️ 模拟参数</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr;gap:8px">
-        <div><div style="font-size:0.75rem;color:var(--text2);margin-bottom:2px">初始余额</div><input id="cfgInitialBalance" type="number" value="10000" style="padding:6px 8px" /></div>
-        <div><div style="font-size:0.75rem;color:var(--text2);margin-bottom:2px">单笔最小</div><input id="cfgMinAmount" type="number" value="100" style="padding:6px 8px" /></div>
-        <div><div style="font-size:0.75rem;color:var(--text2);margin-bottom:2px">单笔最大</div><input id="cfgMaxAmount" type="number" value="500" style="padding:6px 8px" /></div>
-        <div><div style="font-size:0.75rem;color:var(--text2);margin-bottom:2px">止盈%</div><input id="cfgTakeProfit" type="number" value="30" style="padding:6px 8px" /></div>
-        <div><div style="font-size:0.75rem;color:var(--text2);margin-bottom:2px">止损%</div><input id="cfgStopLoss" type="number" value="-20" style="padding:6px 8px" /></div>
-        <div style="display:flex;align-items:flex-end;gap:6px">
-          <label style="display:flex;align-items:center;gap:4px;font-size:0.8rem;cursor:pointer"><input id="cfgEnabled" type="checkbox" checked style="width:auto" /> 启用</label>
-          <button class="btn" onclick="savePaperConfig()" style="padding:6px 12px;font-size:0.8rem">💾</button>
-          <button class="btn" onclick="resetPaperTrades()" style="padding:6px 12px;font-size:0.8rem;background:var(--danger);color:#fff">🗑️</button>
-          <span id="paperCfgResult" style="font-size:0.75rem"></span>
-        </div>
-      </div>
-    </div>
-    <!-- 学习面板（默认展开） -->
-    <div class="card" id="learningPanel">
-      <div class="card-title">🧠 自我学习 <span style="font-size:0.75rem;color:var(--text2);font-weight:400">每30条自动优化</span></div>
-      <div style="display:flex;gap:24px;margin-bottom:8px;flex-wrap:wrap">
-        <div><span class="stat-num stat-num-green" id="learnExperiences" style="font-size:1.2rem">0</span> <span style="font-size:0.8rem;color:var(--text2)">经验数</span></div>
-        <div><span id="learnParams" style="font-size:0.85rem;color:var(--accent)">-</span> <span style="font-size:0.8rem;color:var(--text2)">最优参数</span></div>
-        <div><span class="stat-num" id="learnRules" style="font-size:1.2rem;color:#888">-</span> <span style="font-size:0.8rem;color:var(--text2)">规则数</span></div>
-        <div><span class="stat-num" id="learnScore" style="font-size:1.2rem;color:#888">-</span> <span style="font-size:0.8rem;color:var(--text2)">最新评分</span></div>
-      </div>
-      <div id="learnChart" style="width:100%;height:120px;margin-bottom:8px"></div>
-      <div id="learnDetail" style="font-size:0.8rem;color:var(--text2)"></div>
-    </div>
-    <!-- 回测面板（全量回测） -->
-    <div class="card" id="backtestCard">
-      <div class="card-title">📊 批量回测 <span style="font-size:0.75rem;color:var(--text2);font-weight:400">基于历史交易数据评估策略表现</span></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
-        <div style="flex:1;min-width:100px">
-          <div style="font-size:0.75rem;color:var(--text2);margin-bottom:2px">时间范围</div>
-          <select id="btTimeRange" style="padding:6px 8px;font-size:0.8rem">
-            <option value="1">过去1小时</option>
-            <option value="6" selected>过去6小时</option>
-            <option value="24">过去24小时</option>
-            <option value="168">过去7天</option>
-            <option value="0">全部</option>
-          </select>
-        </div>
-        <div style="flex:1;min-width:80px">
-          <div style="font-size:0.75rem;color:var(--text2);margin-bottom:2px">链</div>
-          <select id="btChain" style="padding:6px 8px;font-size:0.8rem">
-            <option value="all">全部</option>
-            <option value="SOL">SOL</option>
-            <option value="ETH">ETH</option>
-            <option value="BSC">BSC</option>
-            <option value="BASE">BASE</option>
-          </select>
-        </div>
-        <div style="flex:1;min-width:80px">
-          <div style="font-size:0.75rem;color:var(--text2);margin-bottom:2px">每笔金额 $</div>
-          <input id="btAmount" type="number" value="100" style="padding:6px 8px;font-size:0.8rem" />
-        </div>
-        <div>
-          <button class="btn" onclick="runBacktest()" style="padding:6px 14px;font-size:0.8rem">🔄 开始回测</button>
-        </div>
-      </div>
-      <!-- 回测结果统计 -->
-      <div id="btResult" style="margin-top:10px;font-size:0.85rem"></div>
-      <!-- 回测曲线 -->
-      <div id="btChartArea" style="display:none;margin-top:8px">
-        <div id="btChart" style="width:100%;height:160px"></div>
-      </div>
-    </div>
-    <!-- 持仓 + 交易记录 -->
-    <div class="grid-2">
-      <div class="card">
-        <div class="card-title">📈 当前持仓</div>
-        <div id="openPositions"><div class="empty"><p>暂无</p></div></div>
-      </div>
-      <div class="card">
-        <div class="card-title">📜 交易记录 <span style="font-size:0.75rem;color:var(--text2);font-weight:400" id="tradeStatsSummary"></span></div>
-        <div id="closedTrades"><div class="empty"><p>暂无</p></div></div>
-      </div>
-    </div>
-  </div>
-  <div id="trade-real" class="panel">
-    <div class="card">
-      <div class="card-title">💰 真实交易</div>
-      <div class="empty">
-        <p>🔑 配置 SessionKey 后可开启实盘交易</p>
-        <p style="font-size:0.8rem;color:var(--text2);margin-top:8px">SessionKey 用于免逐笔签名，限额可控，可随时撤销</p>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ===== 规则 ===== -->
-<div id="panel-rules" class="panel">
-  <div class="card">
-    <div class="card-title">🤖 DeepSeek 动态规则 <span id="rulesStrategy" style="font-size:0.8rem;color:var(--text2)">signal_follow</span></div>
-    <div style="margin-bottom:12px">
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <span style="font-size:0.8rem;color:var(--text2)">策略：</span>
-        <select id="rulesStrategySelect" onchange="loadDynamicRules()" style="width:auto">
-          <option value="signal_follow">signal_follow</option>
-          <option value="flip">flip</option>
-        </select>
-        <button class="btn" onclick="refreshDynamicRules()" style="padding:4px 12px;font-size:0.8rem">🔄 刷新</button>
-      </div>
-    </div>
-    <div id="dynamicRulesList">
-      <div class="empty"><p>加载中...</p></div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">🧱 硬编码风险评分规则</div>
-    <div style="overflow-x:auto">
-      <table>
-        <tr><th>#</th><th>特征</th><th>条件</th><th>风险调整</th></tr>
-        <tr><td>1</td><td>Owner放弃</td><td>已放弃 / 活跃</td><td><span class="green">-0.12</span> / <span class="red">+0.10</span></td></tr>
-        <tr><td>2</td><td>可增发</td><td>可增发 / 不可增发</td><td><span class="red">+0.15</span> / <span class="green">-0.08</span></td></tr>
-        <tr><td>3</td><td>买入税</td><td>>15% / >5% / ≤5%</td><td><span class="red">+0.15</span> / <span class="red">+0.08</span> / <span class="green">-0.05</span></td></tr>
-        <tr><td>4</td><td>卖出税</td><td>>15% / >5% / ≤5%</td><td><span class="red">+0.15</span> / <span class="red">+0.08</span> / <span class="green">-0.05</span></td></tr>
-        <tr><td>5</td><td>蜜罐检测</td><td>蜜罐 / 高税警告</td><td><span class="red">+0.30</span> / <span class="red">+0.15</span></td></tr>
-        <tr><td>6</td><td>LP锁仓</td><td>已锁 / 未锁</td><td><span class="green">-0.10</span> / <span class="red">+0.10</span></td></tr>
-        <tr><td>7</td><td>LP锁定天数</td><td>>365天 / <30天</td><td><span class="green">-0.05</span> / <span class="red">+0.05</span></td></tr>
-        <tr><td>8</td><td>初始流动性</td><td><$1,000 / >$50,000</td><td><span class="red">+0.08</span> / <span class="green">-0.05</span></td></tr>
-        <tr><td>9</td><td>池深1%滑点</td><td><$500 / >$10,000</td><td><span class="red">+0.08</span> / <span class="green">-0.05</span></td></tr>
-        <tr><td>10</td><td>Top10持有者</td><td>>80% / >50%</td><td><span class="red">+0.15</span> / <span class="red">+0.05</span></td></tr>
-        <tr><td>11</td><td>独立交易者(1h)</td><td><5人 / >50人</td><td><span class="red">+0.05</span> / <span class="green">-0.05</span></td></tr>
-        <tr><td>12</td><td>买卖比(1h)</td><td>>3(买压) / <0.3(卖压)</td><td><span class="red">+0.05</span> / <span class="red">+0.08</span></td></tr>
-        <tr><td>13</td><td>Wash刷量</td><td>>0.5</td><td><span class="red">+0.10</span></td></tr>
-        <tr><td>14</td><td>波动率(5m)</td><td>>50%</td><td><span class="red">+0.05</span></td></tr>
-        <tr><td>15</td><td>交易量衰减</td><td>斜率<-0.5</td><td><span class="red">+0.08</span></td></tr>
-      </table>
-    </div>
-    <div style="margin-top:12px;font-size:0.85rem">
-      <div><b>风险分级</b>: <span class="green">&lt;0.3 → low ✅</span> | <span style="color:var(--warning)">0.3~0.6 → medium ⚠️</span> | <span class="red">&gt;0.6 → high 🔴</span></div>
-      <div style="margin-top:8px"><b>交易过滤</b>（3条硬拒绝规则）:</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
-        <span class="flag flag-danger">🔴 高风险+信心<60 ❌</span>
-        <span class="flag flag-danger">🔴 可增发+LP未锁(貔貅) ❌</span>
-        <span class="flag flag-danger">🔴 税过高+信心<70 ❌</span>
-        <span class="flag flag-safe">✅ 规则通过 → 自动模拟买入</span>
-      </div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">⚙️ Optuna 优化参数 <span style="font-size:0.8rem;color:var(--text2)">（每30条经验自动调优）</span></div>
-    <div id="optunaParams" style="font-size:0.85rem">
-      <div class="empty"><p>加载中...</p></div>
-    </div>
-  </div>
-</div>
-
-<!-- ===== 规则 ===== -->
-<div id="panel-rules" class="panel">
-  <div class="card">
-    <div class="card-title">🤖 DeepSeek 动态规则 <span id="rulesStrategy" style="font-size:0.8rem;color:var(--text2)">signal_follow</span></div>
-    <div style="margin-bottom:12px">
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <span style="font-size:0.8rem;color:var(--text2)">策略：</span>
-        <select id="rulesStrategySelect" onchange="loadDynamicRules()" style="width:auto">
-          <option value="signal_follow">signal_follow</option>
-          <option value="flip">flip</option>
-        </select>
-        <button class="btn" onclick="refreshDynamicRules()" style="padding:4px 12px;font-size:0.8rem">🔄 刷新</button>
-        <span id="rulesUpdateTime" style="font-size:0.75rem;color:var(--text2)"></span>
-      </div>
-    </div>
-    <div id="dynamicRulesList">
-      <div class="empty"><p>加载中...</p></div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">🧱 硬编码风险评分规则</div>
-    <div style="overflow-x:auto">
-      <table>
-        <tr><th>#</th><th>特征</th><th>条件</th><th>风险调整</th></tr>
-        <tr><td>1</td><td>Owner放弃</td><td>已放弃 / 活跃</td><td><span class="green">-0.12</span> / <span class="red">+0.10</span></td></tr>
-        <tr><td>2</td><td>可增发</td><td>不可增发 / 可增发</td><td><span class="green">-0.08</span> / <span class="red">+0.15</span></td></tr>
-        <tr><td>3</td><td>买入税</td><td>≤5% / >5% / >15%</td><td><span class="green">-0.05</span> / <span class="red">+0.08</span> / <span class="red">+0.15</span></td></tr>
-        <tr><td>4</td><td>卖出税</td><td>≤5% / >5% / >15%</td><td><span class="green">-0.05</span> / <span class="red">+0.08</span> / <span class="red">+0.15</span></td></tr>
-        <tr><td>5</td><td>蜜罐检测</td><td>蜜罐 / 高税警告</td><td><span class="red">+0.30</span> / <span class="red">+0.15</span></td></tr>
-        <tr><td>6</td><td>LP锁仓</td><td>已锁 / 未锁</td><td><span class="green">-0.10</span> / <span class="red">+0.10</span></td></tr>
-        <tr><td>7</td><td>LP锁定天数</td><td>&gt;365天 / &lt;30天</td><td><span class="green">-0.05</span> / <span class="red">+0.05</span></td></tr>
-        <tr><td>8</td><td>初始流动性</td><td>&lt;$1,000 / &gt;$50,000</td><td><span class="red">+0.08</span> / <span class="green">-0.05</span></td></tr>
-        <tr><td>9</td><td>池深1%滑点</td><td>&lt;$500 / &gt;$10,000</td><td><span class="red">+0.08</span> / <span class="green">-0.05</span></td></tr>
-        <tr><td>10</td><td>Top10持有者</td><td>&gt;50% / &gt;80%</td><td><span class="red">+0.05</span> / <span class="red">+0.15</span></td></tr>
-        <tr><td>11</td><td>独立交易者(1h)</td><td>&lt;5人 / &gt;50人</td><td><span class="red">+0.05</span> / <span class="green">-0.05</span></td></tr>
-        <tr><td>12</td><td>买卖比(1h)</td><td>&gt;3 / &lt;0.3</td><td><span class="red">+0.05</span> / <span class="red">+0.08</span></td></tr>
-        <tr><td>13</td><td>Wash刷量</td><td>&gt;0.5</td><td><span class="red">+0.10</span></td></tr>
-        <tr><td>14</td><td>波动率(5m)</td><td>&gt;50%</td><td><span class="red">+0.05</span></td></tr>
-        <tr><td>15</td><td>交易量衰减</td><td>斜率&lt;-0.5</td><td><span class="red">+0.08</span></td></tr>
-      </table>
-    </div>
-    <div style="margin-top:12px;font-size:0.85rem">
-      <div><b>风险分级</b>: <span class="green">&lt;0.3 → low ✅</span> | <span style="color:var(--warning)">0.3~0.6 → medium ⚠️</span> | <span class="red">&gt;0.6 → high 🔴</span></div>
-      <div style="margin-top:8px"><b>交易过滤</b>（3条硬拒绝规则）:</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
-        <span class="flag flag-danger">🔴 高风险+信心&lt;60 ❌</span>
-        <span class="flag flag-danger">🔴 可增发+LP未锁(貔貅) ❌</span>
-        <span class="flag flag-danger">🔴 税过高+信心&lt;70 ❌</span>
-        <span class="flag flag-safe">✅ 规则通过 → 自动模拟买入</span>
-      </div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">⚙️ Optuna 优化参数 <span style="font-size:0.8rem;color:var(--text2)">（每30条经验自动调优）</span></div>
-    <div id="optunaParams" style="font-size:0.85rem">
-      <div class="empty"><p>加载中...</p></div>
-    </div>
-  </div>
-</div>
-
-<!-- ===== 策略 ===== -->
-<div id="panel-strategies" class="panel" style="max-width:900px;margin:0 auto">
-  <!-- 顶部状态条 -->
+<!-- ===== 土狗狙击 ===== -->
+<div id="panel-sniper" class="panel active">
   <div style="display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap">
-    <div style="flex:1;min-width:180px;background:linear-gradient(135deg,rgba(0,212,170,0.15),rgba(0,212,170,0.05));border-radius:16px;padding:20px;border:1px solid rgba(0,212,170,0.2)">
-      <div style="font-size:0.75rem;color:var(--text2);margin-bottom:4px">💼 活跃策略</div>
-      <div style="font-size:1.8rem;font-weight:700;color:var(--accent)">4</div>
-      <div style="font-size:0.7rem;color:var(--text2);margin-top:4px">全部运行中</div>
+    <div style="flex:1;min-width:200px;background:linear-gradient(135deg,rgba(0,212,170,0.12),rgba(0,0,0,0));border-radius:16px;padding:20px;border:1px solid rgba(0,212,170,0.15)">
+      <div style="font-size:0.75rem;color:var(--text2);margin-bottom:4px">🎯 土狗狙击</div>
+      <div style="font-size:1.8rem;font-weight:700;color:var(--accent)">新池监听中</div>
+      <div style="font-size:0.7rem;color:var(--text2);margin-top:4px">实时监听 Uniswap V2 / Pancake</div>
     </div>
-    <div style="flex:1;min-width:180px;background:linear-gradient(135deg,rgba(255,165,2,0.15),rgba(255,165,2,0.05));border-radius:16px;padding:20px;border:1px solid rgba(255,165,2,0.2)">
-      <div style="font-size:0.75rem;color:var(--text2);margin-bottom:4px">📊 利率监控</div>
-      <div style="font-size:1.8rem;font-weight:700;color:var(--warning)">6</div>
-      <div style="font-size:0.7rem;color:var(--text2);margin-top:4px">Aave V3 数据对</div>
+    <div style="flex:1;min-width:200px;background:linear-gradient(135deg,rgba(71,130,255,0.12),rgba(0,0,0,0));border-radius:16px;padding:20px;border:1px solid rgba(71,130,255,0.15)">
+      <div style="font-size:0.75rem;color:var(--text2);margin-bottom:4px">📊 信号</div>
+      <div style="font-size:1.8rem;font-weight:700;color:#4782ff" id="sniperSignalCount">-</div>
+      <div style="font-size:0.7rem;color:var(--text2);margin-top:4px">今日新币信号</div>
     </div>
-    <div style="flex:1;min-width:180px;background:linear-gradient(135deg,rgba(71,130,255,0.15),rgba(71,130,255,0.05));border-radius:16px;padding:20px;border:1px solid rgba(71,130,255,0.2)">
+    <div style="flex:1;min-width:200px;background:linear-gradient(135deg,rgba(255,165,2,0.12),rgba(0,0,0,0));border-radius:16px;padding:20px;border:1px solid rgba(255,165,2,0.15)">
+      <div style="font-size:0.75rem;color:var(--text2);margin-bottom:4px">💰 模拟交易</div>
+      <div style="font-size:1.8rem;font-weight:700;color:var(--warning)" id="sniperPnl">-</div>
+      <div style="font-size:0.7rem;color:var(--text2);margin-top:4px">累计盈亏</div>
+    </div>
+  </div>
+  <div class="card"><div class="card-title">📡 实时信号</div>
+    <div id="sniperSignalList"><div class="empty"><p>正在监听链上新币...</p></div></div>
+  </div>
+  <div class="card"><div class="card-title">📊 模拟交易记录</div>
+    <div id="sniperTrades"><div class="empty"><p>加载中...</p></div></div>
+  </div>
+  <div class="card"><div class="card-title">🧠 自动学习</div>
+    <div id="sniperLearning"><div class="empty"><p>加载中...</p></div></div>
+  </div>
+</div>
+
+<!-- ===== 成熟品种 ===== -->
+<div id="panel-mature" class="panel">
+  <div style="display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap">
+    <div style="flex:1;min-width:200px;background:linear-gradient(135deg,rgba(0,212,170,0.12),rgba(0,0,0,0));border-radius:16px;padding:20px;border:1px solid rgba(0,212,170,0.15)">
+      <div style="font-size:0.75rem;color:var(--text2);margin-bottom:4px">🐸 成熟品种</div>
+      <div style="font-size:1.8rem;font-weight:700;color:var(--accent)" id="matureCount">-</div>
+      <div style="font-size:0.7rem;color:var(--text2);margin-top:4px">震荡→突破机会</div>
+    </div>
+    <div style="flex:1;min-width:200px;background:linear-gradient(135deg,rgba(71,130,255,0.12),rgba(0,0,0,0));border-radius:16px;padding:20px;border:1px solid rgba(71,130,255,0.15)">
+      <div style="font-size:0.75rem;color:var(--text2);margin-bottom:4px">📈 分析维度</div>
+      <div style="font-size:1.8rem;font-weight:700;color:#4782ff">7维</div>
+      <div style="font-size:0.7rem;color:var(--text2);margin-top:4px">震荡/突破/量/流入/池深/买卖/交易者</div>
+    </div>
+  </div>
+  <div class="card"><div class="card-title">📡 突破信号</div>
+    <div id="matureSignalList"><div class="empty"><p>等待数据...</p></div></div>
+  </div>
+  <div class="card"><div class="card-title">📊 模拟交易</div>
+    <div id="matureTrades"><div class="empty"><p>加载中...</p></div></div>
+  </div>
+</div>
+
+<!-- ===== 套利 ===== -->
+<div id="panel-arbitrage" class="panel">
+  <div style="display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap">
+    <div style="flex:1;min-width:200px;background:linear-gradient(135deg,rgba(0,212,170,0.12),rgba(0,0,0,0));border-radius:16px;padding:20px;border:1px solid rgba(0,212,170,0.15)">
+      <div style="font-size:0.75rem;color:var(--text2);margin-bottom:4px">⚡ DEX套利</div>
+      <div style="font-size:1.8rem;font-weight:700;color:var(--accent)" id="arbCount">-</div>
+      <div style="font-size:0.7rem;color:var(--text2);margin-top:4px">实时价差机会</div>
+    </div>
+    <div style="flex:1;min-width:200px;background:linear-gradient(135deg,rgba(255,165,2,0.12),rgba(0,0,0,0));border-radius:16px;padding:20px;border:1px solid rgba(255,165,2,0.15)">
+      <div style="font-size:0.75rem;color:var(--text2);margin-bottom:4px">💵 预估利润</div>
+      <div style="font-size:1.8rem;font-weight:700;color:var(--warning)" id="arbProfit">-</div>
+      <div style="font-size:0.7rem;color:var(--text2);margin-top:4px">最大单笔利润</div>
+    </div>
+  </div>
+  <div class="card"><div class="card-title">💰 价差机会</div>
+    <div id="arbSignalList"><div class="empty"><p>扫描中...</p></div></div>
+  </div>
+  <div class="card"><div class="card-title">📊 历史套利记录</div>
+    <div id="arbHistory"><div class="empty"><p>加载中...</p></div></div>
+  </div>
+</div>
+
+<!-- ===== 存币质押 ===== -->
+<div id="panel-lending" class="panel">
+  <div style="display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap">
+    <div style="flex:1;min-width:200px;background:linear-gradient(135deg,rgba(0,212,170,0.12),rgba(0,0,0,0));border-radius:16px;padding:20px;border:1px solid rgba(0,212,170,0.15)">
+      <div style="font-size:0.75rem;color:var(--text2);margin-bottom:4px">🏦 Aave V3 利率</div>
+      <div style="font-size:1.8rem;font-weight:700;color:var(--accent)" id="lendingCount">-</div>
+      <div style="font-size:0.7rem;color:var(--text2);margin-top:4px">监控中币种</div>
+    </div>
+    <div style="flex:1;min-width:200px;background:linear-gradient(135deg,rgba(71,130,255,0.12),rgba(0,0,0,0));border-radius:16px;padding:20px;border:1px solid rgba(71,130,255,0.15)">
+      <div style="font-size:0.75rem;color:var(--text2);margin-bottom:4px">📊 最高存款APY</div>
+      <div style="font-size:1.8rem;font-weight:700;color:#4782ff" id="lendingMaxApy">-</div>
+      <div style="font-size:0.7rem;color:var(--text2);margin-top:4px">年化收益率</div>
+    </div>
+    <div style="flex:1;min-width:200px;background:linear-gradient(135deg,rgba(255,71,87,0.12),rgba(0,0,0,0));border-radius:16px;padding:20px;border:1px solid rgba(255,71,87,0.15)">
       <div style="font-size:0.75rem;color:var(--text2);margin-bottom:4px">🛡️ 健康因子</div>
-      <div style="font-size:1.8rem;font-weight:700;color:#4782ff">--</div>
-      <div style="font-size:0.7rem;color:var(--text2);margin-top:4px">无活跃仓位</div>
+      <div style="font-size:1.8rem;font-weight:700;color:var(--danger)" id="lendingMinHf">-</div>
+      <div style="font-size:0.7rem;color:var(--text2);margin-top:4px">最低HF</div>
     </div>
   </div>
-
-  <!-- 4大策略卡片 -->
-  <div style="margin-bottom:20px">
-    <div style="font-size:0.9rem;font-weight:600;margin-bottom:12px">🎯 策略总览</div>
-    <div class="stat-row" id="strategyOverview"><div class="empty"><p>加载中...</p></div></div>
+  <div class="card"><div class="card-title">📊 利率看板</div>
+    <div id="lendingRatesList"><div class="empty"><p>加载中...</p></div></div>
   </div>
-
-  <!-- 借贷利率卡片 -->
-  <div style="margin-bottom:20px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <div style="font-size:0.9rem;font-weight:600">🏦 借贷利率监控</div>
-      <span style="font-size:0.7rem;color:var(--text2)">Aave V3 · 更新于部署时</span>
-    </div>
-    <div id="lendingOverview"><table><tr><th>链</th><th>协议</th><th>代币</th><th>存款APY</th><th>借款APY</th><th>利差</th></tr><tr><td>BASE</td><td>aave_v3</td><td>USDC</td><td>3.30%</td><td>0.00%</td><td>-330 bps</td></tr><tr><td>BSC</td><td>aave_v3</td><td>USDC</td><td>3.90%</td><td>7.40%</td><td>350 bps</td></tr><tr><td>BSC</td><td>aave_v3</td><td>USDT</td><td>2.63%</td><td>4.13%</td><td>150 bps</td></tr><tr><td>ETH</td><td>aave_v3</td><td>DAI</td><td>1.82%</td><td>0.00%</td><td>-182 bps</td></tr><tr><td>ETH</td><td>aave_v3</td><td>USDC</td><td>3.26%</td><td>0.00%</td><td>-326 bps</td></tr><tr><td>ETH</td><td>aave_v3</td><td>USDT</td><td>2.70%</td><td>0.00%</td><td>-270 bps</td></tr></table></div>
+  <div class="card"><div class="card-title">📋 借贷仓位</div>
+    <div id="lendingPositionsList"><div class="empty"><p>加载中...</p></div></div>
   </div>
-  <div class="card">
-    <div class="card-title">📋 借贷仓位</div>
-    <div id="positionsOverview"><div class="empty"><p>暂无借贷仓位</p></div></div>
+  <div class="card"><div class="card-title">💰 模拟收益</div>
+    <div id="lendingSimResult"><div class="empty"><p>加载中...</p></div></div>
   </div>
 </div>
 <!-- ===== 配置 ===== -->
@@ -473,9 +280,9 @@ var ws = null;
 function switchTab(name) {
   var tabs = document.querySelectorAll('.tab-bar > .tab');
   for (var i = 0; i < tabs.length; i++) tabs[i].classList.remove('active');
-  var map = {signals:0, trades:1, rules:2, config:3, strategies:4, backtest:5, system:6};
+  var map = {sniper:0, mature:1, arbitrage:2, lending:3, config:4, system:5};
   tabs[map[name]].classList.add('active');
-  ['signals','trades','rules','config','strategies','backtest','system'].forEach(function(p){
+  ['sniper','mature','arbitrage','lending','config','system'].forEach(function(p){
     var el = document.getElementById('panel-'+p);
     if (el) el.className = p === name ? 'panel active' : 'panel';
   });
@@ -1704,5 +1511,177 @@ loadStrategiesPanel = function() {
   }catch(e){console.error(e.message)}
 })();
 </script>
-</body>
+<
+<script>
+// ===== 4大策略面板函数 =====
+function loadSniperPanel() {
+  loadSniperSignals();
+  loadSniperTrades();
+  loadSniperLearning();
+}
+function loadMaturePanel() { loadMatureSignals(); loadMatureTrades(); }
+function loadArbitragePanel() { loadArbSignals(); loadArbHistory(); }
+function loadLendingPanel() { loadLendingRates(); loadLendingPositions(); loadLendingSim(); }
+
+// 土狗狙击
+function loadSniperSignals() {
+  var el = document.getElementById('sniperSignalList');
+  if (signals && signals.length > 0) {
+    var h = '';
+    for (var i = 0; i < Math.min(signals.length, 20); i++) {
+      var s = signals[i];
+      h += '<div style="padding:8px;margin-bottom:4px;background:rgba(255,255,255,0.02);border-radius:8px;font-size:0.8rem">' +
+        '<span class="chain-tag chain-' + (s.chain||'').toLowerCase() + '">' + (s.chain||'?') + '</span> ' +
+        (s.symbol || (s.contract||'').slice(0,10)) + ' 信心' + (s.confidence||50) + '% ' +
+        (s.risk_level||'') + '</div>';
+    }
+    el.innerHTML = h || '<div class="empty"><p>暂无信号</p></div>';
+    document.getElementById('sniperSignalCount').textContent = signals.length;
+  }
+}
+function loadSniperTrades() {
+  var x = new XMLHttpRequest();
+  x.open('GET', API+'/trade/portfolio?userId=paper', true);
+  x.onload = function() {
+    try {
+      var d = JSON.parse(x.responseText);
+      if (d.code !== 200) return;
+      var p = d.data;
+      document.getElementById('sniperPnl').textContent = (parseFloat(p.stats.totalPnl) >= 0 ? '+' : '') + '$' + parseFloat(p.stats.totalPnl).toFixed(2);
+      var cls = p.closedTrades || [];
+      var h = '<table><tr><th>代币</th><th>盈亏</th><th>收益率</th></tr>';
+      for (var i = Math.max(0, cls.length-10); i < cls.length; i++) {
+        var t = cls[i];
+        var pnl = parseFloat(t.pnl_pct);
+        h += '<tr><td>' + (t.symbol||'').slice(0,10) + '</td><td class="' + (pnl>=0?'green':'red') + '">' + (pnl>=0?'+':'') + '$' + parseFloat(t.pnl_usd||0).toFixed(2) + '</td><td class="' + (pnl>=0?'green':'red') + '">' + (pnl>=0?'+':'') + pnl.toFixed(2) + '%</td></tr>';
+      }
+      h += '</table>';
+      document.getElementById('sniperTrades').innerHTML = h;
+    } catch(e) {}
+  };
+  x.send();
+}
+function loadSniperLearning() {
+  var x = new XMLHttpRequest();
+  x.open('GET', API+'/learning/params/signal_follow', true);
+  x.onload = function() {
+    try {
+      var d = JSON.parse(x.responseText);
+      if (d.code !== 200) return;
+      var p = d.data;
+      var h = '<div style="font-size:0.85rem">经验: <b>' + (p.experience_count||0) + '</b>条';
+      if (p.params) {
+        h += ' | 滑点' + (p.params.max_slippage*100).toFixed(1) + '% 仓位' + (p.params.position_pct*100).toFixed(0) + '% 信心' + (p.params.min_confidence*100).toFixed(0) + '%';
+      }
+      h += '</div>';
+      document.getElementById('sniperLearning').innerHTML = h;
+    } catch(e) {}
+  };
+  x.send();
+}
+
+// 成熟品种
+function loadMatureSignals() {
+  var el = document.getElementById('matureSignalList');
+  el.innerHTML = '<div class="empty"><p>等待MATURE_MEME引擎分析结果...</p></div>';
+}
+function loadMatureTrades() {
+  document.getElementById('matureTrades').innerHTML = '<div class="empty"><p>待实现</p></div>';
+}
+
+// 套利
+function loadArbSignals() {
+  var el = document.getElementById('arbSignalList');
+  el.innerHTML = '<div class="empty"><p>等待ARBITRAGE引擎扫描结果...</p></div>';
+  // 从trade:signals中获取
+  if (window.arbSignals && window.arbSignals.length > 0) {
+    var h = '<table><tr><th>链</th><th>交易对</th><th>DEX价</th><th>参考价</th><th>偏差</th><th>预估利润</th></tr>';
+    for (var i = 0; i < window.arbSignals.length; i++) {
+      var o = window.arbSignals[i];
+      h += '<tr><td>' + o.chain + '</td><td>' + o.pair + '</td><td>' + o.price_dex + '</td><td>' + o.price_ref + '</td><td>' + o.deviation_pct + '%</td><td>$' + o.profit_est_usd + '</td></tr>';
+    }
+    h += '</table>';
+    el.innerHTML = h;
+  }
+}
+function loadArbHistory() {
+  document.getElementById('arbHistory').innerHTML = '<div class="empty"><p>暂无套利执行记录</p></div>';
+}
+
+// 存币质押
+function loadLendingRates() {
+  var x = new XMLHttpRequest();
+  x.open('GET', API+'/lending/rates', true);
+  x.onload = function() {
+    try {
+      var d = JSON.parse(x.responseText);
+      var r = d.data || [];
+      document.getElementById('lendingCount').textContent = r.length;
+      var maxApy = 0;
+      var h = '<table><tr><th>链</th><th>协议</th><th>代币</th><th>存款APY</th><th>借款APY</th><th>利差</th></tr>';
+      for (var i = 0; i < r.length; i++) {
+        var p = r[i];
+        var apy = parseFloat(p.supply_apy||0);
+        if (apy > maxApy) maxApy = apy;
+        var sp = (p.borrow_apy||0) - (p.supply_apy||0);
+        h += '<tr><td>' + p.chain + '</td><td>' + p.protocol + '</td><td>' + p.token + '</td><td style=color:var(--accent)>' + apy.toFixed(2) + '%</td><td>' + (p.borrow_apy||0).toFixed(2) + '%</td><td>' + (sp*100).toFixed(0) + ' bps</td></tr>';
+      }
+      h += '</table>';
+      document.getElementById('lendingRatesList').innerHTML = h;
+      document.getElementById('lendingMaxApy').textContent = maxApy.toFixed(2) + '%';
+    } catch(e) {}
+  };
+  x.send();
+}
+function loadLendingPositions() {
+  var x = new XMLHttpRequest();
+  x.open('GET', API+'/lending/positions', true);
+  x.onload = function() {
+    try {
+      var d = JSON.parse(x.responseText);
+      var p = d.data || [];
+      if (p.length === 0) { document.getElementById('lendingPositionsList').innerHTML = '<div class="empty"><p>暂无活跃仓位</p></div>'; return; }
+      var h = '<table><tr><th>链</th><th>协议</th><th>抵押</th><th>债务</th><th>HF</th></tr>';
+      var minHf = 99;
+      for (var i = 0; i < p.length; i++) {
+        var pos = p[i];
+        var hf = parseFloat(pos.current_hf);
+        if (hf < minHf) minHf = hf;
+        h += '<tr><td>' + pos.chain + '</td><td>' + pos.protocol + '</td><td>' + (pos.collateral_token||'-').slice(0,8) + '</td><td>' + (pos.debt_token||'-').slice(0,8) + '</td><td>' + hf.toFixed(2) + '</td></tr>';
+      }
+      h += '</table>';
+      document.getElementById('lendingPositionsList').innerHTML = h;
+      document.getElementById('lendingMinHf').textContent = minHf < 99 ? minHf.toFixed(2) : '--';
+    } catch(e) {}
+  };
+  x.send();
+}
+function loadLendingSim() {
+  var x = new XMLHttpRequest();
+  x.open('GET', API+'/lending/rates', true);
+  x.onload = function() {
+    try {
+      var d = JSON.parse(x.responseText);
+      var r = d.data || [];
+      if (r.length === 0) return;
+      var best = r[0];
+      for (var i = 1; i < r.length; i++) {
+        if (parseFloat(r[i].supply_apy) > parseFloat(best.supply_apy)) best = r[i];
+      }
+      var apy = parseFloat(best.supply_apy);
+      var h = '<div style="font-size:0.85rem">最佳存款: <b style=color:var(--accent)>' + best.token + '@' + best.chain + ' ' + apy.toFixed(2) + '%</b>';
+      h += '<br>模拟$10K存1年收益: <b>$' + (10000 * apy / 100).toFixed(2) + '</b>';
+      h += '<br>模拟$10K存1月收益: <b>$' + (10000 * apy / 100 / 12).toFixed(2) + '</b></div>';
+      document.getElementById('lendingSimResult').innerHTML = h;
+    } catch(e) {}
+  };
+  x.send();
+}
+
+// 初始化加载默认面板
+document.addEventListener('DOMContentLoaded', function() {
+  loadSniperPanel();
+});
+</script>
+/body>
 </html>
