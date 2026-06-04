@@ -1,316 +1,286 @@
 """
-MATURE_MEME - 成熟土狗波段交易引擎
-7大维度评分：年龄/流动池深度/净流入/成交量趋势/买卖单/价格动量/交易者
+MATURE_MEME - 成熟土狗「震荡→突破」捕捉引擎
+核心逻辑：识别横盘震荡结束 + 放量突破上涨
 """
 import json, asyncio, time, math
 from datetime import datetime, timedelta
 
 
 class MatureMemeEngine:
-    """成熟土狗波段交易引擎"""
+    """成熟土狗捕捉引擎"""
 
     def __init__(self, db, redis, http):
         self.db = db
         self.redis = redis
         self.http = http
 
-    async def get_token_metrics(self, chain: str, contract: str) -> dict:
-        """获取代币多维指标"""
-        metrics = {
+    async def get_token_chart(self, chain: str, contract: str) -> dict:
+        """获取代币的K线形态数据"""
+        result = {
             'age_hours': 0,
-            'bucket': 'unknown',
-            'pool_liquidity_usd': 0,      # 流动池深度
-            'net_inflow_1h': 0,            # 1h净流入
-            'volume_1h': 0,                # 1h成交量
-            'volume_1h_ago': 0,            # 上一小时成交量（对比）
-            'volume_change_pct': 0,        # 成交量变化率
+            'prices_1h': [],        # 1小时价格序列
+            'prices_5m': [],        # 5分钟价格序列（用于震荡检测）
+            'volumes_1h': [],       # 1小时成交量序列
+            'pool_liquidity_usd': 0,
+            'net_inflow_1h': 0,
             'buy_volume_1h': 0,
             'sell_volume_1h': 0,
-            'buy_sell_ratio': 1.0,
-            'price_change_5m': 0,
-            'price_change_1h': 0,
             'unique_traders': 0,
-            'avg_hold_time_min': 0,
-            'score': 0,
         }
 
         try:
             with self.db.cursor() as cur:
-                # 1. 年龄
-                cur.execute(
-                    "SELECT EXTRACT(EPOCH FROM (NOW() - MIN(time)))/3600 FROM events WHERE contract = %s AND chain = %s",
-                    (contract, chain)
-                )
+                # 年龄
+                cur.execute("SELECT EXTRACT(EPOCH FROM (NOW()-MIN(time)))/3600 FROM events WHERE contract=%s AND chain=%s", (contract, chain))
                 row = cur.fetchone()
-                if row and row[0]:
-                    metrics['age_hours'] = round(row[0], 1)
+                if row and row[0]: result['age_hours'] = round(row[0], 1)
 
-                # 2. 买卖单数据 & 净流入
+                # 1h价格序列（用于计算震荡区间）
                 cur.execute("""
-                    SELECT 
-                        COUNT(*) FILTER (WHERE side = 'buy') as buy_count,
-                        COUNT(*) FILTER (WHERE side = 'sell') as sell_count,
-                        COALESCE(SUM(amount_usd) FILTER (WHERE side = 'buy'), 0) as buy_vol,
-                        COALESCE(SUM(amount_usd) FILTER (WHERE side = 'sell'), 0) as sell_vol,
-                        COUNT(DISTINCT user_id) as traders
-                    FROM paper_trades 
-                    WHERE contract = %s AND chain = %s 
-                    AND created_at > NOW() - INTERVAL '1 hour'
+                    SELECT price, liquidity_usd, snapshot_at FROM price_snapshots
+                    WHERE contract=%s AND chain=%s AND snapshot_at > NOW()-INTERVAL '1 hour'
+                    ORDER BY snapshot_at ASC
+                """, (contract, chain))
+                rows = cur.fetchall()
+                for r in rows:
+                    result['prices_1h'].append(float(r[0]))
+                    if r[1] and float(r[1]) > result['pool_liquidity_usd']:
+                        result['pool_liquidity_usd'] = float(r[1])
+
+                # 5m价格序列（从更细粒度取）
+                cur.execute("""
+                    SELECT price, snapshot_at FROM price_snapshots
+                    WHERE contract=%s AND chain=%s AND snapshot_at > NOW()-INTERVAL '30 minutes'
+                    ORDER BY snapshot_at ASC
+                """, (contract, chain))
+                rows = cur.fetchall()
+                for r in rows:
+                    result['prices_5m'].append(float(r[0]))
+
+                # 买卖数据
+                cur.execute("""
+                    SELECT COALESCE(SUM(amount_usd) FILTER (WHERE side='buy'),0) as bv,
+                           COALESCE(SUM(amount_usd) FILTER (WHERE side='sell'),0) as sv,
+                           COUNT(DISTINCT user_id) as tr
+                    FROM paper_trades WHERE contract=%s AND chain=%s AND created_at > NOW()-INTERVAL '1 hour'
                 """, (contract, chain))
                 row = cur.fetchone()
                 if row:
-                    buy_vol = float(row[2] or 0)
-                    sell_vol = float(row[3] or 0)
-                    metrics['buy_volume_1h'] = buy_vol
-                    metrics['sell_volume_1h'] = sell_vol
-                    metrics['volume_1h'] = buy_vol + sell_vol
-                    metrics['net_inflow_1h'] = round(buy_vol - sell_vol, 2)
-                    metrics['buy_sell_ratio'] = round(buy_vol / (sell_vol or 1), 2)
-                    metrics['unique_traders'] = row[4] or 0
+                    result['buy_volume_1h'] = float(row[0])
+                    result['sell_volume_1h'] = float(row[1])
+                    result['net_inflow_1h'] = round(float(row[0]) - float(row[1]), 2)
+                    result['unique_traders'] = row[2] or 0
 
-                # 3. 上一小时成交量（对比用）
+                # 成交量序列（每个窗口）
                 cur.execute("""
-                    SELECT COALESCE(SUM(amount_usd), 0)
-                    FROM paper_trades 
-                    WHERE contract = %s AND chain = %s 
-                    AND created_at BETWEEN NOW() - INTERVAL '2 hours' AND NOW() - INTERVAL '1 hour'
+                    SELECT COALESCE(SUM(amount_usd),0) FROM paper_trades
+                    WHERE contract=%s AND chain=%s AND created_at > NOW()-INTERVAL '1 hour'
+                    GROUP BY date_trunc('hour', created_at)
+                    ORDER BY date_trunc('hour', created_at) ASC
                 """, (contract, chain))
-                row = cur.fetchone()
-                prev_vol = float(row[0] or 0) if row else 0
-                metrics['volume_1h_ago'] = prev_vol
-                if prev_vol > 0:
-                    metrics['volume_change_pct'] = round((metrics['volume_1h'] - prev_vol) / prev_vol * 100, 1)
-
-                # 4. 流动池深度（从 price_snapshots 取最新 liquidity_usd）
-                cur.execute("""
-                    SELECT liquidity_usd FROM price_snapshots 
-                    WHERE contract = %s AND chain = %s
-                    AND liquidity_usd IS NOT NULL
-                    ORDER BY snapshot_at DESC LIMIT 1
-                """, (contract, chain))
-                row = cur.fetchone()
-                if row and row[0]:
-                    metrics['pool_liquidity_usd'] = float(row[0])
-
-                # 5. 价格变化（从 price_snapshots 计算）
-                cur.execute("""
-                    SELECT price, snapshot_at FROM price_snapshots 
-                    WHERE contract = %s AND chain = %s
-                    AND snapshot_at > NOW() - INTERVAL '1 hour'
-                    ORDER BY snapshot_at ASC
-                """, (contract, chain))
-                prices = cur.fetchall()
-                if len(prices) >= 2:
-                    first_price = float(prices[0][0])
-                    last_price = float(prices[-1][0])
-                    if first_price > 0:
-                        metrics['price_change_1h'] = round((last_price - first_price) / first_price * 100, 2)
-
-                    recent = [p for p in prices if p[1] > datetime.now() - timedelta(minutes=5)]
-                    if len(recent) >= 2:
-                        fp = float(recent[0][0])
-                        lp = float(recent[-1][0])
-                        if fp > 0:
-                            metrics['price_change_5m'] = round((lp - fp) / fp * 100, 2)
+                vol_rows = cur.fetchall()
+                for r in vol_rows:
+                    result['volumes_1h'].append(float(r[0]))
 
         except Exception as e:
-            print(f"  ⚠️ 指标获取异常: {e}")
+            print(f"  ⚠️ 获取K线异常: {e}")
 
-        return metrics
+        return result
 
-    def calculate_score(self, metrics: dict) -> dict:
-        """7维评分"""
+    def analyze_breakout(self, chart: dict) -> dict:
+        """
+        核心：震荡→突破检测
+        返回：{is_breakout, score, signals, action, confidence}
+        """
+        prices_5m = chart['prices_5m']
+        prices_1h = chart['prices_1h']
+        vol_1h = chart['buy_volume_1h'] + chart['sell_volume_1h']
+        age = chart['age_hours']
+
         score = 0
         signals = []
-        reasons = []
+        
+        # ===== 1️⃣ 必须有足够的价格数据 =====
+        if len(prices_5m) < 3 and len(prices_1h) < 3:
+            return {'score': 0, 'action': 'pass', 'signals': ['数据不足'], 'confidence': 0}
 
-        # 1️⃣ 流动池深度（+20分）
-        liq = metrics['pool_liquidity_usd']
-        if liq > 50000:
-            score += 20
-            reasons.append(f'池深${liq:.0f}')
-        elif liq > 10000:
-            score += 15
-            reasons.append(f'池深${liq:.0f}')
-        elif liq > 1000:
-            score += 10
-            reasons.append(f'池深${liq:.0f}')
-        elif liq > 0:
-            score += 5
-            reasons.append(f'池深${liq:.0f}')
-        else:
-            reasons.append('池深未知')
+        # 使用最好的数据源
+        prices = prices_5m if len(prices_5m) >= 5 else prices_1h
 
-        # 2️⃣ 净流入（+25分）
-        net = metrics['net_inflow_1h']
-        vol = metrics['volume_1h']
-        if vol > 0:
-            net_ratio = net / vol * 100
-            if net_ratio > 50:
-                score += 25
-                reasons.append(f'净流入+{net_ratio:.0f}%')
-            elif net_ratio > 20:
-                score += 15
-                reasons.append(f'净流入+{net_ratio:.0f}%')
-            elif net_ratio > 0:
-                score += 5
-                reasons.append(f'净流入+{net_ratio:.0f}%')
-            elif net_ratio < -50:
-                score -= 20
-                reasons.append(f'净流出{net_ratio:.0f}%')
-            else:
-                reasons.append(f'净流{net_ratio:+.0f}%')
+        # ===== 2️⃣ 震荡检测（核心） =====
+        high = max(prices)
+        low = min(prices)
+        mid = (high + low) / 2 if high + low > 0 else 0
+        range_pct = ((high - low) / mid * 100) if mid > 0 else 0
 
-        # 3️⃣ 成交量变化趋势（+15分）
-        vc = metrics['volume_change_pct']
-        if vc > 100:
-            score += 15
-            reasons.append(f'量增{vc:.0f}%')
-        elif vc > 30:
-            score += 10
-            reasons.append(f'量增{vc:.0f}%')
-        elif vc > 0:
-            score += 5
-            reasons.append(f'量增{vc:.0f}%')
-        elif vc < -50:
+        current_price = prices[-1]
+
+        if range_pct < 10 and range_pct > 1:
+            # 震荡区间：振幅 1%~10%
+            score += 30
+            signals.append(f'震荡{range_pct:.1f}%')
+            
+            # 当前价格在区间上沿？
+            if current_price > high * 0.95:
+                score += 20
+                signals.append('近上沿')
+        elif range_pct < 1:
+            # 横成一条线，可能是死币
             score -= 10
-            reasons.append(f'量缩{vc:.0f}%')
+            signals.append('极度横盘')
         else:
-            reasons.append(f'量{vc:+.0f}%')
+            # 波动太大，不是震荡形态
+            signals.append(f'波动{range_pct:.1f}%')
 
-        # 4️⃣ 成交量绝对值（+10分）
-        if vol > 50000:
-            score += 10
-        elif vol > 10000:
-            score += 7
-        elif vol > 1000:
-            score += 5
-        elif vol > 100:
-            score += 3
+        # ===== 3️⃣ 突破检测 =====
+        if len(prices) >= 5:
+            # 前半段 vs 后半段
+            half = len(prices) // 2
+            first_half_avg = sum(prices[:half]) / half
+            second_half_avg = sum(prices[half:]) / (len(prices) - half)
+            
+            if first_half_avg > 0:
+                break_pct = (second_half_avg - first_half_avg) / first_half_avg * 100
+                
+                # 后半段比前半段上涨了（向上突破）
+                if break_pct > 5 and break_pct < 50:
+                    score += 35
+                    signals.append(f'突破+{break_pct:.1f}%')
+                elif break_pct > 50:
+                    # 涨太多可能已经到头了
+                    score += 10
+                    signals.append(f'急涨{break_pct:.1f}%(慎追)')
+                elif break_pct > 0:
+                    score += 10
+                    signals.append(f'微涨{break_pct:.1f}%')
 
-        # 5️⃣ 买卖单深度（+10分）
-        bs = metrics['buy_sell_ratio']
-        if bs > 2:
-            score += 10
-            reasons.append(f'买/卖{bs:.1f}')
-        elif bs > 1.3:
-            score += 5
-            reasons.append(f'买/卖{bs:.1f}')
+                # 最新价格突破前高？
+                if current_price > high * 1.02:  # 突破前高2%
+                    score += 20
+                    signals.append('破前高')
 
-        # 6️⃣ 价格动量（+15分）
-        pc_5m = metrics['price_change_5m']
-        pc_1h = metrics['price_change_1h']
-        if abs(pc_5m) > 5:
+        # ===== 4️⃣ 成交量确认 =====
+        if vol_1h > 10000:
+            score += 15
+            signals.append(f'量${vol_1h:.0f}')
+        elif vol_1h > 1000:
             score += 8
-        elif abs(pc_5m) > 2:
-            score += 4
-        if abs(pc_1h) > 20:
-            score += 7
-        elif abs(pc_1h) > 10:
-            score += 4
+            signals.append(f'量${vol_1h:.0f}')
 
-        # 超买超卖修正
-        if pc_1h > 50:
-            score -= 15
-        elif pc_1h < -40:
+        # 净流入
+        net = chart['net_inflow_1h']
+        if net > 0 and vol_1h > 0:
+            net_pct = net / vol_1h * 100
+            if net_pct > 30:
+                score += 10
+                signals.append(f'净入+{net_pct:.0f}%')
+            elif net_pct > 0:
+                score += 5
+
+        # ===== 5️⃣ 流动池安全 =====
+        liq = chart['pool_liquidity_usd']
+        if liq > 50000:
             score += 10
-
-        # 7️⃣ 交易者活跃度（+5分）
-        traders = metrics['unique_traders']
-        if traders > 30:
+        elif liq > 5000:
             score += 5
-        elif traders > 10:
-            score += 3
+        elif liq > 0:
+            score += 2
 
-        # 年龄过滤
-        age = metrics['age_hours']
+        # ===== 6️⃣ 年龄过滤 =====
         if age < 1:
-            bucket = 'newborn'
-            score *= 0.3  # 新币降权
+            score *= 0.3  # 太新，降权
+            signals.append('新币(<1h)')
         elif age < 6:
-            bucket = 'early'
+            score *= 0.7
+            signals.append('较新(<6h)')
         elif age < 24:
-            bucket = 'developing'
-        elif age < 168:
-            bucket = 'young'
-        elif age < 720:
-            bucket = 'mature'
-        else:
-            bucket = 'aged'
+            pass  # 正常
+        elif age > 720:
+            score -= 10  # 太老了
+            signals.append('老龄(>30d)')
+
+        # ===== 7️⃣ 交易者验证 =====
+        traders = chart['unique_traders']
+        if traders < 3:
+            score *= 0.5  # 交易者太少，可疑
+            signals.append('交易者少')
+        elif traders > 20:
+            score += 5
 
         score = max(0, min(100, round(score)))
-        signals = reasons[:4]  # 取前4个特征作为信号
 
-        if score >= 65:
-            action = 'strong_buy'
-        elif score >= 45:
+        if score >= 60:
             action = 'buy'
-        elif score >= 25:
+        elif score >= 35:
             action = 'watch'
         else:
             action = 'pass'
 
         return {
             'score': score,
-            'bucket': bucket,
             'action': action,
-            'signals': signals,
+            'signals': signals[:4],
             'confidence': score,
+            'current_price': current_price,
+            'range_pct': round(range_pct, 2),
+            'high_24h': high,
+            'low_24h': low,
         }
 
     async def analyze_token(self, chain: str, contract: str, symbol: str = '') -> dict:
-        metrics = await self.get_token_metrics(chain, contract)
-        result = self.calculate_score(metrics)
+        chart = await self.get_token_chart(chain, contract)
+        analysis = self.analyze_breakout(chart)
+
         return {
             'type': 'MATURE_MEME',
             'chain': chain,
             'contract': contract,
             'symbol': symbol or contract[:8],
-            'age_hours': metrics['age_hours'],
-            'bucket': result['bucket'],
-            'pool_liquidity_usd': metrics['pool_liquidity_usd'],
-            'net_inflow_1h': metrics['net_inflow_1h'],
-            'volume_1h': metrics['volume_1h'],
-            'volume_change_pct': metrics['volume_change_pct'],
-            'buy_sell_ratio': metrics['buy_sell_ratio'],
-            'price_change_5m': metrics['price_change_5m'],
-            'price_change_1h': metrics['price_change_1h'],
-            'unique_traders': metrics['unique_traders'],
-            'score': result['score'],
-            'confidence': result['confidence'],
-            'signals': result['signals'],
-            'action': result['action'],
+            'age_hours': chart['age_hours'],
+            'current_price': analysis.get('current_price', 0),
+            'high_24h': analysis.get('high_24h', 0),
+            'low_24h': analysis.get('low_24h', 0),
+            'range_pct': analysis.get('range_pct', 0),
+            'pool_liquidity_usd': chart['pool_liquidity_usd'],
+            'net_inflow_1h': chart['net_inflow_1h'],
+            'volume_1h': chart['buy_volume_1h'] + chart['sell_volume_1h'],
+            'buy_sell_ratio': round(chart['buy_volume_1h'] / (chart['sell_volume_1h'] or 1), 2),
+            'unique_traders': chart['unique_traders'],
+            'score': analysis['score'],
+            'confidence': analysis['confidence'],
+            'signals': analysis['signals'],
+            'action': analysis['action'],
             'time': datetime.now().isoformat(),
         }
 
     async def run_cycle(self):
+        """扫描有足够价格数据的代币"""
         signals = []
         try:
             with self.db.cursor() as cur:
+                # 找最近有价格快照的代币
                 cur.execute("""
-                    SELECT DISTINCT ON (chain, contract) chain, contract, symbol
-                    FROM paper_trades 
-                    WHERE created_at > NOW() - INTERVAL '2 hours'
-                    ORDER BY chain, contract, created_at DESC
-                    LIMIT 30
+                    SELECT DISTINCT ON (chain, contract) chain, contract 
+                    FROM price_snapshots 
+                    WHERE snapshot_at > NOW() - INTERVAL '2 hours'
+                    ORDER BY chain, contract, snapshot_at DESC
+                    LIMIT 50
                 """)
                 rows = cur.fetchall()
 
             for row in rows:
-                result = await self.analyze_token(row[0], row[1], row[2] or '')
+                result = await self.analyze_token(row[0], row[1])
                 if result['action'] != 'pass':
                     signals.append(result)
                     print(f"  🐸 [{result['chain']}] {result['symbol']} "
-                          f"池${result['pool_liquidity_usd']:.0f} "
+                          f"震荡{result['range_pct']}% "
+                          f"当前{result['current_price']:.8f} "
                           f"净流${result['net_inflow_1h']:+.0f} "
-                          f"量{result['volume_change_pct']:+.0f}% "
-                          f"买/卖{result['buy_sell_ratio']:.1f} "
-                          f"→ {result['action']}({result['score']})")
+                          f"→ {result['action']}({result['score']}) "
+                          f"{' '.join(result['signals'])}")
 
         except Exception as e:
             print(f"  ⚠️ MATURE_MEME 异常: {e}")
 
         for s in signals:
-            await self.redis.publish('trade:signals', json.dumps({
-                'type': 'MATURE_MEME', 'data': s
-            }))
+            await self.redis.publish('trade:signals', json.dumps({'type': 'MATURE_MEME', 'data': s}))
