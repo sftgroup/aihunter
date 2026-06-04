@@ -331,13 +331,38 @@ input:focus{border-color:var(--accent)}
 </div>
 
 <!-- ===== 策略 ===== -->
-<div id="panel-strategies" class="panel">
-  <div class="card">
-    <div class="card-title">🎯 策略总览</div>
+<div id="panel-strategies" class="panel" style="max-width:900px;margin:0 auto">
+  <!-- 顶部状态条 -->
+  <div style="display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap">
+    <div style="flex:1;min-width:180px;background:linear-gradient(135deg,rgba(0,212,170,0.15),rgba(0,212,170,0.05));border-radius:16px;padding:20px;border:1px solid rgba(0,212,170,0.2)">
+      <div style="font-size:0.75rem;color:var(--text2);margin-bottom:4px">💼 活跃策略</div>
+      <div style="font-size:1.8rem;font-weight:700;color:var(--accent)">4</div>
+      <div style="font-size:0.7rem;color:var(--text2);margin-top:4px">全部运行中</div>
+    </div>
+    <div style="flex:1;min-width:180px;background:linear-gradient(135deg,rgba(255,165,2,0.15),rgba(255,165,2,0.05));border-radius:16px;padding:20px;border:1px solid rgba(255,165,2,0.2)">
+      <div style="font-size:0.75rem;color:var(--text2);margin-bottom:4px">📊 利率监控</div>
+      <div style="font-size:1.8rem;font-weight:700;color:var(--warning)">6</div>
+      <div style="font-size:0.7rem;color:var(--text2);margin-top:4px">Aave V3 数据对</div>
+    </div>
+    <div style="flex:1;min-width:180px;background:linear-gradient(135deg,rgba(71,130,255,0.15),rgba(71,130,255,0.05));border-radius:16px;padding:20px;border:1px solid rgba(71,130,255,0.2)">
+      <div style="font-size:0.75rem;color:var(--text2);margin-bottom:4px">🛡️ 健康因子</div>
+      <div style="font-size:1.8rem;font-weight:700;color:#4782ff">--</div>
+      <div style="font-size:0.7rem;color:var(--text2);margin-top:4px">无活跃仓位</div>
+    </div>
+  </div>
+
+  <!-- 4大策略卡片 -->
+  <div style="margin-bottom:20px">
+    <div style="font-size:0.9rem;font-weight:600;margin-bottom:12px">🎯 策略总览</div>
     <div class="stat-row" id="strategyOverview"><div class="empty"><p>加载中...</p></div></div>
   </div>
-  <div class="card">
-    <div class="card-title">📊 借贷利率监控</div>
+
+  <!-- 借贷利率卡片 -->
+  <div style="margin-bottom:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-size:0.9rem;font-weight:600">🏦 借贷利率监控</div>
+      <span style="font-size:0.7rem;color:var(--text2)">Aave V3 · 更新于部署时</span>
+    </div>
     <div id="lendingOverview"><table><tr><th>链</th><th>协议</th><th>代币</th><th>存款APY</th><th>借款APY</th><th>利差</th></tr><tr><td>BASE</td><td>aave_v3</td><td>USDC</td><td>3.30%</td><td>0.00%</td><td>-330 bps</td></tr><tr><td>BSC</td><td>aave_v3</td><td>USDC</td><td>3.90%</td><td>7.40%</td><td>350 bps</td></tr><tr><td>BSC</td><td>aave_v3</td><td>USDT</td><td>2.63%</td><td>4.13%</td><td>150 bps</td></tr><tr><td>ETH</td><td>aave_v3</td><td>DAI</td><td>1.82%</td><td>0.00%</td><td>-182 bps</td></tr><tr><td>ETH</td><td>aave_v3</td><td>USDC</td><td>3.26%</td><td>0.00%</td><td>-326 bps</td></tr><tr><td>ETH</td><td>aave_v3</td><td>USDT</td><td>2.70%</td><td>0.00%</td><td>-270 bps</td></tr></table></div>
   </div>
   <div class="card">
@@ -1475,7 +1500,7 @@ function showTradeDetail(tradeId) {
     '<div onclick="event.stopPropagation()" style="background:var(--card);border-radius:var(--radius);padding:24px;max-width:460px;width:90%;border:1px solid rgba(255,255,255,0.08)">' +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
     '<h3 style="color:var(--text);font-size:1rem">📋 ' + (trade.symbol || '代币').slice(0,16) + '</h3>' +
-    '<span onclick="closeTradeDetail()" style="cursor:pointer;color:var(--text2);font-size:1.2rem">✕</span></div>' +
+    '<span onclick="closeTradeDetail()" style="cursor:pointer;color:var(--text2);font-size:1.2rem;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:rgba(255,255,255,0.06)">✕</span></div>' +
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.85rem">' +
     '<div style="color:var(--text2)">链:</div><div>' + (trade.chain || '-') + '</div>' +
     '<div style="color:var(--text2)">合约:</div><div style="font-family:monospace;font-size:0.75rem;word-break:break-all">' + (trade.contract || '-') + '</div>' +
@@ -1656,7 +1681,7 @@ function runOfflineBacktest() {
 
 <script>
 loadStrategiesPanel = function() {
-  setTimeout(function(){var x=new XMLHttpRequest();x.open("GET",API+"/strategies",false);x.onload=function(){try{var d=JSON.parse(x.responseText),s=d.data||[],types=["SNIPER","ARBITRAGE","MATURE_MEME","LENDING_ARB"],icons={SNIPER:"🎯",ARBITRAGE:"⚡",MATURE_MEME:"🐸",LENDING_ARB:"🏦"},h="";for(var i=0;i<types.length;i++){var t=types[i],c={enabled:true};for(var j=0;j<s.length;j++){if(s[j].strategy_type===t){c=s[j];break}}h+="<div class=stat-card style=padding:12px><div style=font-size:1.3rem;text-align:center>"+icons[t]+"</div><div style=font-size:0.9rem;font-weight:600;text-align:center>"+t+"</div><div style=font-size:0.7rem;text-align:center>"+(c.enabled?"✅ 开启":"⛔ 关闭")+"</div></div>"}document.getElementById("strategyOverview").innerHTML=h}catch(e){console.error(e.message)}};x.send();},200);
+  setTimeout(function(){var x=new XMLHttpRequest();x.open("GET",API+"/strategies",false);x.onload=function(){try{var d=JSON.parse(x.responseText),s=d.data||[],types=["SNIPER","ARBITRAGE","MATURE_MEME","LENDING_ARB"],icons={SNIPER:"🎯",ARBITRAGE:"⚡",MATURE_MEME:"🐸",LENDING_ARB:"🏦"},h="";for(var i=0;i<types.length;i++){var t=types[i],c={enabled:true};for(var j=0;j<s.length;j++){if(s[j].strategy_type===t){c=s[j];break}}h+="<div class=stat-card style=padding:16px;border-radius:16px;background:linear-gradient(145deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.06)><div style=font-size:1.5rem;text-align:center;margin-bottom:4px>"+icons[t]+"</div><div style=font-size:0.9rem;font-weight:600;text-align:center>"+t+"</div><div style=font-size:0.7rem;text-align:center>"+(c.enabled?"✅ 开启":"⛔ 关闭")+"</div></div>"}document.getElementById("strategyOverview").innerHTML=h}catch(e){console.error(e.message)}};x.send();},200);
   setTimeout(function(){var x=new XMLHttpRequest();x.open("GET",API+"/lending/rates",false);x.onload=function(){try{var d=JSON.parse(x.responseText),r=d.data||[],h="<table><tr><th>链</th><th>协议</th><th>代币</th><th>存款APY</th><th>借款APY</th><th>利差</th><th>状态</th></tr>";for(var i=0;i<r.length;i++){var p=r[i],sp=(p.borrow_apy||0)-(p.supply_apy||0),bps=(sp*100).toFixed(0);h+="<tr><td>"+p.chain+"</td><td>"+p.protocol+"</td><td>"+p.token+"</td><td style=color:var(--accent)>"+(p.supply_apy||0).toFixed(2)+"%</td><td>"+(p.borrow_apy||0).toFixed(2)+"%</td><td>"+bps+" bps</td><td>"+(sp>0.3?"🟢 可套利":"⚪ 正常")+"</td></tr>"}h+="</table>";document.getElementById("lendingOverview").innerHTML=h}catch(e){console.error(e.message)}};x.send();},400);
   setTimeout(function(){var x=new XMLHttpRequest();x.open("GET",API+"/lending/positions",false);x.onload=function(){try{var d=JSON.parse(x.responseText),p=d.data||[],h="";if(p.length===0){document.getElementById("positionsOverview").innerHTML="<div class=empty><p>暂无借贷仓位</p></div>";return}h="<table><tr><th>链</th><th>协议</th><th>抵押</th><th>债务</th><th>HF</th><th>状态</th></tr>";for(var i=0;i<p.length;i++){var ps=p[i],hf=parseFloat(ps.current_hf),cls=hf>1.8?"var(--accent)":"var(--warning)";h+="<tr><td>"+ps.chain+"</td><td>"+ps.protocol+"</td><td>"+(ps.collateral_token||"-").slice(0,8)+"</td><td>"+(ps.debt_token||"-").slice(0,8)+"</td><td style=color:"+cls+";font-weight:600>"+hf.toFixed(2)+"</td><td style=color:"+cls+">"+(hf>1.8?"🟢 安全":"🟡 关注")+"</td></tr>"}h+="</table>";document.getElementById("positionsOverview").innerHTML=h}catch(e){console.error(e.message)}};x.send();},600);
 };
