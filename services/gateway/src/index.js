@@ -749,6 +749,34 @@ app.get('/api/lending/rates', async () => {
   );
   return { code: 200, data: result.rows };
 });
+
+app.get('/api/lending/rate-history', async (request) => {
+  const { chain, token, hours } = request.query;
+  let where = [];
+  let values = [];
+  let idx = 1;
+  if (chain && chain !== 'all') {
+    where.push(`chain = $${idx}`);
+    values.push(chain);
+    idx++;
+  }
+  if (token && token !== 'all') {
+    where.push(`token = $${idx}`);
+    values.push(token);
+    idx++;
+  }
+  where.push(`recorded_at > NOW() - $${idx}::interval`);
+  values.push((hours || '24') + ' hours');
+  
+  const result = await db.query(
+    `SELECT chain, token, protocol, supply_apy, borrow_apy, recorded_at
+     FROM rate_snapshots
+     WHERE ${where.join(' AND ')}
+     ORDER BY recorded_at ASC`,
+    values
+  );
+  return { code: 200, data: result.rows };
+});
 app.post('/api/experiences', async (request) => {
   const exp = request.body;
   await db.query(
