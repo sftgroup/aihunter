@@ -1,5 +1,5 @@
+from src.lending_arb import LendingArbitrageEngine, LendingRateMonitor
 """
-from lending_arb import LendingArbitrageEngine, LendingRateMonitor
 AIHunter Worker - 链上数据监听与合约解读引擎
 
 功能：
@@ -1098,7 +1098,7 @@ class ChainWorker:
                 # 每3分钟跑一轮利率采集
                 if int(time.time()) % 180 < 10:
                     if self.lending_engine:
-                        await self.lending_engine.run_cycle()
+                        await self.lending_engine.run_cycle_with_hf()
                 await asyncio.sleep(5)
             except Exception as e:
                 print(f"❌ 异常: {e}")
