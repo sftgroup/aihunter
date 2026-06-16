@@ -42,7 +42,7 @@ export default function SystemPage() {
 
   async function loadLearning() {
     const res = await learningApi.getHistory('signal_follow', 50);
-    if (res.code === 200 && res.data) { setLearning(res.data);
+    if (res.code === 200 && res.data) {
       setLearning(res.data);
       setTimeout(() => renderLearnChart(res.data), 200);
     }
@@ -172,7 +172,7 @@ export default function SystemPage() {
             { label: '总事件', value: status?.total_events ?? '-', icon: Activity, color: 'var(--accent)' },
             { label: '待处理', value: status?.pending_events ?? '-', icon: Layers, color: 'var(--accent-orange)' },
             { label: '持仓数', value: status?.open_positions ?? '-', icon: TrendingUp, color: 'var(--accent-green)' },
-            { label: '模拟盈亏', value: status ? `$${status.paper_pnl?.toFixed(2) ?? '0.00'}` : '-', icon: TrendingUp, color: 'var(--accent-blue)' },
+            { label: '模拟盈亏', value: status ? `$${parseFloat(status.paper_pnl as any || 0).toFixed(2)}` : '-', icon: TrendingUp, color: 'var(--accent-blue)' },
             { label: 'RPC 在线', value: status ? `${status.chain_online ?? 0}/${status.chain_count ?? 0}` : '-', icon: Wifi, color: 'var(--accent-cyan)' },
             { label: '经验数', value: status?.recent_experiences ?? '-', icon: Cpu, color: 'var(--accent-purple)' },
           ].map((s) => {
