@@ -46,6 +46,7 @@ await app.register(websocket);
 app.addHook('preHandler', async (request, reply) => {
   const publicRoutes = ['/health', '/api/rank/ping', '/api/prize/ping', '/api/system/status', '/ws',
     '/api/config/ai', '/api/config/rpc', '/api/trade/paper', '/api/trade/paper/result', '/api/trade/portfolio'];
+  if (request.url.startsWith('/api/signals/')) return;
   if (publicRoutes.includes(request.url) || request.url.startsWith('/api/config/') || request.url.startsWith('/api/trade/') || request.url.startsWith('/api/learning/') || request.url.startsWith('/api/rules/') || request.url.startsWith('/api/backtest/') || request.url.startsWith('/api/strategies') || request.url.startsWith('/api/lending/')) return;
   const auth = request.headers.authorization;
   if (!auth || auth !== `Bearer ${AUTH_TOKEN}`) {
@@ -583,7 +584,25 @@ app.post('/api/trade/paper/auto', async (request) => {
     } catch(e) {}
   }, holdMs);
   
+  // 缓存最近信号到 Redis（供前端查询）
+  try {
+    const sig = { chain: signal.chain, contract: signal.contract, symbol: signal.symbol, confidence: signal.confidence, score: signal.score, price_usd: signal.price_data?.price_usd, liquidity_usd: signal.price_data?.liquidity_usd, flags: signal.flags, risk_level: signal.risk_level, time: new Date().toISOString() };
+    await redis.lpush('signals:recent', JSON.stringify(sig));
+    await redis.ltrim('signals:recent', 0, 99);
+  } catch(e) {}
   return { code: 200, data: buyData.data };
+});
+
+// ===== 最近信号列表（REST API）=====
+app.get('/api/signals/recent', async (request) => {
+  const limit = parseInt(request.query.limit) || 20;
+  try {
+    const raw = await redis.lrange('signals:recent', 0, limit - 1);
+    const signals = raw.map(s => { try { return JSON.parse(s); } catch { return null; } }).filter(Boolean);
+    return { code: 200, data: signals };
+  } catch(e) {
+    return { code: 500, data: [], error: e.message };
+  }
 });
 
 // ===== 系统状态 =====
