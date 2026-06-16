@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAccount } from 'wagmi';
 import {
   RefreshCw, Save, Trash2, Activity, TrendingUp, TrendingDown,
-  Clock, Zap, Crosshair, AlertTriangle,
+  Clock, Zap, Crosshair, AlertTriangle, Key, Wallet,
 } from 'lucide-react';
 import * as echarts from 'echarts';
 import { paperApi, learningApi, signalsApi } from '../../utils/api';
@@ -17,7 +17,7 @@ const cardBase: React.CSSProperties = {
 
 
 export default function NewTokenTab() {
-  const { isConnected } = useAccount();
+  const { isConnected, address } = useAccount();
   const [trades, setTrades] = useState<PaperTrade[]>([]);
   const [equity, setEquity] = useState<EquitySnapshot[]>([]);
   const [_learning, _setLearning] = useState<LearningHistory[]>([]);
@@ -27,6 +27,9 @@ export default function NewTokenTab() {
   });
   const [btResult, setBtResult] = useState<any>(null);
   const [btLoading, setBtLoading] = useState(false);
+  const [mode, setMode] = useState<'paper' | 'real'>('paper');
+  const [sessionKey, setSessionKey] = useState('');
+  const [showSessionInput, setShowSessionInput] = useState(false);
   const [recentSignals, setRecentSignals] = useState<any[]>([]);
   const [autoStatus, setAutoStatus] = useState({ enabled: false, recentTrades: 0, skipRate: '0%' });
   const [expandedTrade, setExpandedTrade] = useState<string | null>(null);
@@ -371,6 +374,29 @@ export default function NewTokenTab() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {/* Mode Switcher */}
+      <div style={{ display: 'flex', gap: 8, padding: 4, background: 'rgba(255,255,255,0.03)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)' }}>
+        <button onClick={() => setMode('paper')} style={{
+          flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 500,
+          background: mode === 'paper' ? 'rgba(99,102,241,0.1)' : 'transparent',
+          border: mode === 'paper' ? '1px solid rgba(99,102,241,0.2)' : '1px solid transparent',
+          color: mode === 'paper' ? 'var(--accent)' : 'var(--dark-300)', cursor: 'pointer',
+        }}><Activity size={16} /> 模拟交易</button>
+        <button onClick={() => setMode('real')} style={{
+          flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 500,
+          background: mode === 'real' ? 'rgba(245,158,11,0.1)' : 'transparent',
+          border: mode === 'real' ? '1px solid rgba(245,158,11,0.2)' : '1px solid transparent',
+          color: mode === 'real' ? 'var(--accent-orange)' : 'var(--dark-300)', cursor: 'pointer',
+        }}><Wallet size={16} /> 实盘交易</button>
+      </div>
+
+      {/* ===== 模拟面板 ===== */}
+      {mode === 'paper' && (
+        <>
+
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
         <div className="gradient-border" style={{ padding: 16 }}>
@@ -449,23 +475,7 @@ export default function NewTokenTab() {
         </div>
       </div>
 
-      {/* Mini Charts */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-        <div style={{ ...cardBase, padding: 12 }}>
-          <p style={{ fontSize: 11, color: 'var(--dark-400)', marginBottom: 4 }}>胜率</p>
-          <div id="chartWinRate" style={{ width: '100%', height: 80 }} ref={winRateRef} />
-        </div>
-        <div style={{ ...cardBase, padding: 12 }}>
-          <p style={{ fontSize: 11, color: 'var(--dark-400)', marginBottom: 4 }}>累计盈亏</p>
-          <div id="chartCumPnl" style={{ width: '100%', height: 80 }} ref={cumPnlRef} />
-        </div>
-        <div style={{ ...cardBase, padding: 12 }}>
-          <p style={{ fontSize: 11, color: 'var(--dark-400)', marginBottom: 4 }}>经验数</p>
-          <div id="learnChart" style={{ width: '100%', height: 80 }} ref={learnRef} />
-        </div>
-      </div>
-
-      {/* Equity Chart */}
+      {/* 净值曲线 */}
       <div className="gradient-border" style={{ padding: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
           <p style={{ fontSize: 13, fontWeight: 600, color: 'white' }}>净值曲线</p>
@@ -726,19 +736,73 @@ export default function NewTokenTab() {
         </div>
       </div>
 
-      {/* Real Trading Entry */}
-      <div className="gradient-border" style={{ padding: 16, textAlign: 'center' }}>
-        <p style={{ fontSize: 13, fontWeight: 600, color: 'white', marginBottom: 8 }}>实盘交易</p>
-        {isConnected ? (
-          <p style={{ fontSize: 12, color: 'var(--accent-green)' }}>
-            ✅ 钱包已连接，可开启实盘交易
-          </p>
-        ) : (
-          <p style={{ fontSize: 12, color: 'var(--dark-400)' }}>
-            🔑 连接钱包后可开启实盘交易（SessionKey 免逐笔签名）
-          </p>
-        )}
-      </div>
+    </>
+      )}
+
+      {/* ===== 实盘面板 ===== */}
+      {mode === 'real' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ ...cardBase, padding: 20, textAlign: 'center' }}>
+            {isConnected ? (
+              <>
+                <Wallet size={32} color="var(--accent-green)" style={{ marginBottom: 12 }} />
+                <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--accent-green)', marginBottom: 4 }}>钱包已连接</p>
+                <p style={{ fontSize: 12, color: 'var(--dark-400)', fontFamily: "'JetBrains Mono', monospace" }}>
+                  {address?.slice(0, 6)}...{address?.slice(-4)}
+                </p>
+              </>
+            ) : (
+              <>
+                <Wallet size={32} color="var(--dark-400)" style={{ marginBottom: 12 }} />
+                <p style={{ fontSize: 16, fontWeight: 600, color: 'white', marginBottom: 8 }}>连接钱包开始实盘交易</p>
+                <p style={{ fontSize: 12, color: 'var(--dark-400)', marginBottom: 16 }}>请在右上角点击连接钱包</p>
+              </>
+            )}
+          </div>
+
+          <div style={{ ...cardBase, padding: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+              <Key size={16} color="var(--accent-orange)" />
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'white' }}>SessionKey 配置</span>
+            </div>
+            <p style={{ fontSize: 11, color: 'var(--dark-400)', marginBottom: 10 }}>
+              SessionKey 用于免逐笔签名，限额可控，可随时撤销
+            </p>
+            {isConnected && (
+              <>
+                {showSessionInput ? (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input type="text" placeholder="粘贴 SessionKey..." value={sessionKey} onChange={e => setSessionKey(e.target.value)}
+                      style={{ flex: 1, padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', fontSize: 12, color: 'white' }} />
+                    <button style={{ padding: '8px 14px', borderRadius: 8, fontSize: 11, background: 'var(--accent)', color: 'white', cursor: 'pointer' }}>确认</button>
+                  </div>
+                ) : (
+                  <button onClick={() => setShowSessionInput(true)} style={{
+                    padding: '8px 14px', borderRadius: 8, fontSize: 11,
+                    background: 'rgba(245,158,11,0.1)', color: 'var(--accent-orange)', cursor: 'pointer',
+                    border: '1px solid rgba(245,158,11,0.2)',
+                  }}><Key size={12} /> 生成 SessionKey</button>
+                )}
+              </>
+            )}
+          </div>
+
+          <div style={{ ...cardBase, padding: 16 }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: 'white', marginBottom: 12 }}>实盘信号</p>
+            <div style={{ display: 'flex', gap: 16, marginBottom: 10 }}>
+              <div><p style={{ fontSize: 10, color: 'var(--dark-400)', marginBottom: 2 }}>监听信号</p><p style={{ fontSize: 18, fontWeight: 700, color: 'white' }}>{recentSignals.length}</p></div>
+              <div><p style={{ fontSize: 10, color: 'var(--dark-400)', marginBottom: 2 }}>当前持仓</p><p style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent-orange)' }}>0</p></div>
+            </div>
+            {!isConnected ? (
+              <p style={{ fontSize: 11, color: 'var(--dark-500)', textAlign: 'center', padding: 20 }}>连接钱包并配置 SessionKey 后自动执行实盘交易</p>
+            ) : !sessionKey ? (
+              <p style={{ fontSize: 11, color: 'var(--dark-500)', textAlign: 'center', padding: 20 }}>需要 SessionKey 才能启动实盘交易</p>
+            ) : (
+              <p style={{ fontSize: 11, color: 'var(--accent-green)', textAlign: 'center', padding: 20 }}>SessionKey 已配置，实盘交易就绪</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
