@@ -972,6 +972,24 @@ app.register(async function (fastify) {
     subscriber.on('message', (channel, message) => {
       try {
         const data = JSON.parse(message);
+        // 缓存所有类型的信号（SNIPER/MATURE_MEME/ARBITRAGE/LENDING_ARB等）
+        const sigType = data.type || data.type || 'UNKNOWN';
+        const sigEntry = {
+          type: sigType,
+          chain: data.chain || data.data?.chain,
+          contract: data.contract || data.data?.contract || data.data?.token,
+          symbol: data.symbol || data.data?.symbol,
+          confidence: data.confidence || data.data?.confidence,
+          score: data.score || data.data?.score || data.risk_score,
+          risk_level: data.risk_level || data.data?.risk_level,
+          price_usd: data.price_data?.price_usd || data.data?.price_usd || data.data?.price,
+          liquidity_usd: data.price_data?.liquidity_usd || data.data?.liquidity_usd,
+          flags: data.flags || data.data?.flags,
+          spread_bps: data.spread_bps || data.data?.spread_bps,
+          time: new Date().toISOString(),
+        };
+        redis.lpush('signals:recent', JSON.stringify(sigEntry)).catch(() => {});
+        redis.ltrim('signals:recent', 0, 199).catch(() => {});
         socket.send(JSON.stringify({ type: 'signal', data }));
       } catch(e) {}
     });

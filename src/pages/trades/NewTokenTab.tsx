@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAccount } from 'wagmi';
 import {
-  RefreshCw, Save,
-  Trash2,
+  RefreshCw, Save, Trash2, Activity, TrendingUp, TrendingDown,
+  Clock, Zap, Crosshair, AlertTriangle,
 } from 'lucide-react';
 import * as echarts from 'echarts';
-import { paperApi, learningApi } from '../../utils/api';
+import { paperApi, learningApi, signalsApi } from '../../utils/api';
 import type { PaperTrade, EquitySnapshot, LearningHistory } from '../../types/api';
 
 const cardBase: React.CSSProperties = {
@@ -27,6 +27,9 @@ export default function NewTokenTab() {
   });
   const [btResult, setBtResult] = useState<any>(null);
   const [btLoading, setBtLoading] = useState(false);
+  const [recentSignals, setRecentSignals] = useState<any[]>([]);
+  const [autoStatus, setAutoStatus] = useState({ enabled: false, recentTrades: 0, skipRate: '0%' });
+  const [expandedTrade, setExpandedTrade] = useState<string | null>(null);
 
   const equityRef = useRef<HTMLDivElement>(null);
   const winRateRef = useRef<HTMLDivElement>(null);
@@ -39,7 +42,9 @@ export default function NewTokenTab() {
   useEffect(() => {
     loadAll();
     const interval = setInterval(loadTrades, 10000);
-    return () => clearInterval(interval);
+    const sigIv = setInterval(loadSignals, 30000);
+    loadSignals();
+    return () => { clearInterval(interval); clearInterval(sigIv); };
   }, []);
 
   function loadAll() {
@@ -107,6 +112,22 @@ export default function NewTokenTab() {
       setVal('cfgStopLoss', c.stop_loss_pct);
       const cfgEnabled = el('cfgEnabled');
       if (cfgEnabled) cfgEnabled.checked = c.enabled;
+    }
+  }
+
+  async function loadSignals() {
+    const res = await signalsApi.getRecent(50);
+    if (res.code === 200 && res.data) {
+      const sniper = res.data.filter((s: any) => s.type === '开盘狙击' || !s.type);
+      setRecentSignals(sniper.slice(0, 20));
+      const total = sniper.length;
+      const skipped = sniper.filter((s: any) => s.paper_trade === 'no' || !s.paper_trade).length;
+      const enabled = sniper.some((s: any) => s.paper_trade === 'yes');
+      setAutoStatus({
+        enabled,
+        recentTrades: sniper.filter((s: any) => s.paper_trade === 'yes').length,
+        skipRate: total > 0 ? (skipped / total * 100).toFixed(0) + '%' : '0%',
+      });
     }
   }
 
@@ -376,6 +397,58 @@ export default function NewTokenTab() {
         </div>
       </div>
 
+      {/* Auto Execution Status */}
+      <div style={{ ...cardBase, padding: 16, border: '1px solid rgba(99,102,241,0.15)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Zap size={16} color="var(--accent)" />
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'white' }}>自动执行状态</span>
+          </div>
+          <span style={{
+            fontSize: 10, padding: '3px 8px', borderRadius: 999,
+            background: _config.enabled ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
+            color: _config.enabled ? 'var(--accent-green)' : 'var(--accent-orange)',
+            fontWeight: 500,
+          }}>
+            {_config.enabled ? '● 运行中' : '○ 已暂停'}
+          </span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10, marginBottom: 8 }}>
+          <div>
+            <p style={{ fontSize: 10, color: 'var(--dark-400)', marginBottom: 2 }}>最近信号</p>
+            <p style={{ fontSize: 16, fontWeight: 600, color: 'white' }}>{recentSignals.length}</p>
+          </div>
+          <div>
+            <p style={{ fontSize: 10, color: 'var(--dark-400)', marginBottom: 2 }}>自动买入</p>
+            <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--accent-green)' }}>{autoStatus.recentTrades}</p>
+          </div>
+          <div>
+            <p style={{ fontSize: 10, color: 'var(--dark-400)', marginBottom: 2 }}>跳过率</p>
+            <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--accent-orange)' }}>{autoStatus.skipRate}</p>
+          </div>
+          <div>
+            <p style={{ fontSize: 10, color: 'var(--dark-400)', marginBottom: 2 }}>持仓数</p>
+            <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--accent-blue)' }}>{openTrades.length}</p>
+          </div>
+        </div>
+        {/* 最近信号简要列表 */}
+        <div style={{ maxHeight: 80, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {recentSignals.slice(0, 5).map((sig, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+              <span style={{ color: 'var(--dark-200)', fontFamily: "'JetBrains Mono', monospace", fontSize: 10 }}>
+                {sig.chain} · {sig.symbol?.slice(0, 12) || sig.contract?.slice(0, 12)}
+              </span>
+              <span style={{
+                color: sig.paper_trade === 'yes' ? 'var(--accent-green)' : 'var(--dark-400)',
+                fontWeight: sig.paper_trade === 'yes' ? 600 : 400,
+              }}>
+                {sig.paper_trade === 'yes' ? '✅ 买入' : sig.paper_reason || '⛔ 跳过'}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Mini Charts */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
         <div style={{ ...cardBase, padding: 12 }}>
@@ -562,15 +635,40 @@ export default function NewTokenTab() {
           {openTrades.length === 0 ? (
             <p style={{ color: 'var(--dark-400)', fontSize: 12 }}>无持仓</p>
           ) : (
-            openTrades.slice(0, 10).map((t) => (
-              <div key={t.id} style={{
-                padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.04)',
-                display: 'flex', justifyContent: 'space-between', fontSize: 12,
-              }}>
-                <span style={{ color: 'white', fontWeight: 500 }}>{t.symbol || t.contract.slice(0, 10)}</span>
-                <span style={{ color: 'var(--dark-400)' }}>${t.amount_usd.toFixed(2)}</span>
-              </div>
-            ))
+            openTrades.slice(0, 15).map((t) => {
+              const isExpanded = expandedTrade === t.id;
+              const unrealizedPnl = (t.pnl_pct || 0);
+              const timeAgo = Math.floor((Date.now() - new Date(t.created_at).getTime()) / 1000);
+              const timeStr = timeAgo < 60 ? `${timeAgo}s` : timeAgo < 3600 ? `${Math.floor(timeAgo/60)}m` : `${Math.floor(timeAgo/3600)}h`;
+              return (
+                <div key={t.id}>
+                  <div onClick={() => setExpandedTrade(isExpanded ? null : t.id)} style={{
+                    padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.04)',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12,
+                    cursor: 'pointer', transition: 'all 0.2s',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ color: 'white', fontWeight: 500 }}>{t.symbol || t.contract.slice(0, 10)}</span>
+                      <span style={{ fontSize: 9, color: 'var(--dark-500)', fontFamily: "'JetBrains Mono', monospace" }}>{t.chain}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 10, color: 'var(--dark-400)' }}>${t.amount_usd.toFixed(2)}</span>
+                      <span style={{ fontSize: 10, color: 'var(--dark-500)' }}>{timeStr}</span>
+                    </div>
+                  </div>
+                  {isExpanded && (
+                    <div style={{ padding: '8px 12px', marginBottom: 4, background: 'rgba(255,255,255,0.02)', borderRadius: 8, fontSize: 11 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+                        <div><span style={{ color: 'var(--dark-400)' }}>入场价: </span><span style={{ color: 'var(--dark-200)', fontFamily: "'JetBrains Mono', monospace" }}>${t.entry_price.toFixed(t.entry_price < 0.001 ? 10 : 6)}</span></div>
+                        <div><span style={{ color: 'var(--dark-400)' }}>数量: </span><span style={{ color: 'var(--dark-200)', fontFamily: "'JetBrains Mono', monospace" }}>{t.quantity?.toFixed(2) || '-'}</span></div>
+                        <div><span style={{ color: 'var(--dark-400)' }}>时间: </span><span style={{ color: 'var(--dark-200)' }}>{new Date(t.created_at).toLocaleTimeString()}</span></div>
+                        <div><span style={{ color: 'var(--dark-400)' }}>盈亏: </span><span style={{ color: unrealizedPnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>{unrealizedPnl >= 0 ? '+' : ''}{unrealizedPnl.toFixed(2)}%</span></div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
 
@@ -585,29 +683,45 @@ export default function NewTokenTab() {
           {closedTrades.length === 0 ? (
             <p style={{ color: 'var(--dark-400)', fontSize: 12 }}>暂无交易记录</p>
           ) : (
-            closedTrades.slice(0, 15).map((t) => (
-              <div key={t.id} style={{
-                padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.03)',
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{
-                    width: 6, height: 6, borderRadius: '50%',
-                    background: t.pnl_usd >= 0 ? 'var(--accent-green)' : 'var(--accent-red)',
-                  }} />
-                  <span style={{ color: 'var(--dark-200)' }}>{t.symbol || t.contract.slice(0, 8)}</span>
-                  <span style={{ fontSize: 10, color: 'var(--dark-500)', fontFamily: "'JetBrains Mono', monospace" }}>
-                    {t.chain}
-                  </span>
+            closedTrades.slice(0, 20).map((t) => {
+              const isExpanded = expandedTrade === t.id + '_c';
+              return (
+                <div key={t.id}>
+                  <div onClick={() => setExpandedTrade(isExpanded ? null : t.id + '_c')} style={{
+                    padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.03)',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12,
+                    cursor: 'pointer',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{
+                        width: 6, height: 6, borderRadius: '50%',
+                        background: t.pnl_usd >= 0 ? 'var(--accent-green)' : 'var(--accent-red)',
+                      }} />
+                      <span style={{ color: 'var(--dark-200)' }}>{t.symbol || t.contract.slice(0, 8)}</span>
+                      <span style={{ fontSize: 9, color: 'var(--dark-500)', fontFamily: "'JetBrains Mono', monospace" }}>{t.chain}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 10, color: t.pnl_pct >= 0 ? 'rgba(16,185,129,0.6)' : 'rgba(239,68,68,0.6)' }}>
+                        {t.pnl_pct >= 0 ? '+' : ''}{t.pnl_pct.toFixed(1)}%
+                      </span>
+                      <span style={{ fontWeight: 600, color: t.pnl_usd >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+                        {t.pnl_usd >= 0 ? '+' : ''}$${t.pnl_usd.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                  {isExpanded && (
+                    <div style={{ padding: '8px 12px', marginBottom: 4, background: 'rgba(255,255,255,0.02)', borderRadius: 8, fontSize: 11 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+                        <div><span style={{ color: 'var(--dark-400)' }}>入场: </span><span style={{ color: 'var(--dark-200)', fontFamily: "'JetBrains Mono', monospace" }}>$${t.entry_price.toFixed(t.entry_price < 0.001 ? 10 : 6)}</span></div>
+                        <div><span style={{ color: 'var(--dark-400)' }}>出场: </span><span style={{ color: 'var(--dark-200)', fontFamily: "'JetBrains Mono', monospace" }}>{t.exit_price ? '$$' + t.exit_price.toFixed(t.exit_price < 0.001 ? 10 : 6) : '-'}</span></div>
+                        <div><span style={{ color: 'var(--dark-400)' }}>数量: </span><span style={{ color: 'var(--dark-200)' }}>{t.quantity?.toFixed(0) || '-'}</span></div>
+                        <div><span style={{ color: 'var(--dark-400)' }}>持有: </span><span style={{ color: 'var(--dark-200)' }}>{t.closed_at && t.created_at ? Math.round((new Date(t.closed_at).getTime() - new Date(t.created_at).getTime()) / 1000) + 's' : '-'}</span></div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <span style={{
-                  fontWeight: 600,
-                  color: t.pnl_usd >= 0 ? 'var(--accent-green)' : 'var(--accent-red)',
-                }}>
-                  {t.pnl_usd >= 0 ? '+' : ''}${t.pnl_usd.toFixed(2)}
-                </span>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
