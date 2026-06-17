@@ -5,7 +5,7 @@ import {
   Clock, Zap, Crosshair, AlertTriangle, Key, Wallet,
 } from 'lucide-react';
 import * as echarts from 'echarts';
-import { paperApi, learningApi, signalsApi } from '../../utils/api';
+import { paperApi, learningApi, signalsApi, sessionApi } from '../../utils/api';
 import type { PaperTrade, EquitySnapshot, LearningHistory } from '../../types/api';
 
 const cardBase: React.CSSProperties = {
@@ -770,14 +770,24 @@ export default function NewTokenTab() {
             </p>
             {isConnected && (
               <>
-                {showSessionInput ? (
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <input type="text" placeholder="粘贴 SessionKey..." value={sessionKey} onChange={e => setSessionKey(e.target.value)}
-                      style={{ flex: 1, padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', fontSize: 12, color: 'white' }} />
-                    <button style={{ padding: '8px 14px', borderRadius: 8, fontSize: 11, background: 'var(--accent)', color: 'white', cursor: 'pointer' }}>确认</button>
+                {sessionKey ? (
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input type="text" value={sessionKey} readOnly
+                      style={{ flex: 1, padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(16,185,129,0.2)', fontSize: 11, color: 'var(--accent-green)', fontFamily: "'JetBrains Mono', monospace" }} />
+                    <span style={{ fontSize: 10, color: 'var(--accent-green)', whiteSpace: 'nowrap' }}>24h 有效</span>
+                    <button onClick={async () => {
+                      await sessionApi.revoke(address || '');
+                      setSessionKey('');
+                    }} style={{ padding: '6px 10px', borderRadius: 8, fontSize: 10, background: 'rgba(239,68,68,0.1)', color: 'var(--accent-red)', cursor: 'pointer', border: '1px solid rgba(239,68,68,0.2)' }}>撤销</button>
                   </div>
                 ) : (
-                  <button onClick={() => setShowSessionInput(true)} style={{
+                  <button onClick={async () => {
+                    if (!address) return;
+                    const res = await sessionApi.create(address);
+                    if (res.code === 200 && res.data) {
+                      setSessionKey(res.data.sessionKey);
+                    }
+                  }} style={{
                     padding: '8px 14px', borderRadius: 8, fontSize: 11,
                     background: 'rgba(245,158,11,0.1)', color: 'var(--accent-orange)', cursor: 'pointer',
                     border: '1px solid rgba(245,158,11,0.2)',
