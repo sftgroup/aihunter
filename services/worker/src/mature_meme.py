@@ -236,6 +236,8 @@ class MatureMemeEngine:
         }
 
     async def scan_and_save_prices(self):
+        # 每次先抓DEX Screener最新代币
+        await self.fetch_dex_screener_profiles()
         """
         分批扫描所有历史池子，按小时图保存价格数据
         每批200个，8批轮转（共~1600个），每15分钟一批，2小时一轮
@@ -345,8 +347,70 @@ class MatureMemeEngine:
         return None
 
     async def _fetch_sol_price(self, pair_addr: str) -> dict:
-        # SOL暂无实时价格调用
         return None
+
+    async def fetch_dex_screener_profiles(self):
+        """从DEX Screener抓取最新代币Profiles"""
+        try:
+            async with httpx.AsyncClient(timeout=10) as http:
+                resp = await http.get("https://api.dexscreener.com/token-profiles/latest/v1")
+                if resp.status_code != 200:
+                    return
+                data = resp.json()
+            new_count = 0
+            for token in data:
+                chain_id = token.get("chainId", "")
+                addr = token.get("tokenAddress", "")
+                if chain_id != "solana" or not addr.endswith("pump"):
+                    continue
+                with self.db.cursor() as cur:
+                    cur.execute("SELECT 1 FROM events WHERE contract = %s AND chain = 'SOL' LIMIT 1", (addr,))
+                    if cur.fetchone():
+                        continue
+                    try:
+                        async with httpx.AsyncClient(timeout=10) as http2:
+                            r2 = await http2.get(f"https://api.dexscreener.com/latest/dex/tokens/{addr}")
+                            if r2.status_code != 200:
+                                continue
+                            pdata = r2.json()
+                        pairs = pdata.get("pairs", [])
+                        if not pairs:
+                            continue
+                        p = pairs[0]
+                        price_usd = float(p.get("priceUsd", 0) or 0)
+                        liq_usd = float(p.get("liquidity", {}).get("usd", 0) or 0)
+                        vol_h24 = float(p.get("volume", {}).get("h24", 0) or 0)
+                        txns_h1 = p.get("txns", {}).get("h1", {})
+                        buys_h1 = int(txns_h1.get("buys", 0))
+                        sells_h1 = int(txns_h1.get("sells", 0))
+                        price_change_h1 = float(p.get("priceChange", {}).get("h1", 0) or 0)
+                        symbol = p.get("baseToken", {}).get("symbol", addr[:8])
+                        features = {"price_usd": price_usd, "liquidity_usd": liq_usd, "volume_h24": vol_h24,
+                                    "buys_h1": buys_h1, "sells_h1": sells_h1,
+                                    "price_change_h1_pct": price_change_h1,
+                                    "dex": "pumpfun", "source": "dexscreener"}
+                        cur.execute("""INSERT INTO events (chain, contract, event_type, tx_hash, payload, time)
+                                   VALUES ('SOL', %s, 'DexScreenerNew', '', %s, NOW())""",
+                                   (addr, json.dumps(features)))
+                        if price_usd > 0:
+                            cur.execute("""INSERT INTO price_snapshots (chain, contract, symbol, price, liquidity_usd, snapshot_at)
+                                       VALUES ('SOL', %s, %s, %s, %s, NOW())""",
+                                       (addr, symbol, price_usd, liq_usd))
+                            cur.execute("""INSERT INTO historical_prices (chain, contract, symbol, price, liquidity_usd, recorded_at)
+                                       VALUES ('SOL', %s, %s, %s, %s, NOW())""",
+                                       (addr, symbol, price_usd, liq_usd))
+                        self.db.commit()
+                        new_count += 1
+                        desc = (token.get("description") or "")[:30]
+                        msg = f"  DEX Screener: 新发现 {symbol}  池 {desc}"
+                        print(msg)
+                    except Exception as e:
+                        self.db.rollback()
+                        continue
+            if new_count > 0:
+                print(f"    DEX Screener: 新增 {new_count} 个SOL土狗")
+        except Exception as e:
+            print(f"  DEX Screener 抓取异常: {e}")
 
     async def run_cycle(self):
         """扫描有足量小时图数据的代币，产生动量突破信号"""
