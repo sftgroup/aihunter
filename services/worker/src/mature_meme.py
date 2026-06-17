@@ -399,4 +399,4 @@ class MatureMemeEngine:
             traceback.print_exc()
 
         for s in signals:
-            await self.redis.publish('trade:signals', json.dumps({'type': 'MATURE_MEME', 'data': s}))
+            await self.redis.publish("trade:signals", json.dumps({"type": "MATURE_MEME", "data": s}, default=str))
