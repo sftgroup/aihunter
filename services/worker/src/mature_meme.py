@@ -790,6 +790,8 @@ class MatureMemeEngine:
             
             sorted_candidates = chain_round_robin(buy_list) + chain_round_robin(watch_list) + chain_round_robin(pass_list)
             
+            # 正常轮换写入（前端通过筛选参数过滤）
+            
             buy_count = 0
             for c in sorted_candidates:
                 await self.redis.lpush("signals:recent", json.dumps(c))
