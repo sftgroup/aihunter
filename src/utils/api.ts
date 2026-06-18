@@ -73,18 +73,6 @@ export const systemApi = {
   getStatus: () => request<SystemStatus>('/system/status'),
 };
 
-// ===== SessionKey =====
-export const sessionApi = {
-  create: (address: string) =>
-    request<{ sessionKey: string; expiresIn: string }>('/session/create', {
-      method: 'POST', body: JSON.stringify({ address }),
-    }),
-  revoke: (address: string) =>
-    request<{ message: string }>('/session/revoke', {
-      method: 'POST', body: JSON.stringify({ address }),
-    }),
-};
-
 // ===== 套利 =====
 export const lendingApi = {
   getPositions: () => request<LendingPosition[]>('/lending/positions'),

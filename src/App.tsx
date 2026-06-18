@@ -7,8 +7,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import ConnectModal from './components/ConnectModal';
-import SignalsPage from './pages/SignalsPage';
-import TradesPage from './pages/TradesPage';
+import DexPage from './pages/DexPage';
+import DeFiPage from './pages/DeFiPage';
 import ConfigPage from './pages/ConfigPage';
 import SystemPage from './pages/SystemPage';
 
@@ -65,9 +65,9 @@ function AppContent() {
         <TopBar onConnectClick={() => setShowConnect(true)} />
         <div style={{ padding: 24 }}>
           <Routes>
-            <Route path="/" element={<Navigate to="/signals" replace />} />
-            <Route path="/signals" element={<SignalsPage />} />
-            <Route path="/trades" element={<TradesPage />} />
+            <Route path="/" element={<Navigate to="/dex" replace />} />
+            <Route path="/dex" element={<DexPage />} />
+            <Route path="/defi" element={<DeFiPage />} />
             <Route path="/config" element={<ConfigPage />} />
             <Route path="/system" element={<SystemPage />} />
           </Routes>

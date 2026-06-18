@@ -1,11 +1,11 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Radio, Briefcase, Settings, Monitor, ChevronLeft, ChevronRight, Crosshair } from 'lucide-react';
+import { TrendingUp, PiggyBank, Settings, Monitor, ChevronLeft, ChevronRight, Crosshair } from 'lucide-react';
 
 const navItems = [
-  { label: '信号雷达', icon: Radio, href: '/signals' },
-  { label: '交易中心', icon: Briefcase, href: '/trades' },
-  { label: '配置', icon: Settings, href: '/config' },
-  { label: '系统', icon: Monitor, href: '/system' },
+  { label: "DEX 交易", icon: TrendingUp, href: "/dex" },
+  { label: "DeFi 套利", icon: PiggyBank, href: "/defi" },
+  { label: "配置", icon: Settings, href: "/config" },
+  { label: "系统", icon: Monitor, href: "/system" },
 ] as const;
 
 const linkStyle: React.CSSProperties = {
