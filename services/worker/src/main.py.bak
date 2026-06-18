@@ -2,7 +2,6 @@ from src.lending_arb import LendingArbitrageEngine, LendingRateMonitor
 from src.arbitrage import ArbitrageEngine
 from src.mature_meme import MatureMemeEngine
 from src.risk_engine import RiskEngine
-from src.price_refresh import PriceRefreshEngine
 """
 AIHunter Worker - 链上数据监听与合约解读引擎
 
@@ -632,7 +631,6 @@ class ChainWorker:
         self.arb_engine = ArbitrageEngine(self.db, self.redis, self.http)
         self.meme_engine = MatureMemeEngine(self.db, self.redis, self.http)
         self.risk_engine = RiskEngine(self.db, self.redis, self.http)
-        self.price_refresh = PriceRefreshEngine(self.db, self.redis, self.http)
         
         for chain in self.chains:
             url = self.rpc_urls.get(chain)
@@ -1097,43 +1095,19 @@ class ChainWorker:
             except Exception as e:
                 print(f"⚠️ 价格快照异常: {e}")
 
-    async def _price_refresh_loop(self):
-        """
-        价格刷新定时任务
-        启动后立即执行一次，然后前6小时每15分钟一次，之后每小时一次
-        """
-        schedule = PriceRefreshEngine.get_initial_schedule()
-        fast_end = time.time() + schedule['fast_duration']
-        
-        # 启动后立即执行一次
-        print("\n💰 首次价格刷新（启动后立即执行）...")
-        if self.price_refresh:
-            await self.price_refresh.run_cycle()
-        
-        while self.running:
-            try:
-                if time.time() < fast_end:
-                    # 快速积累阶段：每15分钟
-                    await asyncio.sleep(schedule['fast_interval'])
-                else:
-                    # 正常阶段：每小时
-                    await asyncio.sleep(schedule['normal_interval'])
-                
-                print("\n💰 开始价格刷新...")
-                if self.price_refresh:
-                    await self.price_refresh.run_cycle()
-            except Exception as e:
-                print(f"⚠️ 价格刷新异常: {e}")
-
     async def run(self):
         await self.connect()
-        # 启动价格刷新协程（立即执行 + 高频/正常切换）
-        asyncio.create_task(self._price_refresh_loop())
-        print("\n🚀 V2 引擎启动 - 动量突破 + DeFi 套利...\n")
+        # 启动定时快照协程
+        asyncio.create_task(self._price_snapshot_loop())
+        print("\n🚀 Worker 启动 - 实时监听链上事件...\n")
         
         while self.running:
             try:
-                await self.redis.setex("worker:v2:alive", 30, "1")
+                await self.redis.setex("worker:evm:alive", 30, "1")
+                for chain in self.chains:
+                    if chain in self.rpc_urls:
+                        await self.scan_chain(chain)
+                        await asyncio.sleep(1)
                 # 每3分钟跑一轮利率采集
                 if int(time.time()) % 180 < 10:
                     if self.lending_engine:
@@ -1149,7 +1123,7 @@ class ChainWorker:
                         await self.risk_engine.run_cycle()
                 await asyncio.sleep(5)
             except Exception as e:
-                print(f"❌ V2 异常: {e}")
+                print(f"❌ 异常: {e}")
                 await asyncio.sleep(10)
     
     async def cleanup(self):

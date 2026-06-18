@@ -65,20 +65,7 @@ export const strategyApi = {
 
 // ===== 最近信号（缓存）=====
 export const signalsApi = {
-  getRecent: (limit = 200, chain?: string) => {
-    let url = `/signals/recent?limit=${limit}`;
-    if (chain) url += `&chain=${chain}`;
-    return request<any[]>(url);
-  },
-};
-
-// ===== 信号分页（新增）=====
-export const signalsPageApi = {
-  getPage: (page = 1, limit = 20, chain?: string) => {
-    let url = `/signals/recent?page=${page}&limit=${limit}`;
-    if (chain) url += `&chain=${chain}`;
-    return request<{data: any[]; total: number; page: number; limit: number}>(url);
-  },
+  getRecent: (limit = 20) => request<any[]>(`/signals/recent?limit=${limit}`),
 };
 
 // ===== 系统 =====
