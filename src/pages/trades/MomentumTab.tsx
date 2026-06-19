@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { TrendingUp, Activity, Zap, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
+import { TrendingUp, Activity, Zap, ChevronLeft, ChevronRight, Filter, Copy, Check, Wallet, ExternalLink } from 'lucide-react';
 import { signalsPageApi, learningApi } from '../../utils/api';
+import { useAccount, useDisconnect, useBalance } from 'wagmi';
 
 const cardBase: React.CSSProperties = {
   background: 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
@@ -144,12 +145,7 @@ export default function MomentumTab() {
       )}
 
       {/* 实盘交易 */}
-      {view === 'real' && (
-        <div style={{ ...cardBase, padding: 20 }}>
-          <p style={{ fontSize: 14, fontWeight: 600, color: 'white', marginBottom: 12 }}>实盘交易</p>
-          <p style={{ textAlign: 'center', color: 'var(--dark-400)', padding: 24, fontSize: 13 }}>请先连接钱包以启用实盘交易</p>
-        </div>
-      )}
+      {view === 'real' && <RealTradeTab />}
 
       {/* 自动学习 */}
       {view === 'learn' && <LearningTab />}
@@ -335,6 +331,141 @@ function LearningTab() {
           </div>
         ) : <p style={{ fontSize: 12, color: 'var(--dark-400)' }}>暂无学习记录</p>}
       </div>
+    </div>
+  );
+}
+
+function shortAddr(addr: string): string {
+  if (!addr || addr.length < 10) return addr || '-';
+  return addr.slice(0, 6) + '...' + addr.slice(-4);
+}
+
+function RealTradeTab() {
+  const { address, isConnected } = useAccount();
+  const { data: balance } = useBalance({ address });
+  const { disconnect } = useDisconnect();
+  const [copied, setCopied] = useState(false);
+
+  const copyAddr = () => {
+    if (address) {
+      navigator.clipboard.writeText(address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  if (!isConnected || !address) {
+    return (
+      <div style={{ ...cardBase, padding: 40, textAlign: 'center' }}>
+        <Wallet size={48} style={{ color: 'var(--dark-500)', marginBottom: 16 }} />
+        <p style={{ fontSize: 16, fontWeight: 600, color: 'white', marginBottom: 8 }}>未连接钱包</p>
+        <p style={{ fontSize: 13, color: 'var(--dark-400)', marginBottom: 20 }}>
+          请连接钱包以查看实盘持仓和交易
+        </p>
+        <p style={{ fontSize: 12, color: 'var(--accent)', cursor: 'pointer' }}>
+          点击右上角「连接钱包」按钮
+        </p>
+      </div>
+    );
+  }
+
+  const ethBalance = balance ? parseFloat(balance.formatted).toFixed(4) : '0';
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* 钱包信息 */}
+      <div style={{ ...cardBase, padding: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>钱包信息</p>
+          <button onClick={() => disconnect()}
+            style={{
+              padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.3)',
+              background: 'rgba(239,68,68,0.1)', color: '#ef4444', fontSize: 10, cursor: 'pointer',
+            }}>
+            断开连接
+          </button>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+            <Wallet size={14} color="var(--accent)" />
+            <span style={{ fontSize: 12, color: '#ccc', fontFamily: "'JetBrains Mono', monospace" }}>{shortAddr(address)}</span>
+            <button onClick={copyAddr} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
+              {copied ? <Check size={14} color="#10b981" /> : <Copy size={14} color="var(--dark-400)" />}
+            </button>
+            <a href={`https://etherscan.io/address/${address}`} target="_blank" rel="noreferrer" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
+              <ExternalLink size={14} color="var(--dark-400)" />
+            </a>
+          </div>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ flex: 1, padding: '8px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+              <p style={{ fontSize: 10, color: 'var(--dark-400)', marginBottom: 2 }}>{balance?.symbol || 'ETH'} 余额</p>
+              <p style={{ fontSize: 16, fontWeight: 700, color: 'white' }}>{ethBalance}</p>
+            </div>
+            <div style={{ flex: 1, padding: '8px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+              <p style={{ fontSize: 10, color: 'var(--dark-400)', marginBottom: 2 }}>链</p>
+              <p style={{ fontSize: 16, fontWeight: 700, color: 'white' }}>{balance?.chain?.name || 'Ethereum'}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 持仓（从模拟交易读取，实盘暂无） */}
+      <div style={{ ...cardBase, padding: 20 }}>
+        <p style={{ fontSize: 14, fontWeight: 600, color: 'white', marginBottom: 12 }}>持仓</p>
+        <RealPositions address={address} />
+      </div>
+    </div>
+  );
+}
+
+function RealPositions({ address }: { address: string }) {
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // 从 API 获取持仓数据（模拟交易持仓，实盘待接入）
+    fetch('/api/trade/portfolio?limit=50')
+      .then(r => r.json())
+      .then(d => {
+        if (d?.code === 200 && d?.data) {
+          const td = d.data as any;
+          setOrders((td.openPositions || []).slice(0, 20));
+        }
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  if (loading) return <p style={{ fontSize: 12, color: 'var(--dark-400)', textAlign: 'center', padding: 16 }}>加载中...</p>;
+  if (orders.length === 0) return <p style={{ fontSize: 12, color: 'var(--dark-400)', textAlign: 'center', padding: 16 }}>暂无持仓</p>;
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+        <thead>
+          <tr>
+            <th style={{ textAlign: 'left', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>合约</th>
+            <th style={{ textAlign: 'right', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>方向</th>
+            <th style={{ textAlign: 'right', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>入场价</th>
+            <th style={{ textAlign: 'right', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>数量</th>
+            <th style={{ textAlign: 'right', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>盈亏</th>
+          </tr>
+        </thead>
+        <tbody>
+          {orders.map((t: any) => {
+            const pnl = parseFloat(t.pnl_usd || 0);
+            return (
+              <tr key={t.id}>
+                <td style={{ padding: '6px 10px', color: 'white', borderBottom: '1px solid rgba(255,255,255,0.03)', fontSize: 10 }}>{t.contract?.slice(0, 14) || '-'}</td>
+                <td style={{ padding: '6px 10px', textAlign: 'right', color: t.side === 'buy' ? '#10b981' : '#ef4444', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{t.side?.toUpperCase()}</td>
+                <td style={{ padding: '6px 10px', textAlign: 'right', color: '#ccc', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{'$' + parseFloat(t.entry_price || 0).toFixed(8)}</td>
+                <td style={{ padding: '6px 10px', textAlign: 'right', color: '#ccc', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{parseFloat(t.quantity || 0).toFixed(2)}</td>
+                <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 600, color: pnl >= 0 ? '#10b981' : '#ef4444', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{(pnl >= 0 ? '+' : '') + '$' + pnl.toFixed(2)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
