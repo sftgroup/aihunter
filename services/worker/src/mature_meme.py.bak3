@@ -10,42 +10,6 @@ import httpx
 class MatureMemeEngine:
     """成熟土狗捕捉引擎"""
 
-    def _load_params(self) -> dict:
-        """从 Redis 加载学习参数，失败则返回默认值"""
-        defaults = {
-            'min_score': 60, 'min_hourly_bars': 6,
-            'range_min_pct': 1, 'range_max_pct': 15,
-            'min_liquidity_k': 50,
-            'take_profit_pct': 0.3, 'stop_loss_pct': 0.2, 'trade_ratio': 0.1,
-        }
-        try:
-            import asyncio
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                future = asyncio.ensure_future(self._load_params_async())
-                return loop.run_until_complete(future)
-        except:
-            pass
-        return defaults
-
-    async def _load_params_async(self) -> dict:
-        """异步加载参数"""
-        defaults = {
-            'min_score': 60, 'min_hourly_bars': 6,
-            'range_min_pct': 1, 'range_max_pct': 15,
-            'min_liquidity_k': 50,
-            'take_profit_pct': 0.3, 'stop_loss_pct': 0.2, 'trade_ratio': 0.1,
-        }
-        try:
-            raw = await self.redis.get('params:signal_follow')
-            if raw:
-                loaded = json.loads(raw)
-                defaults.update(loaded)
-                print(f"  📋 加载学习参数: score>={defaults['min_score']} liq>={defaults['min_liquidity_k']}K")
-        except:
-            pass
-        return defaults
-
     def __init__(self, db, redis, http):
         self.db = db
         self.redis = redis
@@ -54,8 +18,6 @@ class MatureMemeEngine:
         self._batch_idx = 0
         # DexScreener search 支持的链
         self._chain_map = {'ETH': True, 'BSC': True, 'BASE': True, 'SOL': True}
-        # 动态参数（从 Redis learning params 获取）
-        self._learning_params = self._load_params()
         self._search_queries = [
             'USDC', 'USDT', 'WETH', 'WBTC', 'PEPE', 'SHIB', 'FLOKI', 'BONK', 'WIF',
             'AAVE', 'UNI', 'LINK', 'CRV', 'MKR', 'COMP', 'SUSHI', 'CAKE', 'BAKE', 'XVS',
@@ -318,7 +280,7 @@ class MatureMemeEngine:
             score += 10
 
         # ③ 震荡检测
-        if self._learning_params.get('range_min_pct', 1) < range_pct < self._learning_params.get('range_max_pct', 15):
+        if 1 < range_pct < 15:
             score += 30
             signals.append(f'震荡{range_pct:.1f}%')
             if current_price > high * 0.95:
@@ -372,9 +334,9 @@ class MatureMemeEngine:
 
         score = max(0, min(100, round(score)))
 
-        if score >= self._learning_params.get('min_score', 60) and not reasons:
+        if score >= 60 and not reasons:
             action = 'buy'
-        elif score >= max(self._learning_params.get('min_score', 60) - 25, 10) and not reasons:
+        elif score >= 35 and not reasons:
             action = 'watch'
         else:
             action = 'pass'
@@ -690,11 +652,6 @@ class MatureMemeEngine:
 
     async def run_cycle(self):
         print("\n[V2 SCAN] start...")
-        # 刷新学习参数
-        try:
-            self._learning_params = await self._load_params_async()
-        except:
-            pass
         await self.scan_and_save_prices()
 
         # 每轮开始前清空旧信号
@@ -714,7 +671,7 @@ class MatureMemeEngine:
                            price, liquidity_usd, recorded_at
                     FROM historical_prices
                     WHERE recorded_at > NOW() - INTERVAL '14 days'
-                      AND liquidity_usd >= (self._learning_params.get('min_liquidity_k', 50) * 1000)::bigint
+                      AND liquidity_usd >= 50000
                     ORDER BY chain, contract, recorded_at DESC
                     LIMIT 200
                 """)

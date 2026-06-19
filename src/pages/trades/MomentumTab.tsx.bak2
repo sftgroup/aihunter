@@ -61,7 +61,10 @@ export default function MomentumTab() {
       {/* 扫描中代币 */}
       {view === 'signals' && (
         <div style={{ ...cardBase, padding: 20 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>
+              扫描中代币 <span style={{ fontSize: 11, color: 'var(--dark-400)' }}>{loading ? '加载中...' : total + ' 个'}</span>
+            </p>
             <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
               <Filter size={12} color="var(--dark-400)" />
               {['', 'buy', 'pass'].map(a => (
@@ -94,7 +97,7 @@ export default function MomentumTab() {
           : filtered.length === 0 ? <p style={{ textAlign: 'center', color: 'var(--dark-400)', padding: 24, fontSize: 13 }}>暂无匹配的代币</p>
           : <div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {filtered.map((sig: any) => {
+              {filtered.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE).map((sig: any) => {
                 const cc = chainColors[sig.chain] || '#808080';
                 const sc = sig.score || sig.confidence || 0;
                 return (
@@ -300,41 +303,29 @@ function LearningTab() {
         </div>
       )}
 
-      {/* 参数版本历史 */}
+      {/* 学习历史表格 */}
       <div style={{ ...cardBase, padding: 16 }}>
-        <p style={{ fontSize: 12, fontWeight: 600, color: 'white', marginBottom: 8 }}>
-          参数版本历史 <span style={{ fontSize: 10, color: 'var(--dark-400)', fontWeight: 400 }}>(最新 {Math.min(history.length, 20)} 版)</span>
-        </p>
+        <p style={{ fontSize: 12, fontWeight: 600, color: 'white', marginBottom: 8 }}>学习历史</p>
         {history.length > 0 ? (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
               <thead>
                 <tr>
-                  <th style={{ textAlign: 'left', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>版</th>
+                  <th style={{ textAlign: 'left', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>#</th>
                   <th style={{ textAlign: 'right', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>评分</th>
-                  <th style={{ textAlign: 'right', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>最低分</th>
-                  <th style={{ textAlign: 'right', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>最小流动性</th>
-                  <th style={{ textAlign: 'right', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>止盈</th>
-                  <th style={{ textAlign: 'right', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>止损</th>
-                  <th style={{ textAlign: 'right', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>经验</th>
+                  <th style={{ textAlign: 'right', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>经验数</th>
                   <th style={{ textAlign: 'left', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>时间</th>
                 </tr>
               </thead>
               <tbody>
-                {history.slice(0, 20).map((h: any) => {
-                  const p = h.params || {};
-                  return (
+                {history.slice(-20).reverse().map((h: any) => (
                   <tr key={h.id}>
                     <td style={{ padding: '6px 10px', color: 'var(--dark-400)', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{h.id}</td>
                     <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 600, color: parseFloat(h.score || 0) >= 0.7 ? '#10b981' : '#f59e0b', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{formatPct(parseFloat(h.score || 0))}</td>
-                    <td style={{ padding: '6px 10px', textAlign: 'right', color: '#ccc', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{p.min_score != null ? p.min_score : '-'}</td>
-                    <td style={{ padding: '6px 10px', textAlign: 'right', color: '#ccc', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{p.min_liquidity_k != null ? Math.round(p.min_liquidity_k) + 'K' : '-'}</td>
-                    <td style={{ padding: '6px 10px', textAlign: 'right', color: '#10b981', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{p.take_profit_pct != null ? formatPct(p.take_profit_pct) : '-'}</td>
-                    <td style={{ padding: '6px 10px', textAlign: 'right', color: '#ef4444', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{p.stop_loss_pct != null ? formatPct(p.stop_loss_pct) : '-'}</td>
                     <td style={{ padding: '6px 10px', textAlign: 'right', color: '#ccc', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{h.experience_count || '-'}</td>
                     <td style={{ padding: '6px 10px', color: 'var(--dark-400)', borderBottom: '1px solid rgba(255,255,255,0.03)', fontSize: 10 }}>{(h.created_at || '').slice(0, 19).replace('T', ' ')}</td>
                   </tr>
-                )})}
+                ))}
               </tbody>
             </table>
           </div>
@@ -384,7 +375,7 @@ function RealTradeTab() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* 钱包信息 */}
       <div style={{ ...cardBase, padding: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <p style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>钱包信息</p>
           <button onClick={() => disconnect()}
             style={{
