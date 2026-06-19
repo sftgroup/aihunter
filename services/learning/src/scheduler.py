@@ -1,10 +1,9 @@
 """
 AIHunter Learning Worker - 自动学习调度器
 
-功能：
-- 监听 learning:trigger 信号
-- 触发 Optuna 参数调优
-- 调用 DeepSeek 生成策略规则
+V2 引擎优化版：
+- 基于 MATURE_MEME 引擎特征（score/range_pct/hourly_bars/liquidity_usd）进行 Optuna 参数调优
+- DeepSeek 从 V2 信号特征中提取策略规则
 - 规则版本管理与热加载
 """
 
@@ -41,7 +40,6 @@ class LearningScheduler:
             )
             total = cur.fetchone()[0] or 0
         
-        # 获取上次学习时的经验数
         last_key = f"learning:last_count:{strategy}"
         last_count = await self.redis.get(last_key)
         if last_count is None:
@@ -49,16 +47,14 @@ class LearningScheduler:
         else:
             last_count = int(last_count)
         
-        # 增量达到30条才学习
         return (total - last_count) >= 30
     
     async def _run_optuna(self, strategy: str):
-        """执行 Optuna 参数调优"""
+        """执行 Optuna 参数调优（基于 V2 MATURE_MEME 特征）"""
         try:
             import optuna
             from optuna.samplers import TPESampler
             
-            # 获取经验数据
             with self.db.cursor() as cur:
                 cur.execute(
                     "SELECT outcome FROM trade_experiences WHERE strategy_type = %s ORDER BY executed_at DESC LIMIT 200",
@@ -71,26 +67,26 @@ class LearningScheduler:
                 return
             
             def objective(trial):
-                slippage = trial.suggest_float('max_slippage', 0.01, 0.05)
-                position = trial.suggest_float('position_pct', 0.1, 0.5)
-                confidence = trial.suggest_float('min_confidence', 0.3, 0.9)
-                take_profit = trial.suggest_float('take_profit_pct', 0.05, 0.50)  # 5% ~ 50%
-                stop_loss = trial.suggest_float('stop_loss_pct', 0.05, 0.30)      # 5% ~ 30%
-                trade_ratio = trial.suggest_float('trade_ratio', 0.02, 0.20)      # 每笔占余额 2% ~ 20%
+                # V2 引擎专属参数优化
+                min_score = trial.suggest_int('min_score', 40, 80)              # 最低评分阈值
+                min_hourly_bars = trial.suggest_int('min_hourly_bars', 3, 24)   # 最少小时柱数
+                range_min = trial.suggest_float('range_min_pct', 0.5, 5.0)      # 最小震荡幅度%
+                range_max = trial.suggest_float('range_max_pct', 5.0, 20.0)     # 最大震荡幅度%
+                min_liquidity = trial.suggest_float('min_liquidity_k', 50, 500) # 最小流动性(K USD)
+                take_profit = trial.suggest_float('take_profit_pct', 0.05, 0.50)
+                stop_loss = trial.suggest_float('stop_loss_pct', 0.05, 0.30)
+                trade_ratio = trial.suggest_float('trade_ratio', 0.02, 0.20)
                 
-                # 模拟每笔交易：用止盈止损约束后计算期望收益
                 score = 0
                 for r in rows:
                     outcome = r[0] if isinstance(r[0], dict) and 'pnl' in r[0] else {}
-                    pnl_pct = float(outcome.get('pnl_pct', 0) or 0) / 100  # 转为小数
+                    pnl_pct = float(outcome.get('pnl_pct', 0) or 0) / 100
                     
-                    # 应用止盈止损约束
                     if pnl_pct > take_profit:
-                        pnl_pct = take_profit  # 触发止盈
+                        pnl_pct = take_profit
                     elif pnl_pct < -stop_loss:
-                        pnl_pct = -stop_loss   # 触发止损
+                        pnl_pct = -stop_loss
                     
-                    # 按交易比例计算实际盈亏
                     actual_pnl = pnl_pct * trade_ratio
                     if actual_pnl > 0:
                         score += 1
@@ -102,7 +98,6 @@ class LearningScheduler:
             print(f"🎯 Optuna 最优参数: {study.best_params}")
             print(f"📊 最优评分: {study.best_value:.4f}")
             
-            # 保存到类变量和 Redis
             self.last_params = study.best_params
             self.last_score = study.best_value
             self.last_strategy = strategy
@@ -114,7 +109,6 @@ class LearningScheduler:
             print(f"⚠️ Optuna 异常: {e}")
     
     async def _get_deepseek_key(self):
-        """从环境变量或数据库读取 DeepSeek API Key"""
         key = os.getenv('DEEPSEEK_API_KEY')
         if key:
             return key
@@ -129,7 +123,7 @@ class LearningScheduler:
         return None
 
     async def _call_deepseek_for_rules(self, strategy: str):
-        """调用 DeepSeek 生成策略规则"""
+        """调用 DeepSeek 生成 V2 引擎策略规则"""
         api_key = await self._get_deepseek_key()
         if not api_key:
             print("⚠️ DeepSeek 未配置，跳过规则生成")
@@ -144,21 +138,36 @@ class LearningScheduler:
             # 获取最近的交易经验
             with self.db.cursor() as cur:
                 cur.execute(
-                    "SELECT features_snapshot, outcome, success_label FROM trade_experiences WHERE strategy_type = %s ORDER BY executed_at DESC LIMIT 20",
+                    """SELECT features_snapshot, outcome, success_label 
+                       FROM trade_experiences 
+                       WHERE strategy_type = %s 
+                       ORDER BY executed_at DESC LIMIT 50""",
                     (strategy,)
                 )
                 rows = cur.fetchall()
             
-            wins = [r for r in rows if r[2] == 'win'][:5]
-            losses = [r for r in rows if r[2] == 'loss'][:5]
+            wins = [r for r in rows if r[2] == 'win'][:8]
+            losses = [r for r in rows if r[2] == 'loss'][:8]
             
-            # 确保是 dict 再序列化
             win_features = [r[0] if isinstance(r[0], dict) else {} for r in wins]
             loss_features = [r[0] if isinstance(r[0], dict) else {} for r in losses]
             
-            prompt = f"""从以下交易经验中提取可读的策略规则（IF-THEN格式），输出JSON数组：
+            # V2 引擎的 prompt：基于 MATURE_MEME 特征生成规则
+            prompt = f"""你是一个加密货币动量策略分析师。分析以下 V2 成熟代币引擎（MATURE_MEME）的交易经验，提取可读的筛选规则。
 
-策略: {strategy}
+策略类型：MATURE_MEME（动量突破策略）
+策略说明：基于小时图数据分析代币的震荡→突破形态，评分买入。
+
+特征字段说明：
+- chain: 链 (ETH/BSC/BASE/SOL)
+- score: V2引擎评分 (0-100，>=60为BUY)
+- hourly_bars: 已积累的小时价格柱数（越多越好）
+- range_pct: 震荡幅度百分比（1-15%理想）
+- liquidity_usd: 流动性美元价值
+- price_usd: 当前价格
+- confidence: 可信度
+- signals: 信号标签数组（如"池$40M"、"震荡11.8%"、"流动性增"等）
+- action: 动作 (buy/watch/pass)
 
 盈利交易特征:
 {json.dumps(win_features, indent=2, default=str)}
@@ -166,8 +175,13 @@ class LearningScheduler:
 亏损交易特征:
 {json.dumps(loss_features, indent=2, default=str)}
 
-输出格式:
-[{{"condition": "tax < 3% AND lp > 10k", "action": "BUY", "expected_win_rate": 0.7}}]
+请分析盈利和亏损交易的模式差异，输出JSON数组格式的策略规则。
+每条规则包含：condition（基于特征的条件表达式）、action（BUY/WATCH/SKIP）、reason（为什么这条规则有效）、expected_win_rate（0-1预期胜率）
+
+示例：
+[{{"condition": "score >= 65 AND hourly_bars >= 12 AND liquidity_usd > 100000", "action": "BUY", "reason": "高评分+充足数据+足够流动性", "expected_win_rate": 0.7}}]
+
+请输出 2-4 条最有效的规则。
 """
             resp = await asyncio.to_thread(
                 lambda: client.chat.completions.create(
@@ -179,26 +193,24 @@ class LearningScheduler:
             )
             
             rules = json.loads(resp.choices[0].message.content)
-            print(f"🤖 DeepSeek 生成规则: {json.dumps(rules, indent=2)[:200]}")
+            print(f"🤖 DeepSeek 生成规则: {json.dumps(rules, indent=2)[:400]}")
             
-            # 保存规则并热加载
             await self.redis.set(f"rules:{strategy}", json.dumps(rules))
             await self.redis.publish('rule_updates', json.dumps({
                 'strategy': strategy, 'newRule': rules, 'status': 'promoted'
             }))
             
+            self.last_rules = rules
+            
         except Exception as e:
             print(f"⚠️ DeepSeek 调用失败: {e}")
-        
-        # 无论 DeepSeek 成功与否，记录这次规则结果
-        self.last_rules = rules if 'rules' in dir() and rules else None
+            self.last_rules = rules if 'rules' in dir() and rules else None
     
     async def _save_learning_history(self, strategy: str):
         """将本次学习结果写入历史表，并触发模拟交易重置"""
         if not self.last_params:
             return
         try:
-            # 获取当前经验数
             with self.db.cursor() as cur:
                 cur.execute(
                     "SELECT COUNT(*) FROM trade_experiences WHERE strategy_type = %s",
@@ -206,7 +218,6 @@ class LearningScheduler:
                 )
                 exp_count = cur.fetchone()[0] if cur.rowcount > 0 else 0
             
-            # 读取当前规则
             rules_json = None
             if self.last_rules:
                 rules_json = json.dumps(self.last_rules)
@@ -215,7 +226,6 @@ class LearningScheduler:
                 if r:
                     rules_json = r
             
-            # 写入历史
             with self.db.cursor() as cur:
                 cur.execute(
                     """INSERT INTO learning_history (strategy, params, rules, score, experience_count, created_at)
@@ -225,17 +235,15 @@ class LearningScheduler:
                 )
                 self.db.commit()
             
-            # 更新学习计数（下次按增量30触发）
             await self.redis.set(f"learning:last_count:{strategy}", exp_count)
             
             print(f"📝 学习历史已记录: 经验={exp_count} 评分={self.last_score:.4f}")
             
-            # 将止盈止损等参数同步到 paper_config
+            # 将 V2 引擎参数同步到 paper_config
             try:
                 p = self.last_params
-                tp = round(p.get('take_profit_pct', 0.30) * 100, 1)   # 转成百分比
-                sl = round(p.get('stop_loss_pct', 0.20) * 100, 1)     # 转成百分比
-                tr = round(p.get('trade_ratio', 0.10) * 100, 1)       # 交易比例转成%备用
+                tp = round(p.get('take_profit_pct', 0.30) * 100, 1)
+                sl = round(p.get('stop_loss_pct', 0.20) * 100, 1)
                 with self.db.cursor() as cur:
                     cur.execute(
                         """UPDATE paper_config SET 
@@ -248,7 +256,6 @@ class LearningScheduler:
             except Exception as e:
                 print(f"⚠️ 更新 paper_config 失败: {e}")
             
-            # 触发模拟交易重置（用新参数重新跑）
             try:
                 import httpx
                 async with httpx.AsyncClient(timeout=10) as client:
@@ -281,13 +288,11 @@ class LearningScheduler:
                 print(f"🧠 收到学习信号: {strategy}")
                 
                 if await self._should_learn(strategy):
-                    # 并行执行 Optuna 和 DeepSeek 规则生成
                     await asyncio.gather(
                         self._run_optuna(strategy),
                         self._call_deepseek_for_rules(strategy)
                     )
                     print(f"✅ 学习完成: {strategy}")
-                    # 保存历史 + 重置模拟交易
                     await self._save_learning_history(strategy)
                 else:
                     print(f"⏸️ 经验不足，跳过学习")
