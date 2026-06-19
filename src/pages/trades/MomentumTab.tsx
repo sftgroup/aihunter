@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { TrendingUp, Activity, Zap, ChevronLeft, ChevronRight, Filter, Copy, Check, Wallet, ExternalLink } from 'lucide-react';
+import { TrendingUp, Activity, Zap, ChevronLeft, ChevronRight, Filter, Copy, Check, Wallet, ExternalLink, BarChart3, Power, RefreshCw, List } from 'lucide-react';
 import { signalsPageApi, learningApi } from '../../utils/api';
 import { useAccount, useDisconnect, useBalance } from 'wagmi';
 
@@ -160,190 +160,6 @@ function formatPct(v: number): string {
   return (v * 100).toFixed(1) + '%';
 }
 
-function LearningTab() {
-  const [params, setParams] = useState<any>(null);
-  const [history, setHistory] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    setLoading(true);
-    Promise.all([
-      learningApi.getParams('signal_follow'),
-      learningApi.getHistory('signal_follow', 100),
-    ]).then(([pr, hr]) => {
-      if (pr?.code === 200 && pr?.data) setParams(pr.data);
-      if (hr?.code === 200 && hr?.data) setHistory(hr.data);
-      setLoading(false);
-    }).catch(() => setLoading(false));
-  }, []);
-
-  const latestScore = history.length > 0 ? history[history.length - 1].score : 0;
-  const avgScore = history.length > 0 ? history.reduce((s, h) => s + parseFloat(h.score || 0), 0) / history.length : 0;
-  const expCount = params?.experience_count || 0;
-  const optuna = params?.params || {};
-  const rules = params?.rules || [];
-
-  // 评分曲线 SVG
-  const scoreChart = history.length > 1 ? (() => {
-    const vals = history.map(h => parseFloat(h.score || 0));
-    const min = Math.min(...vals);
-    const max = Math.max(...vals);
-    const range = max - min || 1;
-    const w = 400, h = 80;
-    const pts = vals.map((v, i) => `${(i / (vals.length - 1)) * w},${h - ((v - min) / range) * h}`).join(' ');
-    return (
-      <svg style={{ width: '100%', height: h }}>
-        <polyline fill="none" stroke="#10b981" strokeWidth={2} points={pts} />
-      </svg>
-    );
-  })() : null;
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* 概览卡片 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
-        <div style={{ ...cardBase, padding: 16 }}>
-          <p style={{ fontSize: 11, color: 'var(--dark-400)', marginBottom: 4 }}>学习次数</p>
-          <p style={{ fontSize: 22, fontWeight: 700, color: 'white' }}>{history.length}</p>
-        </div>
-        <div style={{ ...cardBase, padding: 16 }}>
-          <p style={{ fontSize: 11, color: 'var(--dark-400)', marginBottom: 4 }}>当前经验</p>
-          <p style={{ fontSize: 22, fontWeight: 700, color: 'white' }}>{formatNumber(expCount)}</p>
-        </div>
-        <div style={{ ...cardBase, padding: 16 }}>
-          <p style={{ fontSize: 11, color: 'var(--dark-400)', marginBottom: 4 }}>最新评分</p>
-          <p style={{ fontSize: 22, fontWeight: 700, color: latestScore >= 0.7 ? '#10b981' : '#f59e0b' }}>{formatPct(latestScore)}</p>
-        </div>
-        <div style={{ ...cardBase, padding: 16 }}>
-          <p style={{ fontSize: 11, color: 'var(--dark-400)', marginBottom: 4 }}>平均评分</p>
-          <p style={{ fontSize: 22, fontWeight: 700, color: '#818cf8' }}>{formatPct(avgScore)}</p>
-        </div>
-      </div>
-
-      {/* 评分趋势 */}
-      <div style={{ ...cardBase, padding: 16 }}>
-        <p style={{ fontSize: 12, fontWeight: 600, color: 'white', marginBottom: 8 }}>评分趋势</p>
-        {scoreChart || <p style={{ fontSize: 12, color: 'var(--dark-400)' }}>数据不足</p>}
-      </div>
-
-      {/* 当前参数 */}
-      <div style={{ ...cardBase, padding: 16 }}>
-        <p style={{ fontSize: 12, fontWeight: 600, color: 'white', marginBottom: 12 }}>当前参数（Optuna 优化）</p>
-        {Object.keys(optuna).length > 0 ? (
-          <>
-            {/* 维度参数 */}
-            <p style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 500, marginBottom: 6 }}>▸ 筛选维度参数</p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 6, marginBottom: 16 }}>
-              {[
-                {key: 'min_score', label: '最低评分', suffix: '分', fmt: (v: number) => Math.round(v).toString()},
-                {key: 'min_hourly_bars', label: '最少小时柱', suffix: 'h', fmt: (v: number) => Math.round(v).toString()},
-                {key: 'range_min_pct', label: '最小震荡', suffix: '%', fmt: (v: number) => v.toFixed(1)},
-                {key: 'range_max_pct', label: '最大震荡', suffix: '%', fmt: (v: number) => v.toFixed(1)},
-                {key: 'min_liquidity_k', label: '最小流动性', suffix: 'K', fmt: (v: number) => Math.round(v).toString()},
-              ].map(({key, label, suffix, fmt}) => {
-                const val = optuna[key];
-                if (val === undefined) return null;
-                return (
-                  <div key={key} style={{ padding: '8px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
-                    <p style={{ fontSize: 10, color: 'var(--dark-400)', marginBottom: 2 }}>{label}</p>
-                    <p style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>{fmt(val)}{suffix}</p>
-                  </div>
-                );
-              })}
-            </div>
-            {/* 止盈止损参数 */}
-            <p style={{ fontSize: 11, color: '#f59e0b', fontWeight: 500, marginBottom: 6 }}>▸ 止盈止损参数</p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 6 }}>
-              {[
-                {key: 'take_profit_pct', label: '止盈', fmt: (v: number) => formatPct(v)},
-                {key: 'stop_loss_pct', label: '止损', fmt: (v: number) => formatPct(v)},
-                {key: 'trade_ratio', label: '交易比例', fmt: (v: number) => formatPct(v)},
-                {key: 'max_slippage', label: '最大滑点', fmt: (v: number) => formatPct(v)},
-                {key: 'position_pct', label: '仓位比例', fmt: (v: number) => formatPct(v)},
-                {key: 'min_confidence', label: '最低可信度', fmt: (v: number) => formatPct(v)},
-              ].map(({key, label, fmt}) => {
-                const val = optuna[key];
-                if (val === undefined) return null;
-                return (
-                  <div key={key} style={{ padding: '8px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
-                    <p style={{ fontSize: 10, color: 'var(--dark-400)', marginBottom: 2 }}>{label}</p>
-                    <p style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>{fmt(val)}</p>
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        ) : <p style={{ fontSize: 12, color: 'var(--dark-400)' }}>暂无参数数据</p>}
-      </div>
-
-      {/* 规则列表 */}
-      {rules.length > 0 && (
-        <div style={{ ...cardBase, padding: 16 }}>
-          <p style={{ fontSize: 12, fontWeight: 600, color: 'white', marginBottom: 8 }}>
-            策略规则 <span style={{ fontSize: 10, color: 'var(--dark-400)' }}>DeepSeek 生成</span>
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {rules.map((r: any, i: number) => (
-              <div key={i} style={{ padding: 10, background: 'rgba(0,0,0,0.2)', borderRadius: 8, fontSize: 11, color: '#ccc' }}>
-                <div style={{ marginBottom: 4 }}>
-                  <span style={{ color: '#10b981', fontWeight: 600 }}>IF </span>
-                  <span>{r.condition || '-'}</span>
-                </div>
-                <div>
-                  <span style={{ color: '#818cf8', fontWeight: 600 }}>THEN </span>
-                  <span>{r.action || '-'}</span>
-                  {r.expected_win_rate && <span style={{ color: 'var(--dark-400)', marginLeft: 8 }}>预期胜率: {formatPct(r.expected_win_rate)}</span>}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 参数版本历史 */}
-      <div style={{ ...cardBase, padding: 16 }}>
-        <p style={{ fontSize: 12, fontWeight: 600, color: 'white', marginBottom: 8 }}>
-          参数版本历史 <span style={{ fontSize: 10, color: 'var(--dark-400)', fontWeight: 400 }}>(最新 {Math.min(history.length, 20)} 版)</span>
-        </p>
-        {history.length > 0 ? (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: 'left', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>版</th>
-                  <th style={{ textAlign: 'right', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>评分</th>
-                  <th style={{ textAlign: 'right', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>最低分</th>
-                  <th style={{ textAlign: 'right', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>最小流动性</th>
-                  <th style={{ textAlign: 'right', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>止盈</th>
-                  <th style={{ textAlign: 'right', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>止损</th>
-                  <th style={{ textAlign: 'right', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>经验</th>
-                  <th style={{ textAlign: 'left', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>时间</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.slice(0, 20).map((h: any) => {
-                  const p = h.params || {};
-                  return (
-                  <tr key={h.id}>
-                    <td style={{ padding: '6px 10px', color: 'var(--dark-400)', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{h.id}</td>
-                    <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 600, color: parseFloat(h.score || 0) >= 0.7 ? '#10b981' : '#f59e0b', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{formatPct(parseFloat(h.score || 0))}</td>
-                    <td style={{ padding: '6px 10px', textAlign: 'right', color: '#ccc', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{p.min_score != null ? p.min_score : '-'}</td>
-                    <td style={{ padding: '6px 10px', textAlign: 'right', color: '#ccc', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{p.min_liquidity_k != null ? Math.round(p.min_liquidity_k) + 'K' : '-'}</td>
-                    <td style={{ padding: '6px 10px', textAlign: 'right', color: '#10b981', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{p.take_profit_pct != null ? formatPct(p.take_profit_pct) : '-'}</td>
-                    <td style={{ padding: '6px 10px', textAlign: 'right', color: '#ef4444', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{p.stop_loss_pct != null ? formatPct(p.stop_loss_pct) : '-'}</td>
-                    <td style={{ padding: '6px 10px', textAlign: 'right', color: '#ccc', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{h.experience_count || '-'}</td>
-                    <td style={{ padding: '6px 10px', color: 'var(--dark-400)', borderBottom: '1px solid rgba(255,255,255,0.03)', fontSize: 10 }}>{(h.created_at || '').slice(0, 19).replace('T', ' ')}</td>
-                  </tr>
-                )})}
-              </tbody>
-            </table>
-          </div>
-        ) : <p style={{ fontSize: 12, color: 'var(--dark-400)' }}>暂无学习记录</p>}
-      </div>
-    </div>
-  );
-}
-
 function shortAddr(addr: string): string {
   if (!addr || addr.length < 10) return addr || '-';
   return addr.slice(0, 6) + '...' + addr.slice(-4);
@@ -354,13 +170,42 @@ function RealTradeTab() {
   const { data: balance } = useBalance({ address });
   const { disconnect } = useDisconnect();
   const [copied, setCopied] = useState(false);
+  const [autoTrade, setAutoTrade] = useState(false);
+  const [recentSignals, setRecentSignals] = useState<any[]>([]);
+  const [realTrades, setRealTrades] = useState<any[]>([]);
+  const [pendingTx, setPendingTx] = useState<any[]>([]);
+  const [activeView, setActiveView] = useState('dashboard');
+
+  useEffect(() => {
+    fetch('/api/trade/realtrades?limit=50')
+      .then(r => r.json())
+      .then(d => { if (d?.code === 200) setRealTrades(d.data || []); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!autoTrade) return;
+    const ws = new WebSocket((window.location.origin.replace(/^http/, 'ws')) + '/ws');
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'signal' && msg.data?.action === 'buy') {
+          setRecentSignals(prev => [msg.data, ...prev].slice(0, 20));
+        }
+        if (msg.type === 'REAL_TRADE') {
+          setPendingTx(prev => [msg.data, ...prev].slice(0, 10));
+        }
+        if (msg.type === 'TRADE_CONFIRMED') {
+          setPendingTx(prev => prev.filter(t => t.contract !== msg.data.contract));
+          fetch('/api/trade/realtrades?limit=50').then(r => r.json()).then(d => { if (d?.code === 200) setRealTrades(d.data || []); }).catch(() => {});
+        }
+      } catch(e) {}
+    };
+    return () => ws.close();
+  }, [autoTrade]);
 
   const copyAddr = () => {
-    if (address) {
-      navigator.clipboard.writeText(address);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
+    if (address) { navigator.clipboard.writeText(address); setCopied(true); setTimeout(() => setCopied(false), 2000); }
   };
 
   if (!isConnected || !address) {
@@ -368,61 +213,247 @@ function RealTradeTab() {
       <div style={{ ...cardBase, padding: 40, textAlign: 'center' }}>
         <Wallet size={48} style={{ color: 'var(--dark-500)', marginBottom: 16 }} />
         <p style={{ fontSize: 16, fontWeight: 600, color: 'white', marginBottom: 8 }}>未连接钱包</p>
-        <p style={{ fontSize: 13, color: 'var(--dark-400)', marginBottom: 20 }}>
-          请连接钱包以查看实盘持仓和交易
-        </p>
-        <p style={{ fontSize: 12, color: 'var(--accent)', cursor: 'pointer' }}>
-          点击右上角「连接钱包」按钮
-        </p>
+        <p style={{ fontSize: 13, color: 'var(--dark-400)', marginBottom: 20 }}>请连接钱包以查看实盘持仓和交易</p>
+        <p style={{ fontSize: 12, color: 'var(--accent)', cursor: 'pointer' }}>点击右上角「连接钱包」按钮</p>
       </div>
     );
   }
 
   const ethBalance = balance ? parseFloat(balance.formatted).toFixed(4) : '0';
+  const tabDefs = [
+    { key: 'dashboard', label: '概览' },
+    { key: 'signals', label: '信号' },
+    { key: 'trades', label: '交易记录' },
+  ];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* 钱包信息 */}
-      <div style={{ ...cardBase, padding: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 16 }}>
-          <p style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>钱包信息</p>
-          <button onClick={() => disconnect()}
-            style={{
-              padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.3)',
-              background: 'rgba(239,68,68,0.1)', color: '#ef4444', fontSize: 10, cursor: 'pointer',
-            }}>
-            断开连接
-          </button>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
-            <Wallet size={14} color="var(--accent)" />
-            <span style={{ fontSize: 12, color: '#ccc', fontFamily: "'JetBrains Mono', monospace" }}>{shortAddr(address)}</span>
-            <button onClick={copyAddr} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
-              {copied ? <Check size={14} color="#10b981" /> : <Copy size={14} color="var(--dark-400)" />}
+      {/* 子导航 */}
+      <div style={{ display: 'flex', gap: 4, background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: 3 }}>
+        {tabDefs.map(v => {
+          const act = activeView === v.key;
+          return (
+            <button key={v.key} onClick={() => setActiveView(v.key)}
+              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '8px 12px', borderRadius: 6, background: act ? 'rgba(99,102,241,0.15)' : 'transparent', border: 'none', color: act ? 'var(--accent)' : 'var(--dark-400)', cursor: 'pointer', fontSize: 11, fontWeight: 500 }}>
+              {v.label}
             </button>
-            <a href={`https://etherscan.io/address/${address}`} target="_blank" rel="noreferrer" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
-              <ExternalLink size={14} color="var(--dark-400)" />
-            </a>
-          </div>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <div style={{ flex: 1, padding: '8px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
-              <p style={{ fontSize: 10, color: 'var(--dark-400)', marginBottom: 2 }}>{balance?.symbol || 'ETH'} 余额</p>
-              <p style={{ fontSize: 16, fontWeight: 700, color: 'white' }}>{ethBalance}</p>
-            </div>
-            <div style={{ flex: 1, padding: '8px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
-              <p style={{ fontSize: 10, color: 'var(--dark-400)', marginBottom: 2 }}>链</p>
-              <p style={{ fontSize: 16, fontWeight: 700, color: 'white' }}>{balance?.chain?.name || 'Ethereum'}</p>
-            </div>
-          </div>
-        </div>
+          );
+        })}
       </div>
 
-      {/* 持仓（从模拟交易读取，实盘暂无） */}
-      <div style={{ ...cardBase, padding: 20 }}>
-        <p style={{ fontSize: 14, fontWeight: 600, color: 'white', marginBottom: 12 }}>持仓</p>
-        <RealPositions address={address} />
-      </div>
+      {/* 概览 */}
+      {activeView === 'dashboard' && (
+        <>
+          {/* 钱包信息 */}
+          <div style={{ ...cardBase, padding: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Wallet size={16} color="white" />
+                </div>
+                <div>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>钱包信息</p>
+                  <p style={{ fontSize: 10, color: '#10b981' }}>已连接</p>
+                </div>
+              </div>
+              <button onClick={() => disconnect()}
+                style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.1)', color: '#ef4444', fontSize: 10, cursor: 'pointer' }}>
+                断开连接
+              </button>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: 8, marginBottom: 12 }}>
+              <Wallet size={14} color="var(--accent)" />
+              <span style={{ fontSize: 12, color: '#ccc', fontFamily: "'JetBrains Mono', monospace", flex: 1 }}>{shortAddr(address)}</span>
+              <button onClick={copyAddr} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
+                {copied ? <Check size={14} color="#10b981" /> : <Copy size={14} color="var(--dark-400)" />}
+              </button>
+              <a href={`https://etherscan.io/address/${address}`} target="_blank" rel="noreferrer" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
+                <ExternalLink size={14} color="var(--dark-400)" />
+              </a>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
+              {['ETH', 'BSC', 'BASE', 'SOL'].map(c => {
+                const native = (balance?.chain?.nativeCurrency?.symbol || '').toUpperCase();
+                return (
+                  <div key={c} style={{ padding: '10px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: 8, borderLeft: `3px solid ${chainColors[c] || '#808080'}` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: chainColors[c] || '#808080' }} />
+                      <p style={{ fontSize: 10, color: 'var(--dark-300)', fontWeight: 500 }}>{c}</p>
+                    </div>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>
+                      {c === native ? ethBalance : '—'}
+                      <span style={{ fontSize: 9, color: 'var(--dark-400)', marginLeft: 4 }}>{c === native ? balance?.symbol : ''}</span>
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 自动交易开关 */}
+          <div style={{ ...cardBase, padding: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Power size={14} color={autoTrade ? '#10b981' : 'var(--dark-400)'} />
+                <p style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>自动交易</p>
+              </div>
+              <button onClick={() => setAutoTrade(!autoTrade)}
+                style={{ padding: '6px 16px', borderRadius: 20, border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer', background: autoTrade ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.05)', color: autoTrade ? '#10b981' : 'var(--dark-400)' }}>
+                {autoTrade ? '● 运行中' : '○ 已关闭'}
+              </button>
+            </div>
+            <p style={{ fontSize: 10, color: 'var(--dark-400)', marginBottom: 12 }}>
+              {autoTrade ? '实时监听 V2 引擎 BUY 信号，自动推送交易确认' : '开启后自动监听 BUY 信号并推送交易确认'}
+            </p>
+            {pendingTx.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <p style={{ fontSize: 10, color: 'var(--dark-400)', fontWeight: 500 }}>待确认交易</p>
+                {pendingTx.map((tx, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(245,158,11,0.1)', borderRadius: 8, border: '1px solid rgba(245,158,11,0.2)' }}>
+                    <RefreshCw size={12} color="#f59e0b" />
+                    <span style={{ fontSize: 11, color: '#f59e0b', flex: 1 }}>{tx.tokenSymbol} ({tx.chain})</span>
+                    <button onClick={async () => {
+                      if (!window.ethereum) return alert("请安装 MetaMask");
+                      const chainIdMap: Record<string,string> = {ETH:"0x1",BSC:"0x38",BASE:"0x2105"};
+                      const routerAddr: Record<string,string> = {ETH:"0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",BSC:"0x10ED43C718714eb63d5aA57B78B54704E256024E",BASE:"0x2626664c2603336E57B271c5C0b26F421741e481"};
+                      const nativeWrap: Record<string,string> = {ETH:"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",BSC:"0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",BASE:"0x4200000000000000000000000000000000000006"};
+                      const cid = chainIdMap[tx.chain];
+                      const router = routerAddr[tx.chain];
+                      const wrap = nativeWrap[tx.chain];
+                      if (!router || !cid) return alert("暂不支持的链");
+                      try {
+                        await window.ethereum.request({method:"wallet_switchEthereumChain",params:[{chainId:cid}]});
+                        const accounts = await window.ethereum.request({method:"eth_requestAccounts"});
+                        const amountIn = "0x" + (0.01 * 1e18).toString(16); // 0.01 ETH 测试
+                        const amountOutMin = "0x1"; // 最小输出
+                        const deadline = "0x" + (Math.floor(Date.now()/1000) + 600).toString(16);
+                        const to = accounts[0];
+                        const swapData = "0x7ff36ab5" +  // swapExactETHForTokens
+                          amountOutMin.slice(2).padStart(64,"0") +
+                          deadline.slice(2).padStart(64,"0") +
+                          "0000000000000000000000000000000000000000000000000000000000000080" +
+                          "0000000000000000000000000000000000000000000000000000000000000002" +
+                          "000000000000000000000000" + wrap.slice(2) +
+                          "000000000000000000000000" + tx.tokenAddress.slice(2).padStart(64,"0") +
+                          "000000000000000000000000" + to.slice(2).padStart(64,"0") +
+                          "0000000000000000000000000000000000000000000000000000000000000001";
+                        const tx = await window.ethereum.request({
+                          method:"eth_sendTransaction",
+                          params:[{from:accounts[0],to:router,data:swapData,value:amountIn}]
+                        });
+                        alert("交易已发送: " + tx.slice(0, 10) + "...");
+                        // 上报后端
+                        fetch("/api/trade/confirm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chain:tx.chain,contract:tx.tokenAddress,symbol:tx.tokenSymbol,status:"open",amount:0.01,price:tx.price,txHash:tx})});
+                      } catch(e:any) { alert("失败: " + (e.message || e)); }
+                    }}
+                      style={{padding:"4px 10px",borderRadius:6,border:"1px solid rgba(99,102,241,0.3)",background:"rgba(99,102,241,0.1)",color:"var(--accent)",fontSize:10,cursor:"pointer",fontWeight:500}}>
+                      一键执行
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 统计卡片 */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8 }}>
+            <div style={{ ...cardBase, padding: 14 }}>
+              <p style={{ fontSize: 10, color: 'var(--dark-400)', marginBottom: 4 }}>今日信号</p>
+              <p style={{ fontSize: 18, fontWeight: 700, color: 'white' }}>{recentSignals.length}</p>
+            </div>
+            <div style={{ ...cardBase, padding: 14 }}>
+              <p style={{ fontSize: 10, color: 'var(--dark-400)', marginBottom: 4 }}>已执行交易</p>
+              <p style={{ fontSize: 18, fontWeight: 700, color: 'white' }}>{realTrades.length}</p>
+            </div>
+            <div style={{ ...cardBase, padding: 14 }}>
+              <p style={{ fontSize: 10, color: 'var(--dark-400)', marginBottom: 4 }}>待确认</p>
+              <p style={{ fontSize: 18, fontWeight: 700, color: '#f59e0b' }}>{pendingTx.length}</p>
+            </div>
+            <div style={{ ...cardBase, padding: 14 }}>
+              <p style={{ fontSize: 10, color: 'var(--dark-400)', marginBottom: 4 }}>自动交易</p>
+              <p style={{ fontSize: 18, fontWeight: 700, color: autoTrade ? '#10b981' : 'var(--dark-400)' }}>{autoTrade ? '开' : '关'}</p>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* 信号列表 */}
+      {activeView === 'signals' && (
+        <div style={{ ...cardBase, padding: 20 }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: 'white', marginBottom: 12 }}>
+            实时信号 <span style={{ fontSize: 11, color: 'var(--dark-400)' }}>{recentSignals.length} 条</span>
+          </p>
+          {recentSignals.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 24 }}>
+              <Activity size={32} style={{ color: 'var(--dark-500)', marginBottom: 12 }} />
+              <p style={{ fontSize: 12, color: 'var(--dark-400)' }}>{autoTrade ? '等待 V2 引擎发出 BUY 信号...' : '请先开启自动交易'}</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {recentSignals.map((sig, i) => {
+                const sc = sig.score || sig.confidence || 0;
+                return (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: sc >= 60 ? '#10b981' : '#f59e0b' }} />
+                    <span style={{ fontSize: 11, color: chainColors[sig.chain] || '#808080', fontWeight: 500, minWidth: 30 }}>{sig.chain}</span>
+                    <span style={{ fontSize: 11, color: 'white', fontWeight: 600, flex: 1 }}>{sig.symbol || sig.contract?.slice(0, 10)}</span>
+                    <span style={{ fontSize: 11, color: 'var(--dark-300)' }}>评分 {sc}</span>
+                    <span style={{ fontSize: 10, color: 'var(--dark-400)' }}>
+                      {sig.price_usd ? '$' + (sig.price_usd < 1 ? sig.price_usd.toFixed(6) : sig.price_usd.toFixed(4)) : '-'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 交易记录 */}
+      {activeView === 'trades' && (
+        <div style={{ ...cardBase, padding: 20 }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: 'white', marginBottom: 12 }}>
+            交易记录 <span style={{ fontSize: 11, color: 'var(--dark-400)' }}>{realTrades.length} 条</span>
+          </p>
+          {realTrades.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 24 }}>
+              <BarChart3 size={32} style={{ color: 'var(--dark-500)', marginBottom: 12 }} />
+              <p style={{ fontSize: 12, color: 'var(--dark-400)' }}>暂无交易记录</p>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>链</th>
+                    <th style={{ textAlign: 'left', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>合约</th>
+                    <th style={{ textAlign: 'right', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>方向</th>
+                    <th style={{ textAlign: 'right', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>金额</th>
+                    <th style={{ textAlign: 'right', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>入场价</th>
+                    <th style={{ textAlign: 'left', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>状态</th>
+                    <th style={{ textAlign: 'left', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>时间</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {realTrades.map((t: any) => (
+                    <tr key={t.id}>
+                      <td style={{ padding: '6px 10px', color: chainColors[t.chain] || '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{t.chain}</td>
+                      <td style={{ padding: '6px 10px', color: '#ccc', borderBottom: '1px solid rgba(255,255,255,0.03)', fontSize: 10 }}>{t.contract?.slice(0, 14) || '-'}</td>
+                      <td style={{ padding: '6px 10px', textAlign: 'right', color: t.side === 'buy' ? '#10b981' : '#ef4444', fontWeight: 600, borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{t.side?.toUpperCase()}</td>
+                      <td style={{ padding: '6px 10px', textAlign: 'right', color: '#ccc', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>${parseFloat(t.amount_usd || 0).toFixed(2)}</td>
+                      <td style={{ padding: '6px 10px', textAlign: 'right', color: '#ccc', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>${parseFloat(t.entry_price || 0).toFixed(6)}</td>
+                      <td style={{ padding: '6px 10px', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                        <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: t.status === 'open' ? 'rgba(16,185,129,0.1)' : 'rgba(99,102,241,0.1)', color: t.status === 'open' ? '#10b981' : '#808080' }}>{t.status === 'open' ? '持仓中' : '已完成'}</span>
+                      </td>
+                      <td style={{ padding: '6px 10px', color: 'var(--dark-400)', borderBottom: '1px solid rgba(255,255,255,0.03)', fontSize: 10 }}>{(t.created_at || '').slice(11, 19)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -432,7 +463,6 @@ function RealPositions({ address }: { address: string }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 从 API 获取持仓数据（模拟交易持仓，实盘待接入）
     fetch('/api/trade/portfolio?limit=50')
       .then(r => r.json())
       .then(d => {
@@ -469,7 +499,7 @@ function RealPositions({ address }: { address: string }) {
                 <td style={{ padding: '6px 10px', textAlign: 'right', color: t.side === 'buy' ? '#10b981' : '#ef4444', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{t.side?.toUpperCase()}</td>
                 <td style={{ padding: '6px 10px', textAlign: 'right', color: '#ccc', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{'$' + parseFloat(t.entry_price || 0).toFixed(8)}</td>
                 <td style={{ padding: '6px 10px', textAlign: 'right', color: '#ccc', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{parseFloat(t.quantity || 0).toFixed(2)}</td>
-                <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 600, color: pnl >= 0 ? '#10b981' : '#ef4444', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{(pnl >= 0 ? '+' : '') + '$' + pnl.toFixed(2)}</td>
+                <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 600, color: pnl >= 0 ? '#10b981' : '#ef4444', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{(pnl >= 0 ? '+' : '') +'$' + pnl.toFixed(2)}</td>
               </tr>
             );
           })}

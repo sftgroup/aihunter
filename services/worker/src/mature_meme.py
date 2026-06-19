@@ -703,6 +703,7 @@ class MatureMemeEngine:
         except:
             pass
 
+        min_liq = int(self._learning_params.get('min_liquidity_k', 50) * 1000)
         buy_signals = []
         all_candidates = []
         try:
@@ -714,10 +715,10 @@ class MatureMemeEngine:
                            price, liquidity_usd, recorded_at
                     FROM historical_prices
                     WHERE recorded_at > NOW() - INTERVAL '14 days'
-                      AND liquidity_usd >= (self._learning_params.get('min_liquidity_k', 50) * 1000)::bigint
+                      AND liquidity_usd >= %s
                     ORDER BY chain, contract, recorded_at DESC
                     LIMIT 200
-                """)
+                """, (min_liq,))
                 rows = cur.fetchall()
                 print(f"  candidates: {len(rows)}")
 
