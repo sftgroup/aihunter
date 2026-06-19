@@ -235,20 +235,51 @@ function LearningTab() {
 
       {/* 当前参数 */}
       <div style={{ ...cardBase, padding: 16 }}>
-        <p style={{ fontSize: 12, fontWeight: 600, color: 'white', marginBottom: 8 }}>当前参数（Optuna 优化）</p>
+        <p style={{ fontSize: 12, fontWeight: 600, color: 'white', marginBottom: 12 }}>当前参数（Optuna 优化）</p>
         {Object.keys(optuna).length > 0 ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
-            {Object.entries(optuna).map(([k, v]) => (
-              <div key={k} style={{ padding: '8px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
-                <p style={{ fontSize: 10, color: 'var(--dark-400)', marginBottom: 2 }}>{k}</p>
-                <p style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>
-                  {k.includes('pct') || k.includes('ratio') || k.includes('confidence') ?
-                    (typeof v === 'number' ? formatPct(v) : v) :
-                    (typeof v === 'number' ? v.toFixed(4) : v)}
-                </p>
-              </div>
-            ))}
-          </div>
+          <>
+            {/* 维度参数 */}
+            <p style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 500, marginBottom: 6 }}>▸ 筛选维度参数</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 6, marginBottom: 16 }}>
+              {[
+                {key: 'min_score', label: '最低评分', suffix: '分', fmt: (v: number) => Math.round(v).toString()},
+                {key: 'min_hourly_bars', label: '最少小时柱', suffix: 'h', fmt: (v: number) => Math.round(v).toString()},
+                {key: 'range_min_pct', label: '最小震荡', suffix: '%', fmt: (v: number) => v.toFixed(1)},
+                {key: 'range_max_pct', label: '最大震荡', suffix: '%', fmt: (v: number) => v.toFixed(1)},
+                {key: 'min_liquidity_k', label: '最小流动性', suffix: 'K', fmt: (v: number) => Math.round(v).toString()},
+              ].map(({key, label, suffix, fmt}) => {
+                const val = optuna[key];
+                if (val === undefined) return null;
+                return (
+                  <div key={key} style={{ padding: '8px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+                    <p style={{ fontSize: 10, color: 'var(--dark-400)', marginBottom: 2 }}>{label}</p>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>{fmt(val)}{suffix}</p>
+                  </div>
+                );
+              })}
+            </div>
+            {/* 止盈止损参数 */}
+            <p style={{ fontSize: 11, color: '#f59e0b', fontWeight: 500, marginBottom: 6 }}>▸ 止盈止损参数</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 6 }}>
+              {[
+                {key: 'take_profit_pct', label: '止盈', fmt: (v: number) => formatPct(v)},
+                {key: 'stop_loss_pct', label: '止损', fmt: (v: number) => formatPct(v)},
+                {key: 'trade_ratio', label: '交易比例', fmt: (v: number) => formatPct(v)},
+                {key: 'max_slippage', label: '最大滑点', fmt: (v: number) => formatPct(v)},
+                {key: 'position_pct', label: '仓位比例', fmt: (v: number) => formatPct(v)},
+                {key: 'min_confidence', label: '最低可信度', fmt: (v: number) => formatPct(v)},
+              ].map(({key, label, fmt}) => {
+                const val = optuna[key];
+                if (val === undefined) return null;
+                return (
+                  <div key={key} style={{ padding: '8px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+                    <p style={{ fontSize: 10, color: 'var(--dark-400)', marginBottom: 2 }}>{label}</p>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>{fmt(val)}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         ) : <p style={{ fontSize: 12, color: 'var(--dark-400)' }}>暂无参数数据</p>}
       </div>
 
