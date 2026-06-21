@@ -1102,7 +1102,7 @@ class ChainWorker:
         价格刷新定时任务
         启动后立即执行一次，然后前6小时每15分钟一次，之后每小时一次
         """
-        schedule = {"fast_duration": 21600, "fast_interval": 900, "slow_interval": 3600}
+        schedule = {"fast_duration": 21600, "fast_interval": 1800, "slow_interval": 3600}
         fast_end = time.time() + schedule['fast_duration']
         
         # 启动后立即执行一次
@@ -1137,16 +1137,16 @@ class ChainWorker:
             try:
                 await self.redis.setex("worker:v2:alive", 30, "1")
                 # 每3分钟跑一轮利率采集
-                if int(time.time()) % 180 < 10:
+                if int(time.time()) % 600 < 15:
                     if self.lending_engine:
                         await self.lending_engine.run_cycle()
-                if int(time.time()) % 60 < 10:
+                if int(time.time()) % 180 < 10:
                     if self.arb_engine:
                         await self.arb_engine.run_cycle()
-                if int(time.time()) % 120 < 10:
+                if int(time.time()) % 300 < 15:
                     if self.meme_engine:
                         await self.meme_engine.run_cycle()
-                if int(time.time()) % 240 < 10:
+                if int(time.time()) % 600 < 15:
                     if self.risk_engine:
                         await self.risk_engine.run_cycle()
                 await asyncio.sleep(5)
