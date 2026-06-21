@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { createConfig, http, WagmiProvider } from 'wagmi';
 import { mainnet, polygon, optimism, arbitrum, bsc, base } from 'wagmi/chains';
@@ -7,8 +7,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import ConnectModal from './components/ConnectModal';
-import DexPage from './pages/DexPage';
-import DeFiPage from './pages/DeFiPage';
+import ErrorBoundary from './components/ErrorBoundary';
+import SignalsPage from './pages/SignalsPage';
+import DexPage from "./pages/DexPage";
+import DeFiPage from "./pages/DeFiPage";
+import TradesPage from './pages/TradesPage';
 import ConfigPage from './pages/ConfigPage';
 import SystemPage from './pages/SystemPage';
 
@@ -20,7 +23,7 @@ const config = createConfig({
     injected(),
     metaMask(),
     coinbaseWallet({ appName: 'AIHunter' }),
-    walletConnect({ projectId: 'b405f4f15938582260758473465a651b' }),
+    walletConnect({ projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'b405f4f15938582260758473465a651b' }),
   ],
   transports: {
     [mainnet.id]: http(),
@@ -36,8 +39,17 @@ function AppContent() {
   const [collapsed, setCollapsed] = useState(false);
   const [showConnect, setShowConnect] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
-  useEffect(() => setMounted(true), []);
+  const handleResize = useCallback(() => {
+    setIsMobile(window.innerWidth < 768);
+  }, []);
+
+  useEffect(() => {
+    setMounted(true);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [handleResize]);
 
   if (!mounted) {
     return (
@@ -59,18 +71,23 @@ function AppContent() {
       <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} />
       <main style={{
         flex: 1,
-        marginLeft: collapsed ? 72 : 240,
+        marginLeft: isMobile ? 0 : (collapsed ? 72 : 240),
         transition: 'margin 0.3s',
+        minWidth: 0, /* 防止 flex 溢出 */
       }}>
         <TopBar onConnectClick={() => setShowConnect(true)} />
-        <div style={{ padding: 24 }}>
-          <Routes>
-            <Route path="/" element={<Navigate to="/dex" replace />} />
-            <Route path="/dex" element={<DexPage />} />
-            <Route path="/defi" element={<DeFiPage />} />
-            <Route path="/config" element={<ConfigPage />} />
-            <Route path="/system" element={<SystemPage />} />
-          </Routes>
+        <div style={{ padding: 24 }} className="page-enter">
+          <ErrorBoundary>
+            <Routes>
+              <Route path="/" element={<Navigate to="/dex" replace />} />
+              <Route path="/dex" element={<DexPage />} />
+              <Route path="/defi" element={<DeFiPage />} />
+              <Route path="/signals" element={<SignalsPage />} />
+              <Route path="/trades" element={<TradesPage />} />
+              <Route path="/config" element={<ConfigPage />} />
+              <Route path="/system" element={<SystemPage />} />
+            </Routes>
+          </ErrorBoundary>
         </div>
       </main>
       <ConnectModal isOpen={showConnect} onClose={() => setShowConnect(false)} />
@@ -94,7 +111,9 @@ export default function App() {
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <AppContent />
+        <ErrorBoundary>
+          <AppContent />
+        </ErrorBoundary>
       </QueryClientProvider>
     </WagmiProvider>
   );

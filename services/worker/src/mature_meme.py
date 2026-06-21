@@ -1,3 +1,4 @@
+from src.okx_client import configure as okx_configure, get_hot_tokens, get_price_info, get_candles, get_advanced_info, get_cluster_overview, get_top_liquidity, score_token_full
 """
 MATURE_MEME - 成熟土狗「震荡→突破」捕捉引擎
 核心逻辑：识别横盘震荡结束 + 放量突破上涨
@@ -6,6 +7,22 @@ import json, asyncio, time, math
 from datetime import datetime, timedelta
 import httpx
 
+
+def try_float(v, default=0.0):
+    if v is None or v == "":
+        return default
+    try:
+        return float(v)
+    except (ValueError, TypeError):
+        return default
+
+import os
+_OKX_KEY = os.environ.get("OKX_API_KEY", "e8f5e44c-32c5-47b9-8d37-b0629f8e4a13")
+_OKX_SECRET = os.environ.get("OKX_SECRET_KEY", "981FF8556E1EAE438F289F147BE60342")
+_OKX_PASSPHRASE = os.environ.get("OKX_PASSPHRASE", "Pb!4!92r")
+if _OKX_KEY and _OKX_SECRET and _OKX_PASSPHRASE:
+    okx_configure(_OKX_KEY, _OKX_SECRET, _OKX_PASSPHRASE)
+    print("  ✅ OKX API 已配置")
 
 class MatureMemeEngine:
     """成熟土狗捕捉引擎"""
@@ -84,7 +101,7 @@ class MatureMemeEngine:
         seen = set()
         try:
             async with httpx.AsyncClient(timeout=15) as http:
-                resp = await http.get('https://api.dexscreener.com/token-boosts/latest/v1')
+                resp = await http.get('')
                 if resp.status_code == 200:
                     boosts = resp.json()
                     for item in boosts:
@@ -111,7 +128,7 @@ class MatureMemeEngine:
                         batch = results[i:i+20]
                         addresses = ','.join([t['contract'] for t in batch])
                         try:
-                            resp = await http.get(f'https://api.dexscreener.com/latest/dex/tokens/{addresses}')
+                            resp = await http.get(f'{addresses}')
                             if resp.status_code == 200:
                                 data = resp.json()
                                 pairs = data.get('pairs', [])
@@ -125,11 +142,11 @@ class MatureMemeEngine:
                                     addr = base.get('address', '')
                                     if not addr:
                                         continue
-                                    liq = float(p.get('liquidity', {}).get('usd', 0) or 0)
-                                    vol_h24 = float(p.get('volume', {}).get('h24', 0) or 0)
-                                    fdv = float(p.get('fdv', 0) or 0)
-                                    price = float(p.get('priceUsd', 0) or 0)
-                                    created_at = float(p.get('pairCreatedAt', 0) or 0)
+                                    liq = try_float(p.get('liquidity', {}).get('usd', ''))
+                                    vol_h24 = try_float(p.get('volume', {}).get('h24', ''))
+                                    fdv = try_float(p.get('fdv', ''))
+                                    price = try_float(p.get('priceUsd', ''))
+                                    created_at = try_float(p.get('pairCreatedAt', ''))
                                     pool_age_h = (time.time() * 1000 - created_at) / 3600000 if created_at > 0 else 0
                                     symbol = base.get('symbol', addr[:8])
                                     dex = p.get('dexId', '')
@@ -157,7 +174,7 @@ class MatureMemeEngine:
             async with httpx.AsyncClient(timeout=30) as http:
                 for q in self._search_queries:
                     try:
-                        resp = await http.get(f'https://api.dexscreener.com/latest/dex/search/?q={q}')
+                        resp = await http.get(f'{q}')
                         if resp.status_code != 200:
                             continue
                         data = resp.json()
@@ -177,11 +194,11 @@ class MatureMemeEngine:
                                 continue
                             seen.add(key)
                             symbol = base.get('symbol', addr[:8])
-                            liq = float(p.get('liquidity', {}).get('usd', 0) or 0)
-                            vol_h24 = float(p.get('volume', {}).get('h24', 0) or 0)
-                            fdv = float(p.get('fdv', 0) or 0)
-                            price = float(p.get('priceUsd', 0) or 0)
-                            created_at = float(p.get('pairCreatedAt', 0) or 0)
+                            liq = try_float(p.get('liquidity', {}).get('usd', ''))
+                            vol_h24 = try_float(p.get('volume', {}).get('h24', ''))
+                            fdv = try_float(p.get('fdv', ''))
+                            price = try_float(p.get('priceUsd', ''))
+                            created_at = try_float(p.get('pairCreatedAt', ''))
                             pool_age_h = (time.time() * 1000 - created_at) / 3600000 if created_at > 0 else 0
                             info = {
                                 'chain': chain, 'contract': addr, 'symbol': symbol,
@@ -504,7 +521,7 @@ class MatureMemeEngine:
         try:
             async with httpx.AsyncClient(timeout=10) as http:
                 resp = await http.get(
-                    f"https://api.dexscreener.com/latest/dex/tokens/{contract}"
+                    f"{contract}"
                 )
                 if resp.status_code == 200:
                     data = resp.json()
@@ -512,8 +529,8 @@ class MatureMemeEngine:
                     if pairs:
                         p = pairs[0]
                         return {
-                            'price': float(p.get("priceUsd", 0) or 0),
-                            'liquidity_usd': float(p.get("liquidity", {}).get("usd", 0) or 0),
+                            'price': try_float(p.get("priceUsd", "")),
+                            'liquidity_usd': try_float(p.get("liquidity", {}).get("usd", "")),
                         }
         except:
             pass
@@ -524,7 +541,7 @@ class MatureMemeEngine:
         try:
             async with httpx.AsyncClient(timeout=10) as http:
                 resp = await http.get(
-                    f"https://api.dexscreener.com/latest/dex/tokens/{contract}"
+                    f"{contract}"
                 )
                 if resp.status_code == 200:
                     data = resp.json()
@@ -532,8 +549,8 @@ class MatureMemeEngine:
                     if pairs:
                         p = pairs[0]
                         return {
-                            'price': float(p.get("priceUsd", 0) or 0),
-                            'liquidity_usd': float(p.get("liquidity", {}).get("usd", 0) or 0),
+                            'price': try_float(p.get("priceUsd", "")),
+                            'liquidity_usd': try_float(p.get("liquidity", {}).get("usd", "")),
                         }
         except:
             pass
@@ -551,7 +568,7 @@ class MatureMemeEngine:
             new_count = 0
             try:
                 async with httpx.AsyncClient(timeout=10) as http:
-                    resp = await http.get("https://api.dexscreener.com/token-profiles/latest/v1")
+                    resp = await http.get("")
                     if resp.status_code == 200:
                         data = resp.json()
                         for token in data:
@@ -565,7 +582,7 @@ class MatureMemeEngine:
                                     continue
                                 try:
                                     async with httpx.AsyncClient(timeout=10) as http2:
-                                        r2 = await http2.get(f"https://api.dexscreener.com/latest/dex/tokens/{addr}")
+                                        r2 = await http2.get(f"{addr}")
                                         if r2.status_code != 200:
                                             continue
                                         pdata = r2.json()
@@ -573,12 +590,12 @@ class MatureMemeEngine:
                                     if not pairs:
                                         continue
                                     p = pairs[0]
-                                    price_usd = float(p.get("priceUsd", 0) or 0)
-                                    liq_usd = float(p.get("liquidity", {}).get("usd", 0) or 0)
-                                    created_at = float(p.get("pairCreatedAt", 0) or 0)
+                                    price_usd = try_float(p.get("priceUsd", ""))
+                                    liq_usd = try_float(p.get("liquidity", {}).get("usd", ""))
+                                    created_at = try_float(p.get("pairCreatedAt", ""))
                                     pool_age_h = (time.time() * 1000 - created_at) / 3600000 if created_at > 0 else 0
-                                    vol_h24 = float(p.get("volume", {}).get("h24", 0) or 0)
-                                    fdv = float(p.get("fdv", 0) or 0)
+                                    vol_h24 = try_float(p.get("volume", {}).get("h24", ""))
+                                    fdv = try_float(p.get("fdv", ""))
                                     symbol = p.get("baseToken", {}).get("symbol", addr[:8])
 
                                     # 应用筛选条件

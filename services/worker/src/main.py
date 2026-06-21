@@ -1102,7 +1102,7 @@ class ChainWorker:
         价格刷新定时任务
         启动后立即执行一次，然后前6小时每15分钟一次，之后每小时一次
         """
-        schedule = PriceRefreshEngine.get_initial_schedule()
+        schedule = {"fast_duration": 21600, "fast_interval": 900, "slow_interval": 3600}
         fast_end = time.time() + schedule['fast_duration']
         
         # 启动后立即执行一次
@@ -1137,7 +1137,7 @@ class ChainWorker:
                 # 每3分钟跑一轮利率采集
                 if int(time.time()) % 180 < 10:
                     if self.lending_engine:
-                        await self.lending_engine.run_cycle_with_hf()
+                        await self.lending_engine.run_cycle()
                 if int(time.time()) % 60 < 10:
                     if self.arb_engine:
                         await self.arb_engine.run_cycle()

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, Activity, Zap, ChevronLeft, ChevronRight, Filter, Copy, Check, Wallet, ExternalLink, BarChart3, Power, RefreshCw, List } from 'lucide-react';
-import { signalsPageApi, learningApi } from '../../utils/api';
+import { signalsPageApi, learningApi } from "../../utils/api";
+import LearningTab from "./LearningTab";
 import { useAccount, useDisconnect, useBalance } from 'wagmi';
 
 const cardBase: React.CSSProperties = {
@@ -337,7 +338,7 @@ function RealTradeTab() {
                           "000000000000000000000000" + tx.tokenAddress.slice(2).padStart(64,"0") +
                           "000000000000000000000000" + to.slice(2).padStart(64,"0") +
                           "0000000000000000000000000000000000000000000000000000000000000001";
-                        const tx = await window.ethereum.request({
+                        const txResult = await window.ethereum.request({
                           method:"eth_sendTransaction",
                           params:[{from:accounts[0],to:router,data:swapData,value:amountIn}]
                         });
@@ -458,7 +459,7 @@ function RealTradeTab() {
   );
 }
 
-function RealPositions({ address }: { address: string }) {
+function RealPositions(_unused: { address: string }) {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 

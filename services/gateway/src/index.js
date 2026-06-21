@@ -605,6 +605,24 @@ app.get('/api/signals/recent', async (request) => {
   }
 });
 
+// ===== 信号分页 API =====
+app.get('/api/signals/page', async (request) => {
+  const page = parseInt(request.query.page) || 1;
+  const size = parseInt(request.query.size) || 20;
+  const chain = request.query.chain || '';
+  try {
+    const raw = await redis.lrange('signals:recent', 0, 199);
+    let signals = raw.map(s => { try { return JSON.parse(s); } catch { return null; } }).filter(Boolean);
+    if (chain) signals = signals.filter(s => s.chain === chain);
+    const total = signals.length;
+    const start = (page - 1) * size;
+    const paged = signals.slice(start, start + size);
+    return { code: 200, data: paged, total };
+  } catch(e) {
+    return { code: 500, data: [], total: 0, error: e.message };
+  }
+});
+
 // ===== 系统状态 =====
 app.get('/api/system/status', async () => {
   const services = {};
@@ -633,6 +651,36 @@ app.get('/api/system/status', async () => {
     services.open_positions = parseInt(pt.rows[0].c);
     const pt2 = await db.query("SELECT COALESCE(SUM(pnl_usd),0) as s FROM paper_trades WHERE status = 'closed'");
     services.paper_pnl = parseFloat(pt2.rows[0].s).toFixed(2);
+
+    // V2 引擎状态 — 从 Redis 获取 Worker 心跳
+    const v2Alive = await redis.get('worker:v2:alive');
+    services.v2_engine = { status: v2Alive ? 'healthy' : 'idle' };
+
+    // 数据采集统计
+    const priceCount = await db.query("SELECT COUNT(*) as c FROM price_snapshots WHERE snapshot_at > NOW() - INTERVAL '1 hour'");
+    const candleCount = await db.query("SELECT COUNT(*) as c FROM historical_prices");
+    const priceLast = await db.query("SELECT MAX(snapshot_at) as t FROM price_snapshots");
+    const candleLast = await db.query("SELECT MAX(recorded_at) as t FROM historical_prices");
+    const learnCount = await db.query("SELECT COUNT(*) as c FROM learning_history");
+    const learnLast = await db.query("SELECT MAX(created_at) as t FROM learning_history");
+    services.data_collection = {
+      price_count: parseInt(priceCount.rows[0].c) || 0,
+      candle_count: parseInt(candleCount.rows[0].c) || 0,
+      price_last_update: priceLast.rows[0]?.t || null,
+      candle_last_update: candleLast.rows[0]?.t || null,
+      learn_count: parseInt(learnCount.rows[0].c) || 0,
+      learn_last_update: learnLast.rows[0]?.t || null,
+    };
+
+    // 模拟交易详情
+    const closedTrades = await db.query("SELECT COUNT(*) as c, COUNT(*) FILTER (WHERE pnl_usd > 0) as w, COALESCE(SUM(pnl_usd),0) as p FROM paper_trades WHERE status = 'closed'");
+    services.paper_trading = {
+      total_trades: parseInt(closedTrades.rows[0].c) || 0,
+      closed_trades: parseInt(closedTrades.rows[0].c) || 0,
+      wins: parseInt(closedTrades.rows[0].w) || 0,
+      total_pnl: parseFloat(closedTrades.rows[0].p) || 0,
+      open_positions: parseInt(pt.rows[0].c) || 0,
+    };
   } catch {}
   
   return { code: 200, data: services };

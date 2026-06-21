@@ -1,5 +1,10 @@
 /* ===== API 封装 ===== */
-import type { ApiResponse, Signal, PaperTrade, PaperConfig, BacktestResult, LearningHistory, LearningParams, SystemStatus, Strategy, RateSnapshot, LendingPosition, EquitySnapshot } from '../types/api';
+import type {
+  ApiResponse, PaperConfig, BacktestResult,
+  LearningHistory, LearningParams, SystemStatus, Strategy,
+  RateSnapshot, LendingPosition, EquitySnapshot, PortfolioResponse,
+  AiSentimentResult, SmartMoneyResult, OfflineBacktestResult,
+} from '../types/api';
 
 const API_BASE = window.location.origin + '/api';
 
@@ -38,47 +43,34 @@ export const paperApi = {
   saveConfig: (config: Partial<PaperConfig>) =>
     request('/trade/paper/config', { method: 'POST', body: JSON.stringify({ ...config, userId: 'paper' }) }),
   reset: () => request<{ balance: number }>('/trade/paper/reset', { method: 'POST', body: JSON.stringify({ userId: 'paper' }) }),
-  getTrades: (limit = 100) => request<PaperTrade[]>(`/trade/portfolio?limit=${limit}`),
-  getEquity: (limit = 100) => request<EquitySnapshot[]>(`/trade/paper/equity?limit=${limit}`),
+  getTrades: () => request<PortfolioResponse>('/trade/portfolio'),
+  getEquity: (limit = 200) => request<EquitySnapshot[]>(`/trade/paper/equity?limit=${limit}`),
   backtest: (hours: string, chain: string, amount: number) =>
     request<BacktestResult>(`/trade/paper/backtest?hours=${encodeURIComponent(hours)}&chain=${encodeURIComponent(chain)}&amount=${amount}`),
 };
 
-// ===== 信号 =====
-export const signalApi = {
-  getRecent: (limit = 50) => request<Signal[]>(`/trade/paper/signals?limit=${limit}`),
+// ===== 信号缓存 =====
+export const signalsApi = {
+  getRecent: (limit = 20) => request<any[]>(`/signals/recent?limit=${limit}`),
 };
 
-// ===== 学习 =====
+export const signalsPageApi = {
+  getPage: (page: number, size: number, chain?: string) =>
+    request<any[]>(`/signals/page?page=${page}&size=${size}${chain ? `&chain=${chain}` : ''}`),
+};
+
+// ===== 学习系统 =====
 export const learningApi = {
   getParams: (strategy = 'signal_follow') => request<LearningParams>(`/learning/params/${strategy}`),
   getHistory: (strategy = 'signal_follow', limit = 50) =>
     request<LearningHistory[]>(`/learning/history?strategy=${strategy}&limit=${limit}`),
 };
 
-// ===== 策略 =====
+// ===== 策略配置 =====
 export const strategyApi = {
   list: () => request<Strategy[]>('/strategies'),
-  update: (id: number, data: Partial<Strategy>) =>
-    request('/strategies', { method: 'POST', body: JSON.stringify({ id, ...data }) }),
-};
-
-// ===== 最近信号（缓存）=====
-export const signalsApi = {
-  getRecent: (limit = 200, chain?: string) => {
-    let url = `/signals/recent?limit=${limit}`;
-    if (chain) url += `&chain=${chain}`;
-    return request<any[]>(url);
-  },
-};
-
-// ===== 信号分页（新增）=====
-export const signalsPageApi = {
-  getPage: (page = 1, limit = 20, chain?: string) => {
-    let url = `/signals/recent?page=${page}&limit=${limit}`;
-    if (chain) url += `&chain=${chain}`;
-    return request<{data: any[]; total: number; page: number; limit: number}>(url);
-  },
+  update: (data: Partial<Strategy>) =>
+    request('/strategies', { method: 'POST', body: JSON.stringify(data) }),
 };
 
 // ===== 系统 =====
@@ -86,10 +78,33 @@ export const systemApi = {
   getStatus: () => request<SystemStatus>('/system/status'),
 };
 
-// ===== 套利 =====
+// ===== 借贷 =====
 export const lendingApi = {
   getPositions: () => request<LendingPosition[]>('/lending/positions'),
   getRates: () => request<RateSnapshot[]>('/lending/rates'),
-  getRateHistory: (chain: string, protocol: string, asset: string) =>
-    request<RateSnapshot[]>(`/lending/rate-history?chain=${chain}&protocol=${protocol}&asset=${asset}`),
+  getRateHistory: (chain: string, token: string, hours = '24') =>
+    request<RateSnapshot[]>(`/lending/rate-history?chain=${encodeURIComponent(chain)}&token=${encodeURIComponent(token)}&hours=${hours}`),
+};
+
+// ===== AI 分析 =====
+export const sentimentApi = {
+  analyze: (provider: string, apiKey: string, tweets: string[]) =>
+    request<AiSentimentResult>('/ai/sentiment', {
+      method: 'POST',
+      body: JSON.stringify({ provider, apiKey, tweets }),
+    }),
+};
+
+export const smartMoneyApi = {
+  analyze: (provider: string, apiKey: string, address: string, txHistory: string[] = []) =>
+    request<SmartMoneyResult>('/ai/smart-money', {
+      method: 'POST',
+      body: JSON.stringify({ provider, apiKey, address, txHistory }),
+    }),
+};
+
+// ===== 离线回测 =====
+export const offlineBacktestApi = {
+  run: (chain: string, hours: number, perAmount: number) =>
+    request<OfflineBacktestResult>(`/backtest/offline?chain=${encodeURIComponent(chain)}&hours=${hours}&perAmount=${perAmount}`),
 };
