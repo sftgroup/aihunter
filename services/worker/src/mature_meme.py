@@ -841,6 +841,10 @@ class MatureMemeEngine:
                     "range_pct": result.get("range_pct", 0) if result else 0,
                     "risk_level": "low" if score_val >= 60 else "medium" if score_val >= 35 else "high",
                     "id": abs(hash(chain + contract)) % 10000000,
+                    "safety_risk_level": result.get("safety_risk_level", "") if result else "",
+                    "safety_concentration": result.get("safety_concentration", "") if result else "",
+                    "safety_rugpull_pct": result.get("safety_rugpull_pct") if result else None,
+                    "safety_tags": result.get("safety_tags", []) if result else [],
                 }
                 all_candidates.append(candidate)
 
