@@ -1109,7 +1109,7 @@ class ChainWorker:
         print("\n💰 首次价格刷新（启动后立即执行）...")
         if self.price_refresh:
             await self.price_refresh.run_cycle()
-                    await self.price_refresh.scan_hot_tokens()
+            await self.price_refresh.scan_hot_tokens()
         
         while self.running:
             try:
