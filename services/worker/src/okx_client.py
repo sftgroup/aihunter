@@ -3,7 +3,7 @@ OKX OnchainOS V6 API Python 客户端
 HMAC-SHA256 签名 + 代币行情/流动性/集中度/K线/高级信息
 """
 import hmac, hashlib, base64, json, time, os
-from datetime import datetime
+import datetime
 from typing import Optional
 
 import httpx
@@ -26,6 +26,15 @@ def configure(api_key: str, secret_key: str, passphrase: str):
     _OKX_SECRET = os.environ.get("OKX_SECRET_KEY", "981FF8556E1EAE438F289F147BE60342")
     _OKX_PASSPHRASE = passphrase
 
+def try_float(v, default=None):
+    if v is None or v == "--" or v == "":
+        return default
+    try:
+        return float(v)
+    except (ValueError, TypeError):
+        return default
+
+
 def _sign(timestamp: str, method: str, path: str, body: str = "") -> str:
     msg = timestamp + method.upper() + path + body
     mac = hmac.new(_OKX_SECRET.encode(), msg.encode(), hashlib.sha256)
@@ -34,7 +43,7 @@ def _sign(timestamp: str, method: str, path: str, body: str = "") -> str:
 async def _get(path: str, params: dict = None) -> dict:
     if not _OKX_KEY or not _OKX_SECRET or not _OKX_PASSPHRASE:
         raise ValueError("OKX API 未配置")
-    ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     qs = "?" + "&".join(f"{k}={v}" for k, v in (params or {}).items()) if params else ""
     sign = _sign(ts, "GET", path + qs)
     headers = {
@@ -57,7 +66,7 @@ async def _get(path: str, params: dict = None) -> dict:
 async def _post(path: str, body: list) -> dict:
     if not _OKX_KEY or not _OKX_SECRET or not _OKX_PASSPHRASE:
         raise ValueError("OKX API 未配置")
-    ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     body_str = json.dumps(body)
     sign = _sign(ts, "POST", path, body_str)
     headers = {
@@ -71,7 +80,7 @@ async def _post(path: str, body: list) -> dict:
         "Origin": "https://web3.okx.com",
     }
     async with httpx.AsyncClient(timeout=15) as c:
-        resp = await c.post(OKX_REST_HOST + path, headers=headers, json=body)
+        resp = await c.post(OKX_REST_HOST + path, headers=headers, content=body_str)
     data = resp.json()
     if data.get("code") not in ("0", 0):
         raise ValueError(f"OKX API 错误 [{data.get('code')}]: {data.get('msg', str(data))}")

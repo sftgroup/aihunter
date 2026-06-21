@@ -410,36 +410,38 @@ class MatureMemeEngine:
     async def analyze_token(self, chain: str, contract: str, symbol: str = '') -> dict:
         chart = await self.get_token_chart(chain, contract)
         analysis = self.analyze_breakout(chart)
-        # OKX 安全检测
-        try:
-            from src.okx_client import get_advanced_info, get_cluster_overview
-            adv = await get_advanced_info(chain, contract)
-            cluster = await get_cluster_overview(chain, contract)
-        except:
-            adv = {}
-            cluster = {}
+        # OKX 安全检测（只对有潜力的代币做，避免限流）
         safety = {}
-        safety['risk_level'] = adv.get('risk_level', '')
-        safety['dev_rugpull_count'] = adv.get('dev_rugpull_count', 0)
-        safety['lp_burned_pct'] = adv.get('lp_burned_pct')
-        safety['concentration'] = cluster.get('concentration', '')
-        safety['rugpull_pct'] = cluster.get('rugpull_pct')
-        safety['tags'] = adv.get('token_tags', [])
-        # 安全扣分
-        rl = safety['risk_level']
-        if rl in ('4', '5'):
-            analysis['score'] -= 20
-        elif rl in ('3',):
-            analysis['score'] -= 10
-        if safety.get('concentration') == 'High':
-            analysis['score'] -= 10
-        if safety.get('dev_rugpull_count', 0) > 10:
-            analysis['score'] -= 10
-        if 'honeypot' in safety.get('tags', []):
-            analysis['score'] = 0
-            analysis['action'] = 'pass'
-            analysis['signals'].append('HONEYPOT')
-        analysis['score'] = max(analysis['score'], 0)
+        if analysis['score'] >= 40:
+            try:
+                from src.okx_client import get_advanced_info, get_cluster_overview
+                adv = await get_advanced_info(chain, contract)
+                await asyncio.sleep(0.3)
+                cluster = await get_cluster_overview(chain, contract)
+            except:
+                adv = {}
+                cluster = {}
+            safety['risk_level'] = adv.get('risk_level', '')
+            safety['dev_rugpull_count'] = adv.get('dev_rugpull_count', 0)
+            safety['lp_burned_pct'] = adv.get('lp_burned_pct')
+            safety['concentration'] = cluster.get('concentration', '')
+            safety['rugpull_pct'] = cluster.get('rugpull_pct')
+            safety['tags'] = adv.get('token_tags', [])
+            # 安全扣分
+            rl = safety['risk_level']
+            if rl in ('4', '5'):
+                analysis['score'] -= 20
+            elif rl in ('3',):
+                analysis['score'] -= 10
+            if safety.get('concentration') == 'High':
+                analysis['score'] -= 10
+            if safety.get('dev_rugpull_count', 0) > 10:
+                analysis['score'] -= 10
+            if 'honeypot' in safety.get('tags', []):
+                analysis['score'] = 0
+                analysis['action'] = 'pass'
+                analysis['signals'].append('HONEYPOT')
+            analysis['score'] = max(analysis['score'], 0)
 
         # 补齐数据用于前端展示
         hp = chart['hourly_prices']
