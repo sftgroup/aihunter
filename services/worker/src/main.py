@@ -1109,6 +1109,7 @@ class ChainWorker:
         print("\n💰 首次价格刷新（启动后立即执行）...")
         if self.price_refresh:
             await self.price_refresh.run_cycle()
+                    await self.price_refresh.scan_hot_tokens()
         
         while self.running:
             try:
@@ -1117,11 +1118,12 @@ class ChainWorker:
                     await asyncio.sleep(schedule['fast_interval'])
                 else:
                     # 正常阶段：每小时
-                    await asyncio.sleep(schedule['normal_interval'])
+                    await asyncio.sleep(schedule['slow_interval'])
                 
                 print("\n💰 开始价格刷新...")
                 if self.price_refresh:
                     await self.price_refresh.run_cycle()
+                    await self.price_refresh.scan_hot_tokens()
             except Exception as e:
                 print(f"⚠️ 价格刷新异常: {e}")
 
