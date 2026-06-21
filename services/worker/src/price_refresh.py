@@ -59,7 +59,8 @@ class PriceRefreshEngine:
                             liq = float(info.get('liquidity', 0) or 0)
                             vol = float(info.get('volume24H', 0) or 0)
                             holders = int(info.get('holders', 0) or 0)
-                            if price > 0:
+                            # 过滤异常数据
+                            if 0 < price < 1000000000 and liq < 10000000000:
                                 cur.execute(
                                     """INSERT INTO historical_prices (chain, contract, symbol, price, liquidity_usd, recorded_at)
                                        VALUES (%s, %s, %s, %s, %s, NOW())""",

@@ -415,23 +415,37 @@ class MatureMemeEngine:
         hp = chart['hourly_prices']
         latest = hp[-1] if hp else {}
 
+        # 数据清洗
+        raw_price = analysis.get('current_price', 0)
+        raw_liq = latest.get('liquidity', chart['pool_liquidity_usd'])
+        # 过滤异常价格（>1亿美元或<1e-12美元）
+        if raw_price is None or raw_price > 1_000_000_000 or raw_price < 1e-12:
+            raw_price = 0
+        # 过滤异常流动性（>100亿美元或<1美元）
+        if raw_liq is None or raw_liq > 10_000_000_000 or raw_liq < 1:
+            raw_liq = 0
+        # 过滤评分异常
+        clean_score = analysis['score']
+        if clean_score is None or clean_score < 0 or clean_score > 100:
+            clean_score = 0
+
         return {
             'type': 'MATURE_MEME',
             'chain': chain,
             'contract': contract,
             'symbol': symbol or contract[:8],
             'age_hours': chart['age_hours'],
-            'current_price': analysis.get('current_price', 0),
+            'current_price': raw_price,
             'high_24h': analysis.get('high_24h', 0),
             'low_24h': analysis.get('low_24h', 0),
             'range_pct': analysis.get('range_pct', 0),
-            'pool_liquidity_usd': latest.get('liquidity', chart['pool_liquidity_usd']),
+            'pool_liquidity_usd': raw_liq,
             'net_inflow_1h': chart['net_inflow_1h'],
             'volume_1h': chart['buy_volume_1h'] + chart['sell_volume_1h'],
             'buy_sell_ratio': round(chart['buy_volume_1h'] / (chart['sell_volume_1h'] or 1), 2),
             'unique_traders': chart['unique_traders'],
-            'hourly_bars': len(hp),  # 小时图柱数
-            'score': analysis['score'],
+            'hourly_bars': len(hp),
+            'score': clean_score,
             'confidence': analysis['confidence'],
             'signals': analysis['signals'],
             'action': analysis['action'],
