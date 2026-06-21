@@ -62,7 +62,15 @@ export default function TopBar({ onConnectClick }: { onConnectClick: () => void 
             width: 256, padding: '8px 12px 8px 36px',
             background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
             borderRadius: 12, color: 'var(--dark-200)', fontSize: 14,
-            outline: 'none',
+            outline: 'none', transition: 'all 0.2s',
+          }}
+          onFocus={(e) => {
+            e.currentTarget.style.borderColor = 'rgba(99,102,241,0.3)';
+            e.currentTarget.style.boxShadow = '0 0 0 2px rgba(99,102,241,0.1)';
+          }}
+          onBlur={(e) => {
+            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
+            e.currentTarget.style.boxShadow = 'none';
           }}
         />
       </div>

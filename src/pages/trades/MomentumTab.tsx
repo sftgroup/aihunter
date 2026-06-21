@@ -108,6 +108,15 @@ export default function MomentumTab() {
                         <span style={{ fontSize: 13, fontWeight: 600, color: 'white' }}>{sig.symbol || sig.contract?.slice(0, 10)}</span>
                         <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 100, background: cc + '20', color: cc, fontWeight: 500 }}>{sig.chain}</span>
                         {sig.action === 'buy' && <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 100, background: 'rgba(16,185,129,0.15)', color: '#10b981', fontWeight: 500 }}>BUY</span>}
+                        {sig.safety_risk_level && sig.safety_risk_level >= '3' && (
+                          <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 100, background: 'rgba(239,68,68,0.1)', color: '#ef4444', fontWeight: 500 }}>{'⚠️风险' + sig.safety_risk_level}</span>
+                        )}
+                        {sig.safety_concentration === 'High' && (
+                          <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 100, background: 'rgba(245,158,11,0.1)', color: '#f59e0b', fontWeight: 500 }}>集中度高</span>
+                        )}
+                        {sig.safety_tags?.includes('honeypot') && (
+                          <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 100, background: 'rgba(239,68,68,0.15)', color: '#ef4444', fontWeight: 600 }}>蜜罐</span>
+                        )}
                       </div>
                       <div style={{ fontSize: 10, color: 'var(--dark-400)' }}>
                         {sig.price_usd ? '$' + (sig.price_usd < 0.001 ? sig.price_usd.toFixed(8) : sig.price_usd < 1 ? sig.price_usd.toFixed(6) : sig.price_usd.toFixed(4)) : '-'}
