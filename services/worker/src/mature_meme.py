@@ -410,38 +410,52 @@ class MatureMemeEngine:
     async def analyze_token(self, chain: str, contract: str, symbol: str = '') -> dict:
         chart = await self.get_token_chart(chain, contract)
         analysis = self.analyze_breakout(chart)
-        # OKX 安全检测（只对有潜力的代币做，避免限流）
+        # OKX 安全检测（所有代币都过，但缓存结果避免限流）
         safety = {}
-        if analysis['score'] >= 40:
-            try:
-                from src.okx_client import get_advanced_info, get_cluster_overview
+        try:
+            from src.okx_client import get_advanced_info, get_cluster_overview
+            # 用合约地址做缓存 key（Redis或内存）
+            cache_key = f"safety:{chain}:{contract}"
+            cached = await self.redis.get(cache_key) if hasattr(self, 'redis') else None
+            if cached:
+                import json as _json
+                safety = _json.loads(cached)
+            else:
                 adv = await get_advanced_info(chain, contract)
-                await asyncio.sleep(0.3)
+                await asyncio.sleep(0.2)
                 cluster = await get_cluster_overview(chain, contract)
-            except:
-                adv = {}
-                cluster = {}
-            safety['risk_level'] = adv.get('risk_level', '')
-            safety['dev_rugpull_count'] = adv.get('dev_rugpull_count', 0)
-            safety['lp_burned_pct'] = adv.get('lp_burned_pct')
-            safety['concentration'] = cluster.get('concentration', '')
-            safety['rugpull_pct'] = cluster.get('rugpull_pct')
-            safety['tags'] = adv.get('token_tags', [])
-            # 安全扣分
-            rl = safety['risk_level']
-            if rl in ('4', '5'):
-                analysis['score'] -= 20
-            elif rl in ('3',):
-                analysis['score'] -= 10
-            if safety.get('concentration') == 'High':
-                analysis['score'] -= 10
-            if safety.get('dev_rugpull_count', 0) > 10:
-                analysis['score'] -= 10
-            if 'honeypot' in safety.get('tags', []):
-                analysis['score'] = 0
-                analysis['action'] = 'pass'
-                analysis['signals'].append('HONEYPOT')
-            analysis['score'] = max(analysis['score'], 0)
+                safety['risk_level'] = adv.get('risk_level', '')
+                safety['dev_rugpull_count'] = adv.get('dev_rugpull_count', 0)
+                safety['lp_burned_pct'] = adv.get('lp_burned_pct')
+                safety['concentration'] = cluster.get('concentration', '')
+                safety['rugpull_pct'] = cluster.get('rugpull_pct')
+                safety['tags'] = adv.get('token_tags', [])
+                # 缓存1小时
+                if hasattr(self, 'redis'):
+                    import json as _json
+                    await self.redis.setex(cache_key, 3600, _json.dumps(safety))
+        except:
+            safety = {}
+        
+        # 安全扣分（更严格）
+        rl = safety.get('risk_level', '')
+        if rl in ('4', '5'):
+            analysis['score'] = 0
+            analysis['action'] = 'pass'
+            analysis['signals'].append(f'高危(rl={rl})')
+        elif rl == '3':
+            analysis['score'] = int(analysis['score'] * 0.3)
+            analysis['signals'].append(f'中危(rl={rl})')
+        if safety.get('concentration') == 'High':
+            analysis['score'] = int(analysis['score'] * 0.5)
+            analysis['signals'].append('集中度高风险')
+        if safety.get('dev_rugpull_count', 0) > 5:
+            analysis['score'] = int(analysis['score'] * 0.3)
+        if 'honeypot' in safety.get('tags', []):
+            analysis['score'] = 0
+            analysis['action'] = 'pass'
+            analysis['signals'].append('HONEYPOT')
+        analysis['score'] = max(analysis['score'], 0)
 
         # 补齐数据用于前端展示
         hp = chart['hourly_prices']
