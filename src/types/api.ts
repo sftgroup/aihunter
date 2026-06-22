@@ -152,15 +152,49 @@ export interface LendingPosition {
   created_at: string;
 }
 
-// 利率数据
+// 利率数据（backed returns: chain, protocol, token, supply_apy, borrow_apy, recorded_at）
 export interface RateSnapshot {
   chain: string;
   protocol: string;
-  asset: string;
-  deposit_apy: number;
+  token: string;
+  supply_apy: number;
   borrow_apy: number;
-  timestamp: string;
+  timestamp?: string;
+  recorded_at?: string;
 }
+
+// AI 情绪分析结果
+export interface AiSentimentResult {
+  sentiment_score: number;
+  fomo_level: string;
+  key_themes: string[];
+  rug_signals: string[];
+}
+
+// 聪明钱分析结果
+export interface SmartMoneyResult {
+  is_smart_money: boolean;
+  confidence: number;
+  pattern: string;
+  reason: string;
+}
+
+// 投资组合响应
+export interface PortfolioResponse {
+  balance: number;
+  openPositions: PaperTrade[];
+  closedTrades: PaperTrade[];
+  stats: {
+    total_pnl: number;
+    win_rate: number;
+    wins: number;
+    losses: number;
+    total_trades: number;
+  };
+}
+
+// 离线回测结果（继承 BacktestResult）
+export type OfflineBacktestResult = BacktestResult;
 
 // 链信息
 export const CHAINS = ['ETH', 'BSC', 'BASE', 'SOL'] as const;

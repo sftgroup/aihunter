@@ -67,7 +67,7 @@ export default function NewTokenTab() {
   }
 
   async function loadTrades() {
-    const res = await paperApi.getTrades(200);
+    const res = await paperApi.getTrades();
     if (res.code === 200 && res.data) {
       // API 返回 { balance, openPositions, closedTrades, stats }
       const data = res.data as any;

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { TrendingUp, Activity, Zap, ChevronLeft, ChevronRight, Filter, Copy, Check, Wallet, ExternalLink, BarChart3, Power, RefreshCw, List } from 'lucide-react';
-import { signalsPageApi, learningApi } from "../../utils/api";
+import { TrendingUp, Activity, Zap, ChevronLeft, ChevronRight, Filter, Copy, Check, Wallet, ExternalLink, BarChart3, Power, RefreshCw } from 'lucide-react';
+import { signalsPageApi } from "../../utils/api";
 import LearningTab from "./LearningTab";
 import { useAccount, useDisconnect, useBalance } from 'wagmi';
 
@@ -160,20 +160,14 @@ export default function MomentumTab() {
   );
 }
 
-function formatNumber(n: number, decimals: number = 2): string {
-  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
-  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
-  return n.toFixed(decimals);
-}
 
-function formatPct(v: number): string {
-  return (v * 100).toFixed(1) + '%';
-}
 
 function shortAddr(addr: string): string {
   if (!addr || addr.length < 10) return addr || '-';
   return addr.slice(0, 6) + '...' + addr.slice(-4);
 }
+
+declare const window: Window & typeof globalThis & { ethereum?: any };
 
 function RealTradeTab() {
   const { address, isConnected } = useAccount();
@@ -229,7 +223,7 @@ function RealTradeTab() {
     );
   }
 
-  const ethBalance = balance ? parseFloat(balance.formatted).toFixed(4) : '0';
+  const ethBalance = balance ? parseFloat((balance as any).formatted).toFixed(4) : '0';
   const tabDefs = [
     { key: 'dashboard', label: '概览' },
     { key: 'signals', label: '信号' },
@@ -283,7 +277,7 @@ function RealTradeTab() {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
               {['ETH', 'BSC', 'BASE', 'SOL'].map(c => {
-                const native = (balance?.chain?.nativeCurrency?.symbol || '').toUpperCase();
+                const native = ((balance as any)?.chain?.nativeCurrency?.symbol || '').toUpperCase();
                 return (
                   <div key={c} style={{ padding: '10px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: 8, borderLeft: `3px solid ${chainColors[c] || '#808080'}` }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
@@ -347,7 +341,7 @@ function RealTradeTab() {
                           "000000000000000000000000" + tx.tokenAddress.slice(2).padStart(64,"0") +
                           "000000000000000000000000" + to.slice(2).padStart(64,"0") +
                           "0000000000000000000000000000000000000000000000000000000000000001";
-                        const txResult = await window.ethereum.request({
+                        await window.ethereum.request({
                           method:"eth_sendTransaction",
                           params:[{from:accounts[0],to:router,data:swapData,value:amountIn}]
                         });
@@ -468,53 +462,4 @@ function RealTradeTab() {
   );
 }
 
-function RealPositions(_unused: { address: string }) {
-  const [orders, setOrders] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch('/api/trade/portfolio?limit=50')
-      .then(r => r.json())
-      .then(d => {
-        if (d?.code === 200 && d?.data) {
-          const td = d.data as any;
-          setOrders((td.openPositions || []).slice(0, 20));
-        }
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
-
-  if (loading) return <p style={{ fontSize: 12, color: 'var(--dark-400)', textAlign: 'center', padding: 16 }}>加载中...</p>;
-  if (orders.length === 0) return <p style={{ fontSize: 12, color: 'var(--dark-400)', textAlign: 'center', padding: 16 }}>暂无持仓</p>;
-
-  return (
-    <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-        <thead>
-          <tr>
-            <th style={{ textAlign: 'left', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>合约</th>
-            <th style={{ textAlign: 'right', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>方向</th>
-            <th style={{ textAlign: 'right', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>入场价</th>
-            <th style={{ textAlign: 'right', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>数量</th>
-            <th style={{ textAlign: 'right', padding: '6px 10px', color: '#808080', fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>盈亏</th>
-          </tr>
-        </thead>
-        <tbody>
-          {orders.map((t: any) => {
-            const pnl = parseFloat(t.pnl_usd || 0);
-            return (
-              <tr key={t.id}>
-                <td style={{ padding: '6px 10px', color: 'white', borderBottom: '1px solid rgba(255,255,255,0.03)', fontSize: 10 }}>{t.contract?.slice(0, 14) || '-'}</td>
-                <td style={{ padding: '6px 10px', textAlign: 'right', color: t.side === 'buy' ? '#10b981' : '#ef4444', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{t.side?.toUpperCase()}</td>
-                <td style={{ padding: '6px 10px', textAlign: 'right', color: '#ccc', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{'$' + parseFloat(t.entry_price || 0).toFixed(8)}</td>
-                <td style={{ padding: '6px 10px', textAlign: 'right', color: '#ccc', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{parseFloat(t.quantity || 0).toFixed(2)}</td>
-                <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 600, color: pnl >= 0 ? '#10b981' : '#ef4444', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{(pnl >= 0 ? '+' : '') +'$' + pnl.toFixed(2)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
+// RealPositions removed (unused)

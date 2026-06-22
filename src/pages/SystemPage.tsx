@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Server, Database, Activity, Cpu, Wifi, TrendingUp, Layers, Brain, BarChart3, Clock } from 'lucide-react';
+import { Server, Database, Activity, Cpu, Wifi, TrendingUp, Layers, Brain, BarChart3 } from 'lucide-react';
 import { systemApi } from '../utils/api';
 
 const card = {

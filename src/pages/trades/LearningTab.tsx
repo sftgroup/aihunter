@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Brain, TrendingUp, RefreshCw, Award, BarChart3, Activity, Target, Shield, Zap, Clock, Sparkles, ArrowUp, ArrowDown } from 'lucide-react';
+import { Brain, TrendingUp, RefreshCw, Award, BarChart3, Activity, Target, Shield, Clock, Sparkles, ArrowUp, ArrowDown } from 'lucide-react';
 import { learningApi } from '../../utils/api';
 
 // ===== 样式常量 =====
@@ -94,7 +94,7 @@ export default function LearningTab() {
   const rules = params?.rules || [];
   const expCount = params?.experience_count || 0;
   const lastScore = history.length > 0 ? history[history.length - 1]?.score : null;
-  const scoreHistory = history.map(h => ({ score: h.score ?? 0, exp: h.experience_count ?? 0, time: h.created_at }));
+  // scoreHistory unused
 
   const paramItems = [
     { label: '最低评分', value: p.min_score, icon: Target, color: '#6366f1', desc: '低于此分的信号跳过' },

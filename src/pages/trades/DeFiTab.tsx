@@ -11,13 +11,13 @@ const cardBase: React.CSSProperties = {
 
 function toPercent(val: string | number | null | undefined): string {
   if (val == null) return '-';
-  const n = typeof val === 'string' ? parseFloat(val) : val;
+  const n = typeof val === 'string' ? Number(val) : val;
   return n.toFixed(2) + '%';
 }
 
-function calcSpread(supply: string | null | undefined, borrow: string | null | undefined): string {
-  const s = supply ? parseFloat(supply) : 0;
-  const b = borrow ? parseFloat(borrow) : 0;
+function calcSpread(supply: string | number | null | undefined, borrow: string | number | null | undefined): string {
+  const s = supply ? Number(supply) : 0;
+  const b = borrow ? Number(borrow) : 0;
   return (b - s).toFixed(2) + '%';
 }
 
@@ -50,11 +50,11 @@ export default function DeFiTab() {
   const protocols = new Set(rates.map(r => r.protocol)).size;
   const assets = rates.length;
   const maxSpread = rates.reduce((max, r) => {
-    const s = (r.borrow_apy ? parseFloat(r.borrow_apy) : 0) - (r.supply_apy ? parseFloat(r.supply_apy) : 0);
+    const s = (r.borrow_apy ? r.borrow_apy : 0) - (r.supply_apy ? r.supply_apy : 0);
     return s > max ? s : max;
   }, 0);
   const arbCount = rates.filter(r => {
-    const spread = (r.borrow_apy ? parseFloat(r.borrow_apy) : 0) - (r.supply_apy ? parseFloat(r.supply_apy) : 0);
+    const spread = (r.borrow_apy ? r.borrow_apy : 0) - (r.supply_apy ? r.supply_apy : 0);
     return spread > 0.3; // > 30bps
   }).length;
 

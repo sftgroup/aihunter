@@ -135,7 +135,7 @@ export default function AiSentimentPanel({ aiConfig }: Props) {
             <div>
               <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--dark-200)', marginBottom: 6 }}>关键主题</p>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {result.key_themes.map((theme, i) => (
+                {result.key_themes.map((theme: string, i: number) => (
                   <span key={i} style={{
                     padding: '4px 10px', borderRadius: 999, fontSize: 11,
                     background: 'rgba(99,102,241,0.1)', color: 'var(--accent)',
@@ -155,7 +155,7 @@ export default function AiSentimentPanel({ aiConfig }: Props) {
                 <AlertTriangle size={14} /> 风险信号
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {result.rug_signals.map((signal, i) => (
+                {result.rug_signals.map((signal: string, i: number) => (
                   <div key={i} style={{
                     padding: '8px 12px', borderRadius: 8,
                     background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.1)',
