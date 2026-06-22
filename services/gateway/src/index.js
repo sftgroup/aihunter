@@ -42,18 +42,59 @@ async function getAiClient(provider, apiKey) {
 await app.register(cors, { origin: true });
 await app.register(websocket);
 
-// 鉴权（公开路由除外）
+// ===== 简易内存限流器 =====
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW_MS = 60000;   // 1 分钟窗口
+const RATE_LIMIT_MAX = 100;           // 每窗口最多 100 请求
+const AUTH_FAIL_LIMIT = 10;           // 认证失败限流：每窗口 10 次
+const AUTH_FAIL_MAP = new Map();
+
+function checkRateLimit(key, max, map) {
+  const now = Date.now();
+  const entry = map.get(key);
+  if (!entry) {
+    map.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return { allowed: true };
+  }
+  if (now > entry.resetAt) {
+    map.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return { allowed: true };
+  }
+  if (entry.count >= max) {
+    return { allowed: false, retryAfter: Math.ceil((entry.resetAt - now) / 1000) };
+  }
+  entry.count++;
+  return { allowed: true };
+}
+
+// 鉴权（仅允许显式列出的公开路由，移除所有通配白名单）
 app.addHook('preHandler', async (request, reply) => {
-  const publicRoutes = ['/health', '/api/rank/ping', '/api/prize/ping', '/api/system/status', '/ws',
-    '/api/config/ai', '/api/config/rpc', '/api/trade/paper', '/api/trade/paper/result', '/api/trade/portfolio'];
-  if (request.url.startsWith('/api/signals/')) return;
-  if (publicRoutes.includes(request.url) || request.url.startsWith('/api/config/') || request.url.startsWith('/api/trade/') || request.url.startsWith('/api/learning/') || request.url.startsWith('/api/rules/') || request.url.startsWith('/api/backtest/') || request.url.startsWith('/api/strategies') || request.url.startsWith('/api/lending/')) return;
+  const clientIp = request.ip || request.socket?.remoteAddress || 'unknown';
+
+  // 全局请求限流
+  const rl = checkRateLimit(clientIp, RATE_LIMIT_MAX, rateLimitMap);
+  if (!rl.allowed) {
+    reply.header('Retry-After', rl.retryAfter);
+    return reply.status(429).send({ error: 'Too Many Requests', retryAfter: rl.retryAfter });
+  }
+
+  const publicRoutes = [
+    '/health', '/api/rank/ping', '/api/prize/ping', '/api/system/status', '/ws',
+    '/api/signals/recent'
+  ];
+  if (publicRoutes.includes(request.url)) return;
+
   const auth = request.headers.authorization;
   if (!auth || auth !== `Bearer ${AUTH_TOKEN}`) {
+    // 认证失败限流
+    const fl = checkRateLimit(clientIp, AUTH_FAIL_LIMIT, AUTH_FAIL_MAP);
+    if (!fl.allowed) {
+      reply.header('Retry-After', fl.retryAfter);
+      return reply.status(429).send({ error: 'Too Many Requests', retryAfter: fl.retryAfter });
+    }
     return reply.status(401).send({ error: 'Unauthorized' });
   }
 });
-
 // ===== 健康检查 =====
 app.get('/health', async () => ({ status: 'ok', service: 'aihunter-gateway', version: '2.0.0' }));
 app.get('/api/rank/ping', async () => ({ code: 200, data: 'pong' }));
