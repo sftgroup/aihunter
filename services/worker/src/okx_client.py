@@ -62,7 +62,7 @@ async def _get(path: str, params: dict = None) -> dict:
         resp = await c.get(OKX_REST_HOST + path + qs, headers=headers)
     data = resp.json()
     if data.get("code") not in ("0", 0):
-        raise ValueError(f"OKX API 错误 [{data.get(code)}]: {data.get(msg, str(data))}")
+        raise ValueError(f"OKX API 错误 [{data.get('code')}]: {data.get('msg', str(data))}")
     return data.get("data") or data
 
 async def _post(path: str, body: list) -> dict:
@@ -85,7 +85,7 @@ async def _post(path: str, body: list) -> dict:
         resp = await c.post(OKX_REST_HOST + path, headers=headers, content=body_str)
     data = resp.json()
     if data.get("code") not in ("0", 0):
-        raise ValueError(f"OKX API 错误 [{data.get(code)}]: {data.get(msg, str(data))}")
+        raise ValueError(f"OKX API 错误 [{data.get('code')}]: {data.get('msg', str(data))}")
     return data.get("data") or data
 
 # ===========================================================================
