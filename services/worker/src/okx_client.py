@@ -16,15 +16,17 @@ OKX_CHAIN_MAP = {
 }
 AIHUNTER_TO_OKX = {v: k for k, v in OKX_CHAIN_MAP.items()}
 
-_OKX_KEY = ""
-_OKX_SECRET = ""
-_OKX_PASSPHRASE = ""
+# 从环境变量读取 OKX 凭证（支持 .env 文件）
+_OKX_KEY = os.environ.get("OKX_API_KEY", "")
+_OKX_SECRET = os.environ.get("OKX_SECRET_KEY", "")
+_OKX_PASSPHRASE = os.environ.get("OKX_PASSPHRASE", "")
 
-def configure(api_key: str, secret_key: str, passphrase: str):
+def configure(api_key: str = "", secret_key: str = "", passphrase: str = ""):
+    """配置 OKX API 凭证；空参数时自动从环境变量读取"""
     global _OKX_KEY, _OKX_SECRET, _OKX_PASSPHRASE
-    _OKX_KEY = os.environ.get("OKX_API_KEY", "e8f5e44c-32c5-47b9-8d37-b0629f8e4a13")
-    _OKX_SECRET = os.environ.get("OKX_SECRET_KEY", "981FF8556E1EAE438F289F147BE60342")
-    _OKX_PASSPHRASE = passphrase
+    _OKX_KEY = api_key or os.environ.get("OKX_API_KEY", "")
+    _OKX_SECRET = secret_key or os.environ.get("OKX_SECRET_KEY", "")
+    _OKX_PASSPHRASE = passphrase or os.environ.get("OKX_PASSPHRASE", "")
 
 def try_float(v, default=None):
     if v is None or v == "--" or v == "":
@@ -60,7 +62,7 @@ async def _get(path: str, params: dict = None) -> dict:
         resp = await c.get(OKX_REST_HOST + path + qs, headers=headers)
     data = resp.json()
     if data.get("code") not in ("0", 0):
-        raise ValueError(f"OKX API 错误 [{data.get('code')}]: {data.get('msg', str(data))}")
+        raise ValueError(f"OKX API 错误 [{data.get(code)}]: {data.get(msg, str(data))}")
     return data.get("data") or data
 
 async def _post(path: str, body: list) -> dict:
@@ -83,7 +85,7 @@ async def _post(path: str, body: list) -> dict:
         resp = await c.post(OKX_REST_HOST + path, headers=headers, content=body_str)
     data = resp.json()
     if data.get("code") not in ("0", 0):
-        raise ValueError(f"OKX API 错误 [{data.get('code')}]: {data.get('msg', str(data))}")
+        raise ValueError(f"OKX API 错误 [{data.get(code)}]: {data.get(msg, str(data))}")
     return data.get("data") or data
 
 # ===========================================================================

@@ -17,12 +17,16 @@ def try_float(v, default=0.0):
         return default
 
 import os
-_OKX_KEY = os.environ.get("OKX_API_KEY", "e8f5e44c-32c5-47b9-8d37-b0629f8e4a13")
-_OKX_SECRET = os.environ.get("OKX_SECRET_KEY", "981FF8556E1EAE438F289F147BE60342")
-_OKX_PASSPHRASE = os.environ.get("OKX_PASSPHRASE", "Pb!4!92r")
+
+# 从环境变量读取 OKX 凭证（支持 .env 文件），不设置默认值
+_OKX_KEY = os.environ.get("OKX_API_KEY", "")
+_OKX_SECRET = os.environ.get("OKX_SECRET_KEY", "")
+_OKX_PASSPHRASE = os.environ.get("OKX_PASSPHRASE", "")
 if _OKX_KEY and _OKX_SECRET and _OKX_PASSPHRASE:
     okx_configure(_OKX_KEY, _OKX_SECRET, _OKX_PASSPHRASE)
     print("  ✅ OKX API 已配置")
+else:
+    print("  ⚠️ OKX API 未配置（环境变量缺失）")
 
 class MatureMemeEngine:
     """成熟土狗捕捉引擎"""

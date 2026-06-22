@@ -27,7 +27,7 @@ services:
           cpus: '0.3'
           memory: 200M
     environment:
-      AUTH_TOKEN: aihunter2025
+      AUTH_TOKEN: ${AUTH_TOKEN:-aihunter2025}
       DATABASE_URL: postgresql://aihunter:aihunter2025@postgres:5432/aihunter
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       REDIS_URL: redis://redis:6379
@@ -100,6 +100,9 @@ services:
       RPC_URL_BSC: ${RPC_URL_BSC:-https://bsc-rpc.publicnode.com}
       RPC_URL_ETH: ${RPC_URL_ETH:-https://ethereum-rpc.publicnode.com}
       RPC_URL_SOL: ${RPC_URL_SOL:-https://api.mainnet-beta.solana.com}
+      OKX_API_KEY: ${OKX_API_KEY:-}
+      OKX_SECRET_KEY: ${OKX_SECRET_KEY:-}
+      OKX_PASSPHRASE: ${OKX_PASSPHRASE:-}
     restart: unless-stopped
 volumes:
   pgdata: {}
