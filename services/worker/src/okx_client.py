@@ -21,7 +21,7 @@ _OKX_KEY = os.environ.get("OKX_API_KEY", "")
 _OKX_SECRET = os.environ.get("OKX_SECRET_KEY", "")
 _OKX_PASSPHRASE = os.environ.get("OKX_PASSPHRASE", "")
 
-def configure(api_key: str = "", secret_key: str = "", passphrase: str = ""):
+def configure(api_key: str = "", secret_key: str = "", passphrase: str = "", redis=None):
     """配置 OKX API 凭证；空参数时自动从环境变量读取"""
     global _OKX_KEY, _OKX_SECRET, _OKX_PASSPHRASE
     _OKX_KEY = api_key or os.environ.get("OKX_API_KEY", "")
@@ -281,6 +281,25 @@ async def get_top_liquidity(chain: str, contract: str) -> list:
     except Exception as e:
         print(f"  ⚠️ top-liquidity 异常 ({chain}/{contract[:10]}): {e}")
         return []
+
+# ===========================================================================
+# 7. 从 Redis 动态读取 OKX 配置（Gateway 同步存入 Redis）
+# ===========================================================================
+async def configure_from_redis(redis):
+    """从 Redis 读取 OKX 配置（Gateway 同步下来的），覆盖环境变量"""
+    try:
+        api_key = await redis.get("okx:api_key")
+        secret = await redis.get("okx:secret_key")
+        passphrase = await redis.get("okx:passphrase")
+        if api_key and secret and passphrase:
+            if isinstance(api_key, bytes): api_key = api_key.decode()
+            if isinstance(secret, bytes): secret = secret.decode()
+            if isinstance(passphrase, bytes): passphrase = passphrase.decode()
+            configure(api_key, secret, passphrase)
+            return True
+    except Exception as e:
+        print(f"  [OKX] Redis 读取配置失败: {e}")
+    return False
 
 # ===========================================================================
 # 一站式代币评分（整合以上所有数据）

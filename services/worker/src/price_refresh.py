@@ -5,7 +5,7 @@ AIHunter - OKX V6 价格刷新引擎
 import json, asyncio, time
 from datetime import datetime
 from src.okx_client import (
-    configure as okx_configure, get_price_info, get_hot_tokens,
+    configure as okx_configure, configure_from_redis, get_price_info, get_hot_tokens,
     get_candles, get_advanced_info, get_cluster_overview, get_top_liquidity
 )
 
@@ -17,6 +17,10 @@ class PriceRefreshEngine:
         self.redis = redis
         self.http = http
         self._running = False
+
+    async def refresh_config(self):
+        """从 Redis 动态读取 OKX 配置"""
+        await configure_from_redis(self.redis)
 
     async def refresh_all_prices(self):
         """遍历已知代币，通过 OKX price-info 批量获取最新价格"""
@@ -116,6 +120,7 @@ class PriceRefreshEngine:
         print(f'  ✅ K线缓存完成: {total} 条 ({len(known)} 个代币)')
 
     async def scan_hot_tokens(self):
+        await self.refresh_config()
         """从 OKX 热门代币API获取新代币并存入events表"""
         try:
             tokens = await get_hot_tokens(limit=50)
@@ -140,6 +145,7 @@ class PriceRefreshEngine:
             print(f'  ⚠️ scan_hot_tokens 异常: {e}')
 
     async def run_cycle(self):
+        await self.refresh_config()
         if self._running:
             return
         self._running = True
