@@ -56,7 +56,7 @@ async function reloadOkxConfig() {
 
 // 加载 OKX 配置到缓存 + 同步 Redis + 通知 JS 模块
 async function broadcastOkxConfig() {
-  const cfg = await broadcastOkxConfig();
+  const cfg = await reloadOkxConfig();
   if (cfg.configured) {
     await redis.set('okx:api_key', cfg.apiKey);
     await redis.set('okx:secret_key', cfg.secretKey);
