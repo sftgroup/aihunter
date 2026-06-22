@@ -44,7 +44,6 @@ export default function ConfigPage() {
 
   // 重启服务
   const [showRestartConfirm, setShowRestartConfirm] = useState(false);
-  const [restarting, setRestarting] = useState(false);
   
   const [restartStatus, setRestartStatus] = useState<
     "idle" | "confirming" | "restarting" | "done" | "failed"
@@ -124,7 +123,7 @@ export default function ConfigPage() {
 
   async function doRestart() {
     setRestartStatus("restarting");
-    setRestarting(true);
+    // restart state managed via restartStatus
     setRestartMsg("正在重启 Worker 服务...");
     const res = await systemApiExt.restart("worker");
     if (res.code === 200 || res.code === 202) {
@@ -137,28 +136,26 @@ export default function ConfigPage() {
           if (sr.data.status === "done") {
             clearInterval(poll);
             setRestartStatus("done");
-            setRestarting(false);
+            
             setRestartMsg("✅ 服务已重启，新配置已生效");
           } else if (sr.data.status === "failed") {
             clearInterval(poll);
             setRestartStatus("failed");
-            setRestarting(false);
+            
             setRestartMsg(`❌ 重启失败: ${sr.data.error || "未知错误"}，请手动 SSH 处理`);
           }
-        }
-      }, 3000);
       // 30 秒超时
       setTimeout(() => {
         clearInterval(poll);
-        if (restarting) {
-          setRestartStatus("done");
-          setRestarting(false);
-          setRestartMsg("⚠️ 重启已触发，请刷新页面确认状态");
+        setRestartStatus(prev => prev === "restarting" ? "done" : prev);
+        
+        setRestartMsg("⚠️ 重启已触发，请刷新页面确认状态");
+      }, 30000);
         }
       }, 30000);
     } else {
       setRestartStatus("failed");
-      setRestarting(false);
+      
       setRestartMsg(`❌ 重启失败: ${res.error}`);
     }
   }
@@ -520,7 +517,8 @@ export default function ConfigPage() {
             <input
               value={okxApiKey}
               onChange={(e) => setOkxApiKey(e.target.value)}
-              placeholder="e8f5e44c-..."
+              type="password"
+              placeholder="API Key"
               style={inputStyle}
             />
           </Row>

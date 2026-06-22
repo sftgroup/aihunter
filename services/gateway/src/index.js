@@ -69,7 +69,7 @@ async function broadcastOkxConfig() {
 }
 
 // 启动时加载 OKX 配置
-broadcastOkxConfig();
+broadcastOkxConfig().catch(e => console.error("[OKX] 启动加载配置失败:", e.message));
 
 // ===== AI 供应商预制配置 =====
 const AI_PROVIDERS = {
