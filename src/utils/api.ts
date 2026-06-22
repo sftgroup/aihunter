@@ -108,3 +108,25 @@ export const offlineBacktestApi = {
   run: (chain: string, hours: number, perAmount: number) =>
     request<OfflineBacktestResult>(`/backtest/offline?chain=${encodeURIComponent(chain)}&hours=${hours}&perAmount=${perAmount}`),
 };
+
+// ===== OKX 配置 + 重启 =====
+export const okxApi = {
+  getConfig: () => request<{ configured: boolean }>("/config/okx"),
+  saveConfig: (apiKey: string, secretKey: string, passphrase: string) =>
+    request("/config/okx", {
+      method: "POST",
+      body: JSON.stringify({ apiKey, secretKey, passphrase }),
+    }),
+};
+
+export const systemApiExt = {
+  restart: (target = "worker") =>
+    request<{ jobId: string; status: string }>("/system/restart", {
+      method: "POST",
+      body: JSON.stringify({ target }),
+    }),
+  restartStatus: (jobId: string) =>
+    request<{ status: string; target?: string; error?: string }>(
+      `/system/restart/status?jobId=${jobId}`
+    ),
+};

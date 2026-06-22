@@ -1,3 +1,4 @@
+const __spinStyle = document.createElement("style"); __spinStyle.textContent = "@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}"; document.head.appendChild(__spinStyle);
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
