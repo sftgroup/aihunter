@@ -7,6 +7,8 @@ import websocket from '@fastify/websocket';
 import { Redis } from 'ioredis';
 import OpenAI from 'openai';
 import pg from 'pg';
+import Docker from 'dockerode';
+import crypto from 'crypto';
 
 const { Pool } = pg;
 
@@ -18,6 +20,56 @@ const AUTH_TOKEN = process.env.AUTH_TOKEN || 'aihunter2025';
 const app = Fastify({ logger: true });
 const redis = new Redis(REDIS_URL);
 const db = new Pool({ connectionString: DATABASE_URL });
+
+// ===== Docker 控制（重启容器，只读挂载 /var/run/docker.sock）=====
+const docker = new Docker({ socketPath: '/var/run/docker.sock' });
+
+// 重启任务状态存储
+const restartJobs = new Map();
+const RESTART_COOLDOWN_MS = 60000;
+
+// 默认重启目标容器
+const CONTAINER_TARGETS = {
+  worker: 'aihunter-worker',
+  gateway: 'aihunter-gateway',
+};
+
+// OKX 配置缓存
+let okxConfigCache = { configured: false };
+
+async function reloadOkxConfig() {
+  try {
+    const rows = await db.query("SELECT key, value FROM sys_config WHERE key LIKE 'okx.%'");
+    const cfg = {};
+    for (const r of rows.rows) cfg[r.key] = r.value;
+    okxConfigCache = {
+      configured: !!(cfg['okx.api_key'] && cfg['okx.secret_key'] && cfg['okx.passphrase']),
+      apiKey: cfg['okx.api_key'] || '',
+      secretKey: cfg['okx.secret_key'] || '',
+      passphrase: cfg['okx.passphrase'] || '',
+    };
+    return okxConfigCache;
+  } catch (e) {
+    return okxConfigCache;
+  }
+}
+
+// 加载 OKX 配置到缓存 + 同步 Redis + 通知 JS 模块
+async function broadcastOkxConfig() {
+  const cfg = await broadcastOkxConfig();
+  if (cfg.configured) {
+    await redis.set('okx:api_key', cfg.apiKey);
+    await redis.set('okx:secret_key', cfg.secretKey);
+    await redis.set('okx:passphrase', cfg.passphrase);
+    await redis.publish('config:update', JSON.stringify({ type: 'okx', data: cfg }));
+  }
+  // 同步到 okx-trade.js 模块
+  const { setOkxConfig } = await import('./okx-trade.js');
+  setOkxConfig({ apiKey: cfg.apiKey, apiSecret: cfg.secretKey, passphrase: cfg.passphrase });
+}
+
+// 启动时加载 OKX 配置
+broadcastOkxConfig();
 
 // ===== AI 供应商预制配置 =====
 const AI_PROVIDERS = {
@@ -1026,6 +1078,125 @@ print(json.dumps(result))
   };
 });
 
+
+// ====== 系统重启 API ======
+app.post('/api/system/restart', async (request, reply) => {
+  const clientIp = request.ip || request.socket?.remoteAddress || 'unknown';
+  const { target } = request.body || {};
+  const containerName = CONTAINER_TARGETS[target || 'worker'];
+  if (!containerName) {
+    return reply.status(400).send({ error: '无效的目标，可选: worker / gateway / all' });
+  }
+
+  // Redis 冷却检查
+  const cooldownKey = `restart:cooldown:${clientIp}`;
+  const lastRestart = await redis.get(cooldownKey);
+  if (lastRestart) {
+    const elapsed = Date.now() - parseInt(lastRestart);
+    if (elapsed < RESTART_COOLDOWN_MS) {
+      const retryAfter = Math.ceil((RESTART_COOLDOWN_MS - elapsed) / 1000);
+      reply.header('Retry-After', String(retryAfter));
+      return reply.status(429).send({ error: '冷却中，请稍后再试', retryAfter });
+    }
+  }
+
+  const jobId = `restart_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+  // 标记冷却
+  await redis.set(cooldownKey, String(Date.now()), 'PX', RESTART_COOLDOWN_MS);
+
+  // 记录任务状态
+  restartJobs.set(jobId, { status: 'running', target: containerName, startedAt: Date.now() });
+
+  // 异步重启（不阻塞响应）
+  setImmediate(async () => {
+    try {
+      const containers = target === 'all'
+        ? Object.values(CONTAINER_TARGETS)
+        : [containerName];
+
+      for (const name of containers) {
+        restartJobs.set(jobId, { status: 'restarting', target: name, startedAt: Date.now() });
+        try {
+          const container = docker.getContainer(name);
+          await container.restart({ t: 10 }); // 10秒超时等待
+          console.log(`[RESTART] ${name} 重启成功`);
+        } catch (e) {
+          console.error(`[RESTART] ${name} 重启失败:`, e.message);
+          restartJobs.set(jobId, { status: 'failed', error: e.message, target: name, startedAt: Date.now() });
+          return;
+        }
+      }
+
+      // 所有容器重启完成后，等待健康检查
+      const healthTarget = target === 'all' || target === 'gateway'
+        ? `http://localhost:${PORT}/health`
+        : null;
+
+      if (healthTarget) {
+        // 最多等待 30 秒
+        for (let i = 0; i < 30; i++) {
+          try {
+            const resp = await fetch(healthTarget);
+            if (resp.ok) {
+              restartJobs.set(jobId, { status: 'done', target: containerName, completedAt: Date.now() });
+              console.log(`[RESTART] 健康检查通过`);
+              return;
+            }
+          } catch (e) {
+            // 等待服务启动
+          }
+          await new Promise(r => setTimeout(r, 1000));
+        }
+        restartJobs.set(jobId, { status: 'done', target: containerName, completedAt: Date.now(), note: '健康检查超时，但重启已完成' });
+      } else {
+        // Worker 没有 HTTP 健康检查，直接标记完成
+        restartJobs.set(jobId, { status: 'done', target: containerName, completedAt: Date.now() });
+      }
+    } catch (e) {
+      restartJobs.set(jobId, { status: 'failed', error: e.message, target: containerName, startedAt: Date.now() });
+    }
+  });
+
+  return reply.status(202).send({ jobId, status: 'restarting' });
+});
+
+app.get('/api/system/restart/status', async (request) => {
+  const { jobId } = request.query;
+  if (!jobId) return { error: '缺少 jobId' };
+  const job = restartJobs.get(jobId);
+  if (!job) return { status: 'not_found' };
+  return { status: job.status, target: job.target, error: job.error };
+});
+
+// ====== OKX 配置 API ======
+app.post('/api/config/okx', async (request, reply) => {
+  const { apiKey, secretKey, passphrase } = request.body || {};
+  if (!apiKey || !secretKey || !passphrase) {
+    return reply.status(400).send({ error: '缺少参数: apiKey, secretKey, passphrase' });
+  }
+
+  // 写入 sys_config 表
+  await db.query("INSERT INTO sys_config (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()",
+    ['okx.api_key', apiKey]);
+  await db.query("INSERT INTO sys_config (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()",
+    ['okx.secret_key', secretKey]);
+  await db.query("INSERT INTO sys_config (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()",
+    ['okx.passphrase', passphrase]);
+
+  // 广播到 Redis 和 JS 模块
+  await broadcastOkxConfig();
+
+  return { success: true, message: '✅ OKX 配置已保存' };
+});
+
+app.get('/api/config/okx', async () => {
+  await broadcastOkxConfig();
+  return { configured: okxConfigCache.configured };
+});
+
+
+// ====== 系统重启 API ======
 // ===== WebSocket =====
 app.register(async function (fastify) {
   fastify.get('/ws', { websocket: true }, (socket, req) => {
