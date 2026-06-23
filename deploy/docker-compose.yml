@@ -28,9 +28,9 @@ services:
           memory: 200M
     environment:
       AUTH_TOKEN: ${AUTH_TOKEN:?AUTH_TOKEN 环境变量必须设置}
-      DATABASE_URL: postgresql://aihunter:aihunter2025@postgres:5432/aihunter
+      DATABASE_URL: ${DATABASE_URL:-postgresql://aihunter:aihunter2025@postgres:5432/aihunter}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
     ports:
     - 0.0.0.0:3100:3100
     restart: unless-stopped
@@ -48,9 +48,9 @@ services:
           cpus: '0.3'
           memory: 200M
     environment:
-      DATABASE_URL: postgresql://aihunter:aihunter2025@postgres:5432/aihunter
+      DATABASE_URL: ${DATABASE_URL:-postgresql://aihunter:aihunter2025@postgres:5432/aihunter}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
     restart: unless-stopped
   postgres:
     container_name: aihunter-db
@@ -71,6 +71,7 @@ services:
     - pgdata:/var/lib/postgresql/data
     - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
   redis:
+    command: ${REDIS_PASSWORD:+redis-server --requirepass "$REDIS_PASSWORD"}
     container_name: aihunter-redis
     deploy:
       resources:
@@ -96,8 +97,8 @@ services:
           memory: 400M
     environment:
       CHAINS: ETH,BSC,BASE,SOL
-      DATABASE_URL: postgresql://aihunter:aihunter2025@postgres:5432/aihunter
-      REDIS_URL: redis://redis:6379
+      DATABASE_URL: ${DATABASE_URL:-postgresql://aihunter:aihunter2025@postgres:5432/aihunter}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       RPC_URL_BASE: ${RPC_URL_BASE:-https://base-rpc.publicnode.com}
       RPC_URL_BSC: ${RPC_URL_BSC:-https://bsc-rpc.publicnode.com}
       RPC_URL_ETH: ${RPC_URL_ETH:-https://ethereum-rpc.publicnode.com}
