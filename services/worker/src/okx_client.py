@@ -21,6 +21,15 @@ _OKX_KEY = os.environ.get("OKX_API_KEY", "")
 _OKX_SECRET = os.environ.get("OKX_SECRET_KEY", "")
 _OKX_PASSPHRASE = os.environ.get("OKX_PASSPHRASE", "")
 
+if not _OKX_KEY or not _OKX_SECRET or not _OKX_PASSPHRASE:
+    import warnings
+    warnings.warn(
+        "[OKX] API 凭证未配置。请设置环境变量 OKX_API_KEY, OKX_SECRET_KEY, OKX_PASSPHRASE，"
+        "或通过 configure() / configure_from_redis() 动态配置。",
+        RuntimeWarning,
+        stacklevel=2,
+    )
+
 def configure(api_key: str = "", secret_key: str = "", passphrase: str = "", redis=None):
     """配置 OKX API 凭证；空参数时自动从环境变量读取"""
     global _OKX_KEY, _OKX_SECRET, _OKX_PASSPHRASE

@@ -27,7 +27,7 @@ services:
           cpus: '0.3'
           memory: 200M
     environment:
-      AUTH_TOKEN: ${AUTH_TOKEN:-aihunter2025}
+      AUTH_TOKEN: ${AUTH_TOKEN:?AUTH_TOKEN 环境变量必须设置}
       DATABASE_URL: postgresql://aihunter:aihunter2025@postgres:5432/aihunter
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       REDIS_URL: redis://redis:6379

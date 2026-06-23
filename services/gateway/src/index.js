@@ -15,7 +15,11 @@ const { Pool } = pg;
 const PORT = parseInt(process.env.PORT || '3100');
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://aihunter:aihunter2025@postgres:5432/aihunter';
-const AUTH_TOKEN = process.env.AUTH_TOKEN || 'aihunter2025';
+const AUTH_TOKEN = process.env.AUTH_TOKEN;
+if (!AUTH_TOKEN) {
+  console.error('[FATAL] AUTH_TOKEN 环境变量未设置，拒绝启动。请在 .env 或环境变量中配置强密码。');
+  process.exit(1);
+}
 
 const app = Fastify({ logger: true });
 const redis = new Redis(REDIS_URL);
@@ -28,11 +32,12 @@ const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 const restartJobs = new Map();
 const RESTART_COOLDOWN_MS = 60000;
 
-// 默认重启目标容器
+// 重启目标容器（白名单，仅允许重启以下容器）
 const CONTAINER_TARGETS = {
   worker: 'aihunter-worker',
   gateway: 'aihunter-gateway',
 };
+const ALLOWED_RESTART_CONTAINERS = new Set(Object.values(CONTAINER_TARGETS));
 
 // OKX 配置缓存
 let okxConfigCache = { configured: false };
@@ -1086,6 +1091,10 @@ app.post('/api/system/restart', async (request, reply) => {
   const containerName = CONTAINER_TARGETS[target || 'worker'];
   if (!containerName) {
     return reply.status(400).send({ error: '无效的目标，可选: worker / gateway / all' });
+  }
+  // 白名单检查：只允许重启预定义容器
+  if (!ALLOWED_RESTART_CONTAINERS.has(containerName)) {
+    return reply.status(403).send({ error: '禁止重启未授权的容器' });
   }
 
   // Redis 冷却检查
