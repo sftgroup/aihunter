@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Key, Globe, Cpu, Plus, RotateCw, AlertTriangle } from "lucide-react";
-import { aiApi, rpcApi, okxApi, systemApiExt } from "../utils/api";
+import { aiApi, rpcApi, okxApi, systemApiExt, hasAuthToken } from "../utils/api";
 
 const cardBase: React.CSSProperties = {
   background:
@@ -111,8 +111,7 @@ export default function ConfigPage() {
       return;
     }
     // Check auth token before saving
-    const token = localStorage.getItem('aihunter_token');
-    if (!token) {
+    if (!hasAuthToken()) {
       setOkxResult("❌ 请先配置 AUTH_TOKEN（系统配置页面）");
       return;
     }

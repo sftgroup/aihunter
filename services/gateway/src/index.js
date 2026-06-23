@@ -1115,7 +1115,7 @@ app.post('/api/system/restart', async (request, reply) => {
     return reply.status(429).send({ error: "冷却中，请稍后再试", retryAfter });
   }
 
-  const jobId = \`restart_\${Date.now()}_\${Math.random().toString(36).slice(2, 8)}\`;
+  const jobId = `restart_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   // 记录任务状态
   restartJobs.set(jobId, { status: 'running', target: containerName, startedAt: Date.now() });
 

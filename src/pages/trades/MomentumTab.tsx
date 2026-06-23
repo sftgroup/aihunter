@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { TrendingUp, Activity, Zap, ChevronLeft, ChevronRight, Filter, Copy, Check, Wallet, ExternalLink, BarChart3, Power, RefreshCw } from 'lucide-react';
-import { signalsPageApi } from "../../utils/api";
+import { signalsPageApi, getAuthToken } from "../../utils/api";
 import LearningTab from "./LearningTab";
 import { useAccount, useDisconnect, useBalance } from 'wagmi';
 
@@ -182,7 +182,7 @@ function RealTradeTab() {
 
   useEffect(() => {
     // P0 fix — use authenticated fetch with Bearer token
-    const token = localStorage.getItem('aihunter_token');
+    const token = getAuthToken();
     const headers: Record<string, string> = {};
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
@@ -198,7 +198,7 @@ function RealTradeTab() {
     // P0 fix — use authenticated WebSocket with token
     const wsOrigin = window.location.origin.replace(/^http/, 'ws');
     let wsUrl = wsOrigin + '/ws';
-    const token = localStorage.getItem('aihunter_token');
+    const token = getAuthToken();
     if (token) {
       wsUrl += `?token=${encodeURIComponent(token)}`;
     } else {
