@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Key, Globe, Cpu, Plus, RotateCw, AlertTriangle } from "lucide-react";
 import { aiApi, rpcApi, okxApi, systemApiExt } from "../utils/api";
 
@@ -38,6 +38,10 @@ export default function ConfigPage() {
   const [okxApiKey, setOkxApiKey] = useState("");
   const [okxSecret, setOkxSecret] = useState("");
   const [okxPassphrase, setOkxPassphrase] = useState("");
+  
+  const handleOkxApiKeyChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => setOkxApiKey(e.target.value), []);
+  const handleOkxSecretChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => setOkxSecret(e.target.value), []);
+  const handleOkxPassphraseChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => setOkxPassphrase(e.target.value), []);
   const [okxConfigured, setOkxConfigured] = useState(false);
   const [okxSaving, setOkxSaving] = useState(false);
   const [okxResult, setOkxResult] = useState("");
@@ -516,7 +520,7 @@ export default function ConfigPage() {
             </p>
             <input
               value={okxApiKey}
-              onChange={(e) => setOkxApiKey(e.target.value)}
+              onChange={handleOkxApiKeyChange}
               type="password"
               placeholder="API Key"
               style={inputStyle}
@@ -532,7 +536,7 @@ export default function ConfigPage() {
             <input
               type="password"
               value={okxSecret}
-              onChange={(e) => setOkxSecret(e.target.value)}
+              onChange={handleOkxSecretChange}
               placeholder="••••••••"
               style={inputStyle}
             />
@@ -547,7 +551,7 @@ export default function ConfigPage() {
             <input
               type="password"
               value={okxPassphrase}
-              onChange={(e) => setOkxPassphrase(e.target.value)}
+              onChange={handleOkxPassphraseChange}
               placeholder="••••••••"
               style={inputStyle}
             />
