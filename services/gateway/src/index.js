@@ -38,7 +38,7 @@ const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 
 // 重启任务状态存储
 const restartJobs = new Map();
-const RESTART_COOLDOWN_MS = 60000;
+const RESTART_COOLDOWN_MS = 300000;
 
 // 重启目标容器（白名单，仅允许重启以下容器）
 const CONTAINER_TARGETS = {
@@ -146,7 +146,8 @@ app.addHook('preHandler', async (request, reply) => {
     '/health', '/api/rank/ping', '/api/prize/ping', '/api/system/status',
     '/api/signals/recent'
   ];
-  if (publicRoutes.includes(request.url)) return;
+  const urlPath = request.url.split('?')[0];
+  if (publicRoutes.includes(urlPath)) return;
 
   const auth = request.headers.authorization;
   if (!auth || auth !== `Bearer ${AUTH_TOKEN}`) {
@@ -1106,21 +1107,15 @@ app.post('/api/system/restart', async (request, reply) => {
 
   // Redis 冷却检查
   const cooldownKey = `restart:cooldown:${clientIp}`;
-  const lastRestart = await redis.get(cooldownKey);
-  if (lastRestart) {
-    const elapsed = Date.now() - parseInt(lastRestart);
-    if (elapsed < RESTART_COOLDOWN_MS) {
-      const retryAfter = Math.ceil((RESTART_COOLDOWN_MS - elapsed) / 1000);
-      reply.header('Retry-After', String(retryAfter));
-      return reply.status(429).send({ error: '冷却中，请稍后再试', retryAfter });
-    }
+  const setResult = await redis.set(cooldownKey, String(Date.now()), "NX", "PX", RESTART_COOLDOWN_MS);
+  if (setResult === null) {
+    const ttl = await redis.pttl(cooldownKey);
+    const retryAfter = Math.ceil(ttl / 1000);
+    reply.header("Retry-After", String(retryAfter));
+    return reply.status(429).send({ error: "冷却中，请稍后再试", retryAfter });
   }
 
-  const jobId = `restart_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-
-  // 标记冷却
-  await redis.set(cooldownKey, String(Date.now()), 'PX', RESTART_COOLDOWN_MS);
-
+  const jobId = \`restart_\${Date.now()}_\${Math.random().toString(36).slice(2, 8)}\`;
   // 记录任务状态
   restartJobs.set(jobId, { status: 'running', target: containerName, startedAt: Date.now() });
 
