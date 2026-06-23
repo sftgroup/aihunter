@@ -22,6 +22,74 @@ const inputStyle: React.CSSProperties = {
   fontFamily: "JetBrains Mono, monospace",
 };
 
+function SectionTitle(props: {
+  icon: React.ReactNode;
+  title: string;
+}) {
+  return (
+    <h3
+      style={{
+        fontSize: 12,
+        fontWeight: 600,
+        color: "var(--dark-400)",
+        textTransform: "uppercase",
+        letterSpacing: "0.05em",
+        paddingLeft: 4,
+        marginBottom: 12,
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+      }}
+    >
+      {props.icon} {props.title}
+    </h3>
+  );
+}
+
+function Row(props: {
+  icon: React.ReactNode;
+  color: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 16,
+        padding: "14px 16px",
+        borderBottom: "1px solid rgba(255,255,255,0.04)",
+      }}
+    >
+      <div
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: 12,
+          background: props.color,
+          padding: "1px",
+          flexShrink: 0,
+        }}
+      >
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            borderRadius: 11,
+            background: "var(--dark-800)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {props.icon}
+        </div>
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>{props.children}</div>
+    </div>
+  );
+}
+
 export default function ConfigPage() {
   const [_aiConfig, _setAiConfig] = useState<Record<string, string>>({});
   const [provider, setProvider] = useState("deepseek");
@@ -39,12 +107,16 @@ export default function ConfigPage() {
   const [okxSecret, setOkxSecret] = useState("");
   const [okxPassphrase, setOkxPassphrase] = useState("");
   
+  const handleApiKeyChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => setApiKey(e.target.value), []);
   const handleOkxApiKeyChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => setOkxApiKey(e.target.value), []);
   const handleOkxSecretChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => setOkxSecret(e.target.value), []);
   const handleOkxPassphraseChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => setOkxPassphrase(e.target.value), []);
   const [okxConfigured, setOkxConfigured] = useState(false);
   const [okxSaving, setOkxSaving] = useState(false);
   const [okxResult, setOkxResult] = useState("");
+
+  // AUTH_TOKEN 检测
+  const [authTokenMissing, setAuthTokenMissing] = useState(!hasAuthToken());
 
   // 重启服务
   const [showRestartConfirm, setShowRestartConfirm] = useState(false);
@@ -76,7 +148,7 @@ export default function ConfigPage() {
 
   async function loadOkxConfig() {
     const res = await okxApi.getConfig();
-    if (res.code === 200) setOkxConfigured(res.data?.configured || false);
+    if (res.code === 200) setOkxConfigured(res.data?.configured === true);
   }
 
   async function saveAi() {
@@ -112,7 +184,8 @@ export default function ConfigPage() {
     }
     // Check auth token before saving
     if (!hasAuthToken()) {
-      setOkxResult("❌ 请先配置 AUTH_TOKEN（系统配置页面）");
+      setOkxResult("❌ AUTH_TOKEN 未配置，无法保存。请在下方「系统认证」区域设置 token 后重试。");
+      setAuthTokenMissing(true);
       return;
     }
     setOkxSaving(true);
@@ -174,73 +247,7 @@ export default function ConfigPage() {
     }
   }
 
-  function SectionTitle(props: {
-    icon: React.ReactNode;
-    title: string;
-  }) {
-    return (
-      <h3
-        style={{
-          fontSize: 12,
-          fontWeight: 600,
-          color: "var(--dark-400)",
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
-          paddingLeft: 4,
-          marginBottom: 12,
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-        }}
-      >
-        {props.icon} {props.title}
-      </h3>
-    );
-  }
 
-  function Row(props: {
-    icon: React.ReactNode;
-    color: string;
-    children: React.ReactNode;
-  }) {
-    return (
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
-          padding: "14px 16px",
-          borderBottom: "1px solid rgba(255,255,255,0.04)",
-        }}
-      >
-        <div
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 12,
-            background: props.color,
-            padding: "1px",
-            flexShrink: 0,
-          }}
-        >
-          <div
-            style={{
-              width: "100%",
-              height: "100%",
-              borderRadius: 11,
-              background: "var(--dark-800)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            {props.icon}
-          </div>
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>{props.children}</div>
-      </div>
-    );
-  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -308,7 +315,7 @@ export default function ConfigPage() {
             </p>
             <input
               value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
+              onChange={handleApiKeyChange}
               placeholder="sk-..."
               style={inputStyle}
             />
@@ -500,6 +507,89 @@ export default function ConfigPage() {
               </p>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* 系统认证 AUTH_TOKEN */}
+      <div>
+        <SectionTitle icon={<Key size={14} />} title="系统认证" />
+        <div style={{ ...cardBase, overflow: "hidden" }}>
+          {authTokenMissing ? (
+            <div style={{ padding: "16px" }}>
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                marginBottom: 12,
+                padding: "10px 14px",
+                borderRadius: 10,
+                background: "rgba(239,68,68,0.1)",
+                border: "1px solid rgba(239,68,68,0.2)",
+              }}>
+                <AlertTriangle size={16} color="#ef4444" />
+                <span style={{ fontSize: 13, color: "#fca5a5" }}>
+                  AUTH_TOKEN 未配置，保存功能不可用
+                </span>
+              </div>
+              <p style={{ fontSize: 12, color: "var(--dark-400)", marginBottom: 8 }}>
+                AUTH_TOKEN 是调用后端 API 的认证令牌。缺少它将无法保存任何配置。
+              </p>
+              <p style={{ fontSize: 12, color: "var(--dark-400)", marginBottom: 8 }}>
+                <strong style={{ color: "var(--dark-200)" }}>获取方式：</strong>
+                查看服务器部署目录 <code style={{
+                  padding: "2px 6px",
+                  borderRadius: 4,
+                  background: "rgba(255,255,255,0.08)",
+                  fontFamily: "JetBrains Mono, monospace",
+                  fontSize: 11,
+                }}>deploy/.env</code> 中的 <code style={{
+                  padding: "2px 6px",
+                  borderRadius: 4,
+                  background: "rgba(255,255,255,0.08)",
+                  fontFamily: "JetBrains Mono, monospace",
+                  fontSize: 11,
+                }}>AUTH_TOKEN</code> 值
+              </p>
+              <input
+                id="auth-token-input"
+                type="password"
+                placeholder="粘贴 AUTH_TOKEN..."
+                style={{ ...inputStyle, marginBottom: 8 }}
+              />
+              <button
+                onClick={() => {
+                  const input = document.getElementById("auth-token-input") as HTMLInputElement;
+                  const val = input?.value?.trim();
+                  if (val) {
+                    localStorage.setItem("aihunter_token", val);
+                    setAuthTokenMissing(false);
+                    setOkxResult("");
+                  }
+                }}
+                style={{
+                  padding: "6px 16px",
+                  borderRadius: 8,
+                  fontSize: 12,
+                  background: "var(--accent)",
+                  color: "white",
+                  cursor: "pointer",
+                }}
+              >
+                设置 Token
+              </button>
+            </div>
+          ) : (
+            <div style={{
+              padding: "12px 16px",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}>
+              <span style={{ fontSize: 12, color: "var(--accent-green)" }}>
+                ✅ AUTH_TOKEN 已配置，API 认证正常
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

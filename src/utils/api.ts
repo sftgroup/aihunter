@@ -26,10 +26,27 @@ export const AUTH_TOKEN_KEY = 'aihunter_token';
 
 /**
  * Read the auth token from the canonical source.
- * Priority: localStorage > VITE_AUTH_TOKEN env var.
+ * Priority: localStorage > VITE_AUTH_TOKEN env var (auto-synced to localStorage).
+ *
+ * At app startup (module load), if VITE_AUTH_TOKEN is set and localStorage
+ * has no token yet, we automatically persist it so that hasAuthToken()
+ * returns true even before any user interaction.
  */
+let _envTokenSynced = false;
+
+function _syncEnvToken(): void {
+  if (_envTokenSynced) return;
+  _envTokenSynced = true;
+  if (typeof window === 'undefined') return;
+  const envToken = import.meta.env.VITE_AUTH_TOKEN;
+  if (envToken && !localStorage.getItem(AUTH_TOKEN_KEY)) {
+    localStorage.setItem(AUTH_TOKEN_KEY, envToken);
+  }
+}
+
 export function getAuthToken(): string | null {
   if (typeof window !== 'undefined') {
+    _syncEnvToken();
     const stored = localStorage.getItem(AUTH_TOKEN_KEY);
     if (stored) return stored;
   }
