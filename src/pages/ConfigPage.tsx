@@ -110,18 +110,29 @@ export default function ConfigPage() {
       setOkxResult("请填写所有 OKX 配置项");
       return;
     }
+    // Check auth token before saving
+    const token = localStorage.getItem('aihunter_token');
+    if (!token) {
+      setOkxResult("❌ 请先配置 AUTH_TOKEN（系统配置页面）");
+      return;
+    }
     setOkxSaving(true);
     setOkxResult("保存中...");
-    const res = await okxApi.saveConfig(okxApiKey, okxSecret, okxPassphrase);
-    setOkxSaving(false);
-    if (res.code === 200) {
-      setOkxResult("✅ 配置已保存，请重启服务生效");
-      setOkxConfigured(true);
-      setOkxApiKey("");
-      setOkxSecret("");
-      setOkxPassphrase("");
-    } else {
-      setOkxResult(`❌ ${res.error}`);
+    try {
+      const res = await okxApi.saveConfig(okxApiKey, okxSecret, okxPassphrase);
+      setOkxSaving(false);
+      if (res.code === 200) {
+        setOkxResult("✅ 配置已保存，请重启服务生效");
+        setOkxConfigured(true);
+        setOkxApiKey("");
+        setOkxSecret("");
+        setOkxPassphrase("");
+      } else {
+        setOkxResult("❌ " + (res.error || "保存失败"));
+      }
+    } catch (e: any) {
+      setOkxSaving(false);
+      setOkxResult("❌ 请求失败: " + (e.message || "请检查网络连接和 AUTH_TOKEN 配置"));
     }
   }
 
