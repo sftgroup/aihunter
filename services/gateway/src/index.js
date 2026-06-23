@@ -1198,12 +1198,12 @@ app.post('/api/config/okx', async (request, reply) => {
   // 广播到 Redis 和 JS 模块
   await broadcastOkxConfig();
 
-  return { success: true, message: '✅ OKX 配置已保存' };
+  return { code: 200, message: '✅ OKX 配置已保存' };
 });
 
 app.get('/api/config/okx', async () => {
   await broadcastOkxConfig();
-  return { configured: okxConfigCache.configured };
+  return { code: 200, data: { configured: okxConfigCache.configured } };
 });
 
 
