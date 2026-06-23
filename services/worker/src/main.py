@@ -614,8 +614,14 @@ class ChainWorker:
         self.rpc_urls = {}
         self.analyzers = {}
         
-        self.redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
-        self.db_url = os.getenv('DATABASE_URL', 'postgresql://aihunter:aihunter2025@localhost:5432/aihunter')
+        self.redis_url = os.getenv('REDIS_URL')
+        if not self.redis_url:
+            raise EnvironmentError('REDIS_URL 环境变量未设置，拒绝启动')
+
+        self.db_url = os.getenv('DATABASE_URL')
+        if not self.db_url:
+            raise EnvironmentError('DATABASE_URL 环境变量未设置，拒绝启动')
+
         self.chains = os.getenv('CHAINS', 'ETH,BSC,BASE').split(',')
         
         # 从环境变量读取 RPC

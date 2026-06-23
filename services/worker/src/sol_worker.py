@@ -24,7 +24,10 @@ class SolanaWorker:
         self.running = True
         self.seen_tx = set()
         
-        self.redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
+        self.redis_url = os.getenv('REDIS_URL')
+        if not self.redis_url:
+            raise EnvironmentError('REDIS_URL 环境变量未设置，拒绝启动')
+
         self.rpc_url = os.getenv('RPC_URL_SOL', 'https://api.mainnet-beta.solana.com')
         
     async def connect(self):

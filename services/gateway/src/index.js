@@ -13,11 +13,19 @@ import crypto from 'crypto';
 const { Pool } = pg;
 
 const PORT = parseInt(process.env.PORT || '3100');
-const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://aihunter:aihunter2025@postgres:5432/aihunter';
+const REDIS_URL = process.env.REDIS_URL;
+const DATABASE_URL = process.env.DATABASE_URL;
 const AUTH_TOKEN = process.env.AUTH_TOKEN;
 if (!AUTH_TOKEN) {
   console.error('[FATAL] AUTH_TOKEN 环境变量未设置，拒绝启动。请在 .env 或环境变量中配置强密码。');
+  process.exit(1);
+}
+if (!DATABASE_URL) {
+  console.error('[FATAL] DATABASE_URL 环境变量未设置，拒绝启动。请在 .env 或环境变量中配置数据库连接串。');
+  process.exit(1);
+}
+if (!REDIS_URL) {
+  console.error('[FATAL] REDIS_URL 环境变量未设置，拒绝启动。请在 .env 或环境变量中配置 Redis 连接串。');
   process.exit(1);
 }
 
@@ -135,7 +143,7 @@ app.addHook('preHandler', async (request, reply) => {
   }
 
   const publicRoutes = [
-    '/health', '/api/rank/ping', '/api/prize/ping', '/api/system/status', '/ws',
+    '/health', '/api/rank/ping', '/api/prize/ping', '/api/system/status',
     '/api/signals/recent'
   ];
   if (publicRoutes.includes(request.url)) return;
@@ -1206,8 +1214,28 @@ app.get('/api/config/okx', async () => {
 
 // ====== 系统重启 API ======
 // ===== WebSocket =====
+// WebSocket 认证辅助函数
+function verifyWsToken(req) {
+  // 支持三种方式传递 token：
+  // 1. URL query param: /ws?token=xxx
+  // 2. Sec-WebSocket-Protocol header (protocol = token)
+  // 3. Authorization header (fallback)
+  const query = req.query || {};
+  const token = query.token
+    || (req.headers['sec-websocket-protocol'] || '').split(',')[0].trim()
+    || (req.headers['authorization'] || '').replace('Bearer ', '').trim();
+  return token && token === AUTH_TOKEN;
+}
+
 app.register(async function (fastify) {
   fastify.get('/ws', { websocket: true }, (socket, req) => {
+    // 握手时验证 token
+    if (!verifyWsToken(req)) {
+      socket.send(JSON.stringify({ type: 'error', message: 'Unauthorized' }));
+      socket.close(4001, 'Unauthorized');
+      return;
+    }
+
     const subscriber = new Redis(REDIS_URL);
     subscriber.subscribe('trade:signals', () => {
       socket.send(JSON.stringify({ type: 'connected', message: 'AIHunter 已连接' }));
