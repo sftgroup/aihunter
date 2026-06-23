@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Radio, Shield, AlertTriangle, Activity } from 'lucide-react';
 import type { Signal } from '../types/api';
 import { CHAIN_COLORS } from '../types/api';
+import { getWsConnection, type WsStatus } from '../utils/ws';
+import { getAuthToken } from '../utils/api';
 
 const cardBase: React.CSSProperties = {
   background: 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
@@ -9,45 +11,55 @@ const cardBase: React.CSSProperties = {
   borderRadius: 16, boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
 };
 
-const WS_URL = window.location.origin.replace(/^http/, 'ws') + '/ws';
-
 export default function SignalsPage() {
   const [signals, setSignals] = useState<Signal[]>([]);
   const [connected, setConnected] = useState(false);
   const [wsStatus, setWsStatus] = useState('连接中...');
+  const hasToken = !!getAuthToken();
+  const connRef = useRef(getWsConnection());
 
   useEffect(() => {
-    let ws: WebSocket;
-    let reconnectTimer: ReturnType<typeof setTimeout>;
-
-    function connect() {
-      ws = new WebSocket(WS_URL);
-      ws.onopen = () => {
-        setConnected(true);
-        setWsStatus('● 已连接');
-      };
-      ws.onmessage = (e) => {
-        try {
-          const msg = JSON.parse(e.data);
-          if (msg.type === 'signal' && msg.data) {
-            setSignals((prev) => [msg.data, ...prev].slice(0, 100));
-          }
-        } catch { /* ignore */ }
-      };
-      ws.onclose = () => {
-        setConnected(false);
-        setWsStatus('● 已断开，重连中...');
-        reconnectTimer = setTimeout(connect, 3000);
-      };
-      ws.onerror = () => ws.close();
+    if (!hasToken) {
+      setWsStatus('⚠ 请先配置 AUTH_TOKEN');
+      return;
     }
 
-    connect();
+    const conn = connRef.current;
+
+    const unsubMessage = conn.onMessage((msg: any) => {
+      if (msg.type === 'signal' && msg.data) {
+        setSignals((prev) => [msg.data, ...prev].slice(0, 100));
+      }
+    });
+
+    const unsubStatus = conn.onStatus((status: WsStatus) => {
+      switch (status) {
+        case 'open':
+          setConnected(true);
+          setWsStatus('● 已连接');
+          break;
+        case 'closed':
+          setConnected(false);
+          setWsStatus('● 已断开，重连中...');
+          break;
+        case 'connecting':
+          setWsStatus('连接中...');
+          break;
+        case 'error':
+          setConnected(false);
+          setWsStatus('● 连接错误');
+          break;
+      }
+    });
+
+    conn.connect();
+
     return () => {
-      clearTimeout(reconnectTimer);
-      ws?.close();
+      unsubMessage();
+      unsubStatus();
+      conn.disconnect();
     };
-  }, []);
+  }, [hasToken]);
 
   const stats = [
     {
