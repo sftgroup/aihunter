@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { TrendingUp, Activity, Zap, ChevronLeft, ChevronRight, Filter, Copy, Check, Wallet, ExternalLink, BarChart3, Power, RefreshCw } from 'lucide-react';
 import { signalsPageApi } from "../../utils/api";
 import LearningTab from "./LearningTab";
@@ -181,7 +181,13 @@ function RealTradeTab() {
   const [activeView, setActiveView] = useState('dashboard');
 
   useEffect(() => {
-    fetch('/api/trade/realtrades?limit=50')
+    // P0 fix — use authenticated fetch with Bearer token
+    const token = localStorage.getItem('aihunter_token');
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    fetch('/api/trade/realtrades?limit=50', { headers })
       .then(r => r.json())
       .then(d => { if (d?.code === 200) setRealTrades(d.data || []); })
       .catch(() => {});
@@ -189,7 +195,16 @@ function RealTradeTab() {
 
   useEffect(() => {
     if (!autoTrade) return;
-    const ws = new WebSocket((window.location.origin.replace(/^http/, 'ws')) + '/ws');
+    // P0 fix — use authenticated WebSocket with token
+    const wsOrigin = window.location.origin.replace(/^http/, 'ws');
+    let wsUrl = wsOrigin + '/ws';
+    const token = localStorage.getItem('aihunter_token');
+    if (token) {
+      wsUrl += `?token=${encodeURIComponent(token)}`;
+    } else {
+      console.warn('[MomentumTab] No auth token found for WebSocket');
+    }
+    const ws = new WebSocket(wsUrl);
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);

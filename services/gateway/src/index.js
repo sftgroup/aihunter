@@ -146,8 +146,13 @@ app.addHook('preHandler', async (request, reply) => {
     '/health', '/api/rank/ping', '/api/prize/ping', '/api/system/status',
     '/api/signals/recent'
   ];
+<<<<<<< HEAD
   const urlPath = request.url.split('?')[0];
   if (publicRoutes.includes(urlPath)) return;
+=======
+  const pathname = request.url.split('?')[0];
+  if (publicRoutes.includes(pathname)) return;
+>>>>>>> 14ce0fc21a17fecf5a7ca4fb43a1b88904ecb193
 
   const auth = request.headers.authorization;
   if (!auth || auth !== `Bearer ${AUTH_TOKEN}`) {
