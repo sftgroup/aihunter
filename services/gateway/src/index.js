@@ -35,7 +35,6 @@ const RESTART_COOLDOWN_MS = 60000;
 // 重启目标容器（白名单，仅允许重启以下容器）
 const CONTAINER_TARGETS = {
   worker: 'aihunter-worker',
-  gateway: 'aihunter-gateway',
 };
 const ALLOWED_RESTART_CONTAINERS = new Set(Object.values(CONTAINER_TARGETS));
 
@@ -1090,7 +1089,7 @@ app.post('/api/system/restart', async (request, reply) => {
   const { target } = request.body || {};
   const containerName = CONTAINER_TARGETS[target || 'worker'];
   if (!containerName) {
-    return reply.status(400).send({ error: '无效的目标，可选: worker / gateway / all' });
+    return reply.status(400).send({ error: '无效的目标，可选: worker / all' });
   }
   // 白名单检查：只允许重启预定义容器
   if (!ALLOWED_RESTART_CONTAINERS.has(containerName)) {
@@ -1138,7 +1137,7 @@ app.post('/api/system/restart', async (request, reply) => {
       }
 
       // 所有容器重启完成后，等待健康检查
-      const healthTarget = target === 'all' || target === 'gateway'
+      const healthTarget = target === 'all'
         ? `http://localhost:${PORT}/health`
         : null;
 
