@@ -287,6 +287,7 @@ export default function MomentumLivePage() {
   /* ---- WebSocket signals ---- */
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
   const reconnectAttempt = useRef(0);
+  const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
     let cancelled = false;
