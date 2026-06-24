@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { TrendingUp, PiggyBank, Settings, Monitor, ChevronLeft, ChevronRight } from 'lucide-react';
+import { TrendingUp, PiggyBank, Settings, Monitor, ChevronLeft, ChevronRight, Crosshair } from 'lucide-react';
 
 const navItems = [
   { label: "DEX 交易", icon: TrendingUp, href: "/dex" },
