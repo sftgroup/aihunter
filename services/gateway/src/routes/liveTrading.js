@@ -1,8 +1,9 @@
 // AIHunter Live Trading API Routes
 // 动量突破策略实盘交易后端 API
 
-const { Pool } = require('pg');
-const Redis = require('ioredis');
+import pg from 'pg';
+const { Pool } = pg;
+import { Redis } from 'ioredis';
 
 class LiveTradingRoutes {
   constructor(fastify, options) {
@@ -674,4 +675,4 @@ if (isNaN(daysNum)) { return reply.status(400).send({ code: 400, message: 'days 
   }
 }
 
-module.exports = LiveTradingRoutes;
+export default LiveTradingRoutes;
