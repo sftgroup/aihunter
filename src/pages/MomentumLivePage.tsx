@@ -3,7 +3,7 @@ import {
   LineChart, Line, AreaChart, Area, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar
 } from 'recharts';
-import { Wallet, Play, Pause, Settings, History, TrendingUp, AlertCircle, RefreshCw, BarChart as BarChartIcon } from 'lucide-react';
+import { Wallet, Play, Pause, Settings, History, TrendingUp, AlertCircle, RefreshCw, BarChart as BarChartIcon, Copy } from 'lucide-react';
 import { api, getAuthToken } from '../utils/api';
 
 const API = '/api';
@@ -29,6 +29,8 @@ interface LiveConfig {
   gas_strategy: 'slow' | 'medium' | 'fast';
   take_profit_pct: number;
   stop_loss_pct: number;
+  daily_max_loss: number;
+  max_holdings: number;
   auto_apply_params: boolean;
   pause_on_param_change: boolean;
 }
@@ -56,6 +58,8 @@ interface TradeRecord {
   amount_in?: string;
   pnl_usd?: string;
   status?: string;
+  tx_hash?: string;
+  chain?: string;
 }
 
 interface ChartPoint {
@@ -82,6 +86,22 @@ function fmtPnl(v: number | string | undefined) {
   return `${p ? '+' : ''}$${n.toFixed(2)}`;
 }
 
+function fmtTxHash(hash?: string) {
+  if (!hash || hash.length < 10) return hash || '—';
+  return hash.slice(0, 6) + '...' + hash.slice(-4);
+}
+
+function getExplorerUrl(chain: string | undefined, txHash: string | undefined): string {
+  if (!txHash) return '#';
+  const explorers: Record<string, string> = {
+    ETH: `https://etherscan.io/tx/${txHash}`,
+    BSC: `https://bscscan.com/tx/${txHash}`,
+    BASE: `https://basescan.org/tx/${txHash}`,
+    SOL: `https://solscan.io/tx/${txHash}`,
+  };
+  return explorers[chain?.toUpperCase() ?? ''] || `https://etherscan.io/tx/${txHash}`;
+}
+
 const COLORS = ['#10b981', '#ef4444', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899'];
 
 /* ------------------------------------------------------------------ */
@@ -100,14 +120,21 @@ export default function MomentumLivePage() {
     gas_strategy: 'medium',
     take_profit_pct: 10,
     stop_loss_pct: 5,
+    daily_max_loss: 500,
+    max_holdings: 10,
     auto_apply_params: true,
     pause_on_param_change: false,
   });
   const [configLoading, setConfigLoading] = useState(true);
 
+  /* ---- learning params ---- */
+  const [learningParams, setLearningParams] = useState<LiveConfig | null>(null);
+  const [learningDiff, setLearningDiff] = useState<Record<string, { old: number | string | boolean; new: number | string | boolean }> | null>(null);
+  const [learningBanner, setLearningBanner] = useState<{ diff: Record<string, { old: number | string | boolean; new: number | string | boolean }> } | null>(null);
+
   /* ---- trading ---- */
   const [isTrading, setIsTrading] = useState(false);
-  const [tradingStatus, setTradingStatus] = useState<{ today_trades?: number; today_pnl?: number }>({});
+  const [tradingStatus, setTradingStatus] = useState<{ today_trades?: number; today_pnl?: number; today_loss?: number; current_holdings?: number }>({});
   const [actionLoading, setActionLoading] = useState(false);
 
   /* ---- signals ---- */
@@ -219,12 +246,12 @@ export default function MomentumLivePage() {
     if (!isTrading) return;
     let cancelled = false;
     const poll = () => {
-      safeGet<{ is_active?: boolean; today_trades?: number; today_pnl?: number }>(
+      safeGet<{ is_active?: boolean; today_trades?: number; today_pnl?: number; today_loss?: number; current_holdings?: number }>(
         `${API}/live-trading/status`, 'status'
       ).then(d => {
         if (!cancelled && d) {
           setIsTrading(!!d.is_active);
-          setTradingStatus({ today_trades: d.today_trades, today_pnl: d.today_pnl });
+          setTradingStatus({ today_trades: d.today_trades, today_pnl: d.today_pnl, today_loss: d.today_loss, current_holdings: d.current_holdings });
         }
       });
     };
@@ -296,7 +323,7 @@ export default function MomentumLivePage() {
   const handleConfigChange = useCallback((patch: Partial<LiveConfig>) => {
     setConfig(prev => {
       const next = { ...prev, ...patch };
-      const criticalKeys = ['max_single_amount', 'slippage_tolerance', 'take_profit_pct', 'stop_loss_pct'];
+      const criticalKeys = ['max_single_amount', 'slippage_tolerance', 'take_profit_pct', 'stop_loss_pct', 'daily_max_loss', 'max_holdings'];
       const isCritical = Object.keys(patch).some(k => criticalKeys.includes(k));
 
       if (isTrading && isCritical) {
@@ -331,6 +358,63 @@ export default function MomentumLivePage() {
   }, [confirmDialog]);
 
   useEffect(() => { return () => clearTimeout(configTimer.current); }, []);
+
+  /* ---- learning params polling ---- */
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const poll = async () => {
+      if (cancelled) return;
+      const data = await safeGet<{ version: number; auto_apply_params?: boolean; pause_on_param_change?: boolean } & Record<string, any>>(
+        `${API}/live-trading/params?strategy=momentum`,
+        'learningParams'
+      );
+      if (cancelled || !data) {
+        timer = setTimeout(poll, 10000);
+        return;
+      }
+
+      setLearningParams(prev => {
+        if (!prev) return data as unknown as LiveConfig;
+
+        // Detect version change -> compute diff
+        if ((data as any).version !== (prev as any).version) {
+          const diff: Record<string, { old: any; new: any }> = {};
+          const keys: (keyof LiveConfig)[] = ['take_profit_pct', 'stop_loss_pct', 'daily_max_loss', 'max_holdings', 'max_single_amount', 'slippage_tolerance', 'gas_strategy'];
+          for (const k of keys) {
+            if (String(data[k] ?? '') !== String(prev[k] ?? '')) {
+              diff[k] = { old: prev[k] as any, new: data[k] as any };
+            }
+          }
+          if (Object.keys(diff).length > 0) {
+            setLearningDiff(diff);
+
+            if (data.auto_apply_params) {
+              // Auto-apply: POST config with new values
+              safePost(`${API}/live-trading/config`, diff, 'autoApply');
+              setConfig(c => ({ ...c, ...Object.fromEntries(Object.entries(diff).map(([k, v]) => [k, v.new])) }));
+              setLearningDiff(null);
+            } else {
+              // Show banner
+              setLearningBanner({ diff });
+            }
+
+            if (data.pause_on_param_change && isTrading) {
+              safePost(`${API}/live-trading/stop`, {}, 'autoStop');
+              setIsTrading(false);
+            }
+          }
+        }
+        return data as unknown as LiveConfig;
+      });
+
+      timer = setTimeout(poll, 10000);
+    };
+
+    poll();
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [safeGet, isTrading]);
 
   const handleStart = useCallback(async () => {
     if (!wallet?.authorized) {
@@ -482,6 +566,24 @@ export default function MomentumLivePage() {
                     />
                   </div>
                 </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">每日最大亏损 (USDT)</label>
+                  <input
+                    type="number"
+                    value={config.daily_max_loss}
+                    onChange={(e) => handleConfigChange({ daily_max_loss: Number(e.target.value) })}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">最大持仓数</label>
+                  <input
+                    type="number"
+                    value={config.max_holdings}
+                    onChange={(e) => handleConfigChange({ max_holdings: Number(e.target.value) })}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -510,6 +612,21 @@ export default function MomentumLivePage() {
                   checked={config.pause_on_param_change}
                   onChange={(v) => handleConfigChange({ pause_on_param_change: v })}
                 />
+                {learningDiff && Object.keys(learningDiff).length > 0 && (
+                  <div className="mt-3 p-3 rounded-lg bg-blue-900/20 border border-blue-800">
+                    <div className="text-xs text-blue-300 font-medium mb-2">参数差异</div>
+                    {Object.entries(learningDiff).map(([key, val]) => (
+                      <div key={key} className="flex items-center justify-between text-xs py-1">
+                        <span className="text-gray-400">{key}</span>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-red-400 line-through">{String(val.old)}</span>
+                          <span className="text-gray-500">→</span>
+                          <span className="text-green-400">{String(val.new)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -555,11 +672,80 @@ export default function MomentumLivePage() {
                     {fmtPnl(tradingStatus.today_pnl)}
                   </span>
                 </div>
+                <div className="text-gray-400">
+                  今日亏损: <span className="text-red-400">{fmtPnl(tradingStatus.today_loss)}</span>
+                  {(tradingStatus.today_loss ?? 0) <= -(config.daily_max_loss) && (
+                    <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-red-900/60 text-red-300 border border-red-700">已达上限</span>
+                  )}
+                </div>
+                <div className="text-gray-400">
+                  当前持仓: <span className="text-white font-medium">{tradingStatus.current_holdings ?? '—'}</span>
+                  {(tradingStatus.current_holdings ?? 0) >= config.max_holdings && (
+                    <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-yellow-900/60 text-yellow-300 border border-yellow-700">已达上限</span>
+                  )}
+                </div>
               </div>
             </div>
             {errors.start && <span className="text-xs text-red-400 ml-4">{errors.start}</span>}
           </div>
         </div>
+
+        {/* ============ Learning params notification banner ============ */}
+        {learningBanner && (
+          <div className="bg-blue-900/30 backdrop-blur-md border border-blue-700 rounded-xl p-4 mb-6">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center space-x-2 text-blue-300 text-sm font-medium mb-2">
+                  <TrendingUp className="w-4 h-4" />
+                  <span>学习系统已优化参数</span>
+                </div>
+                <div className="space-y-1">
+                  {Object.entries(learningBanner.diff).map(([key, val]) => (
+                    <div key={key} className="text-xs text-blue-200">
+                      {key === 'take_profit_pct' && `止盈${val.old}%→${val.new}%`}
+                      {key === 'stop_loss_pct' && `止损${val.old}%→${val.new}%`}
+                      {key === 'daily_max_loss' && `每日最大亏损$${val.old}→$${val.new}`}
+                      {key === 'max_holdings' && `最大持仓数${val.old}→${val.new}`}
+                      {key === 'max_single_amount' && `单笔上限$${val.old}→$${val.new}`}
+                      {key === 'slippage_tolerance' && `滑点容忍${val.old}%→${val.new}%`}
+                      {key === 'gas_strategy' && `Gas策略${val.old}→${val.new}`}
+                      {!['take_profit_pct', 'stop_loss_pct', 'daily_max_loss', 'max_holdings', 'max_single_amount', 'slippage_tolerance', 'gas_strategy'].includes(key) && `${key}: ${String(val.old)} → ${String(val.new)}`}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="flex items-center space-x-2 ml-4 shrink-0">
+                <button
+                  onClick={() => {
+                    // Apply: POST config with new values
+                    const patch: Record<string, any> = {};
+                    Object.entries(learningBanner.diff).forEach(([k, v]) => { patch[k] = v.new; });
+                    safePost(`${API}/live-trading/config`, patch, 'applyLearning');
+                    setConfig(c => ({ ...c, ...patch }));
+                    setLearningBanner(null);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition"
+                >
+                  应用
+                </button>
+                <button
+                  onClick={() => setLearningBanner(null)}
+                  className="px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs font-medium transition"
+                >
+                  忽略
+                </button>
+                <a
+                  href="/learning"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-blue-300 text-xs font-medium transition inline-flex items-center"
+                >
+                  查看详情
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ============ Signal Stream ============ */}
         <div className="bg-gray-900/50 backdrop-blur-md border border-gray-800 rounded-xl p-6 mb-6">
@@ -726,6 +912,7 @@ export default function MomentumLivePage() {
                       <th className="text-left py-2">金额</th>
                       <th className="text-left py-2">盈亏</th>
                       <th className="text-left py-2">状态</th>
+                      <th className="text-left py-2">TxHash</th>
                     </tr>
                   </thead>
                   <tbody className="text-gray-300">
@@ -747,6 +934,30 @@ export default function MomentumLivePage() {
                               t.status === '失败' || t.status === 'failed' ? 'bg-red-900/50 text-red-400' :
                               'bg-yellow-900/50 text-yellow-400'
                             }`}>{t.status || '—'}</span>
+                          </td>
+                          <td className="py-3">
+                            {t.tx_hash ? (
+                              <div className="flex items-center space-x-1.5">
+                                <a
+                                  href={getExplorerUrl(t.chain, t.tx_hash)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-400 hover:text-blue-300 underline underline-offset-2 decoration-blue-700"
+                                  title={`${t.chain || 'ETH'}: ${t.tx_hash}`}
+                                >
+                                  {fmtTxHash(t.tx_hash)}
+                                </a>
+                                <button
+                                  onClick={() => navigator.clipboard.writeText(t.tx_hash!)}
+                                  className="text-gray-500 hover:text-gray-300 transition"
+                                  title="复制 TxHash"
+                                >
+                                  <Copy className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-gray-600">—</span>
+                            )}
                           </td>
                         </tr>
                       );
