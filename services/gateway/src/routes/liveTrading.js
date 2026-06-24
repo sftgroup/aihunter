@@ -60,9 +60,8 @@ class LiveTradingRoutes {
         }
       }
 
-      if (!walletAddress) {
-        const hex = Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-        walletAddress = '0x' + hex;
+if (!walletAddress) {
+        return reply.status(500).send({ code: 500, message: 'OKX API 创建钱包失败，请稍后重试' });
       }
 
       const result = await this.db.query(
@@ -148,6 +147,10 @@ class LiveTradingRoutes {
          SET status = 'revoked', expires_at = NOW()
          WHERE id = $1 AND user_id = $2`,
         [walletId, userId]
+
+      if (result.rowCount === 0) {
+        return reply.status(404).send({ code: 404, message: 钱包不存在或无权操作 });
+      }
       );
 
       return reply.send({ code: 200, message: '授权已撤销' });
@@ -252,7 +255,7 @@ class LiveTradingRoutes {
         return reply.status(400).send({ code: 400, message: '缺少 userId' });
       }
 
-      const params = await this.redis.get(`params:momentum`);
+      const params = await this.redis.get(`params:momentum:${userId}`);
 
       return reply.send({
         code: 200,
@@ -275,7 +278,7 @@ class LiveTradingRoutes {
       }
 
       const walletResult = await this.db.query(
-        `SELECT * FROM agentic_wallets WHERE user_id = $1 AND status = 'authorized'`,
+        `SELECT * FROM agentic_wallets WHERE user_id = $1 AND status = 'authorized' AND expires_at > NOW()`,
         [userId]
       );
 
@@ -433,6 +436,7 @@ class LiveTradingRoutes {
       }
 
       const daysNum = Math.min(365, Math.max(1, parseInt(days) || 7));
+if (isNaN(daysNum)) { return reply.status(400).send({ code: 400, message: 'days 参数无效' }); }
 
       const result = await this.db.query(
         `SELECT DATE(created_at) as date, SUM(pnl_usd) as pnl
@@ -481,6 +485,7 @@ class LiveTradingRoutes {
       }
 
       const daysNum = Math.min(365, Math.max(1, parseInt(days) || 7));
+if (isNaN(daysNum)) { return reply.status(400).send({ code: 400, message: 'days 参数无效' }); }
 
       const result = await this.db.query(
         `SELECT DATE(created_at) as date, SUM(amount_in) as total

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Activity, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Filter } from 'lucide-react';
 import { signalsPageApi } from '../../utils/api';
 
 const cardBase: React.CSSProperties = {
@@ -18,7 +18,6 @@ export default function MomentumTab() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [chainFilter, setChainFilter] = useState('');
-  const [actionFilter, setActionFilter] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -29,8 +28,7 @@ export default function MomentumTab() {
     }).catch(() => setLoading(false));
   }, [page, chainFilter]);
 
-  const filtered = actionFilter ? signals.filter(s => s.action === actionFilter) : signals;
-  const totalPages = Math.ceil((actionFilter ? filtered.length : total) / PAGE_SIZE);
+  const totalPages = Math.ceil(total / PAGE_SIZE);
 
   const navBtn: React.CSSProperties = {
     padding: '6px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.1)',
@@ -41,23 +39,10 @@ export default function MomentumTab() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* 扫描中代币 */}
       <div style={{ ...cardBase, padding: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 12 }}>
           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             <Filter size={12} color='var(--dark-400)' />
-            {['', 'buy', 'pass'].map(a => (
-              <button key={a} onClick={() => { setActionFilter(a); setPage(1); }}
-                style={{
-                  padding: '3px 8px', borderRadius: 6, border: 'none', fontSize: 10, fontWeight: 500,
-                  cursor: 'pointer',
-                  background: actionFilter === a ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.05)',
-                  color: actionFilter === a ? 'white' : 'var(--dark-400)',
-                }}>
-                {a === '' ? '全部' : a === 'buy' ? 'BUY' : 'PASS'}
-              </button>
-            ))}
-            <span style={{width:8}}></span>
             {['', 'ETH', 'BSC', 'BASE', 'SOL'].map(c => (
               <button key={c} onClick={() => { setChainFilter(c); setPage(1); }}
                 style={{
@@ -73,10 +58,10 @@ export default function MomentumTab() {
         </div>
 
         {loading && signals.length === 0 ? <p style={{ textAlign: 'center', color: 'var(--dark-400)', padding: 24, fontSize: 13 }}>加载中...</p>
-        : filtered.length === 0 ? <p style={{ textAlign: 'center', color: 'var(--dark-400)', padding: 24, fontSize: 13 }}>暂无匹配的代币</p>
+        : signals.length === 0 ? <p style={{ textAlign: 'center', color: 'var(--dark-400)', padding: 24, fontSize: 13 }}>暂无匹配的代币</p>
         : <div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {filtered.map((sig: any) => {
+            {signals.map((sig: any) => {
               const cc = chainColors[sig.chain] || '#808080';
               const sc = sig.score || sig.confidence || 0;
               return (

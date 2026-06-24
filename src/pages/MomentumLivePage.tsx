@@ -3,16 +3,18 @@ import {
   LineChart, Line, AreaChart, Area, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar
 } from 'recharts';
-import { Wallet, Play, Pause, Settings, History, TrendingUp, AlertCircle, RefreshCw } from 'lucide-react';
+import { Wallet, Play, Pause, Settings, History, TrendingUp, AlertCircle, RefreshCw, BarChart as BarChartIcon } from 'lucide-react';
 import { api, getAuthToken } from '../utils/api';
 
 const API = '/api';
+const USER_ID = 'live-user-1';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
 interface WalletStatus {
+  id?: number;
   wallet_address?: string;
   chain?: string;
   status?: string;
@@ -128,7 +130,9 @@ export default function MomentumLivePage() {
 
   /* ---- refs ---- */
   const statusTimer = useRef<ReturnType<typeof setInterval>>();
-  const wsRef = useRef<WebSocket>();
+  const mountedRef = useRef(true);
+
+  useEffect(() => { return () => { mountedRef.current = false; }; }, []);
 
   /* ================================================================== */
   /*  API helpers                                                        */
@@ -136,7 +140,9 @@ export default function MomentumLivePage() {
 
   const safeGet = useCallback(async <T,>(path: string, key: string): Promise<T | null> => {
     try {
-      const res = await api.get<{ code: number; data?: T; message?: string }>(path);
+      const sep = path.includes('?') ? '&' : '?';
+      const url = `${path}${sep}userId=${USER_ID}`;
+      const res = await api.get<{ code: number; data?: T; message?: string }>(url);
       if (res && res.code === 200 && res.data !== undefined) {
         setErrors(e => { const n = { ...e }; delete n[key]; return n; });
         return res.data;
@@ -151,7 +157,8 @@ export default function MomentumLivePage() {
 
   const safePost = useCallback(async <T,>(path: string, body: unknown, key: string): Promise<T | null> => {
     try {
-      const res = await api.post<{ code: number; data?: T; message?: string; error?: string }>(path, { json: body });
+      const bodyWithUser = { ...(body as Record<string, unknown>), userId: USER_ID };
+      const res = await api.post<{ code: number; data?: T; message?: string; error?: string }>(path, { json: bodyWithUser });
       if (res && res.code === 200) {
         setErrors(e => { const n = { ...e }; delete n[key]; return n; });
         return (res.data ?? res) as unknown as T;
@@ -169,45 +176,53 @@ export default function MomentumLivePage() {
   /* ================================================================== */
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       setWalletLoading(true);
       const data = await safeGet<WalletStatus>(`${API}/agentic-wallet/status`, 'wallet');
-      if (data) setWallet(data);
-      setWalletLoading(false);
+      if (!cancelled && data) setWallet(data);
+      if (!cancelled) setWalletLoading(false);
     })();
+    return () => { cancelled = true; };
   }, [safeGet]);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       setConfigLoading(true);
       const data = await safeGet<LiveConfig>(`${API}/live-trading/config?strategy=momentum`, 'config');
-      if (data) setConfig(data);
-      setConfigLoading(false);
+      if (!cancelled && data) setConfig(data);
+      if (!cancelled) setConfigLoading(false);
     })();
+    return () => { cancelled = true; };
   }, [safeGet]);
 
   /* ---- load charts once ---- */
   useEffect(() => {
-    safeGet<ChartPoint[]>(`${API}/live-trading/chart/pnl?days=${chartDays}`, 'pnl').then(d => d && setPnlData(d));
-    safeGet<ChartPoint[]>(`${API}/live-trading/chart/distribution`, 'dist').then(d => d && setDistributionData(d));
-    safeGet<ChartPoint[]>(`${API}/live-trading/chart/assets?days=${chartDays}`, 'assets').then(d => d && setAssetData(d));
-    safeGet<ChartPoint[]>(`${API}/live-trading/chart/tokens`, 'tokens').then(d => d && setTokenData(d));
+    safeGet<{ date: string; pnl: number }[]>(`${API}/live-trading/chart/pnl?days=${chartDays}`, 'pnl').then(d => d && setPnlData(d.map(r => ({ time: r.date, pnl: r.pnl }))));
+    safeGet<{ wins: number; losses: number }>(`${API}/live-trading/chart/distribution`, 'dist').then(d => d && setDistributionData([
+      { name: '盈利', value: d.wins || 0, color: '#10b981' },
+      { name: '亏损', value: d.losses || 0, color: '#ef4444' },
+    ]));
+    safeGet<{ date: string; total: number }[]>(`${API}/live-trading/chart/assets?days=${chartDays}`, 'assets').then(d => d && setAssetData(d.map(r => ({ time: r.date, value: r.total }))));
+    safeGet<{ token: string; pnl: number }[]>(`${API}/live-trading/chart/tokens`, 'tokens').then(d => d && setTokenData(d));
   }, [safeGet, chartDays]);
 
   /* ---- load trades ---- */
   useEffect(() => {
-    safeGet<TradeRecord[]>(`${API}/live-trading/trades?date=${tradeDate}&page=${tradePage}&limit=20`, 'trades')
-      .then(d => d && setTrades(d));
+    safeGet<{ records: TradeRecord[]; total: number }>(`${API}/live-trading/trades?date=${tradeDate}&page=${tradePage}&limit=20`, 'trades')
+      .then(d => d && setTrades(d.records));
   }, [safeGet, tradeDate, tradePage]);
 
   /* ---- trading status polling ---- */
   useEffect(() => {
     if (!isTrading) return;
+    let cancelled = false;
     const poll = () => {
       safeGet<{ is_active?: boolean; today_trades?: number; today_pnl?: number }>(
         `${API}/live-trading/status`, 'status'
       ).then(d => {
-        if (d) {
+        if (!cancelled && d) {
           setIsTrading(!!d.is_active);
           setTradingStatus({ today_trades: d.today_trades, today_pnl: d.today_pnl });
         }
@@ -215,7 +230,7 @@ export default function MomentumLivePage() {
     };
     poll();
     statusTimer.current = setInterval(poll, 3000);
-    return () => clearInterval(statusTimer.current);
+    return () => { cancelled = true; clearInterval(statusTimer.current); };
   }, [isTrading, safeGet]);
 
   /* ---- WebSocket signals ---- */
@@ -248,7 +263,6 @@ export default function MomentumLivePage() {
   const handleConfigChange = useCallback((patch: Partial<LiveConfig>) => {
     setConfig(prev => {
       const next = { ...prev, ...patch };
-      // Debounce save
       clearTimeout(configTimer.current);
       configTimer.current = setTimeout(() => {
         safePost(`${API}/live-trading/config`, next, 'saveConfig');
@@ -256,6 +270,8 @@ export default function MomentumLivePage() {
       return next;
     });
   }, [safePost]);
+
+  useEffect(() => { return () => clearTimeout(configTimer.current); }, []);
 
   const handleStart = useCallback(async () => {
     if (!wallet?.authorized) {
@@ -276,9 +292,9 @@ export default function MomentumLivePage() {
   }, [safePost]);
 
   const handleRevoke = useCallback(async () => {
-    await safePost(`${API}/agentic-wallet/revoke`, {}, 'revoke');
+    await safePost(`${API}/agentic-wallet/revoke`, { walletId: wallet?.id }, 'revoke');
     setWallet(null);
-  }, [safePost]);
+  }, [wallet, safePost]);
 
   /* ================================================================== */
   /*  Render                                                             */
@@ -286,7 +302,6 @@ export default function MomentumLivePage() {
 
   const walletConnected = !!wallet?.wallet_address;
   const authorized = !!wallet?.authorized;
-  const loading = walletLoading || configLoading;
 
   return (
     <div className="min-h-screen bg-[#0d1117] text-gray-100">
@@ -723,13 +738,11 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
 function EmptyChart() {
   return (
     <div className="text-center py-10">
-      <BarChart className="w-8 h-8 text-gray-600 mx-auto mb-2" />
+      <BarChartIcon className="w-8 h-8 text-gray-600 mx-auto mb-2" />
       <p className="text-xs text-gray-500">暂无数据</p>
     </div>
   );
 }
-
-import { BarChart as BarChartIcon } from 'lucide-react';
 
 function Toggle({ label, desc, checked, onChange }: {
   label: string; desc: string; checked: boolean; onChange: (v: boolean) => void;
