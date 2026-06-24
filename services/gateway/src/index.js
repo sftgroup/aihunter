@@ -139,7 +139,7 @@ app.addHook('preHandler', async (request, reply) => {
   const rl = checkRateLimit(clientIp, RATE_LIMIT_MAX, rateLimitMap);
   if (!rl.allowed) {
     reply.header('Retry-After', rl.retryAfter);
-    return reply.status(429).send({ error: 'Too Many Requests', retryAfter: rl.retryAfter });
+    return reply.status(429).send({ code: 429, error: 'Too Many Requests', retryAfter: rl.retryAfter });
   }
 
   const publicRoutes = [
@@ -155,9 +155,9 @@ app.addHook('preHandler', async (request, reply) => {
     const fl = checkRateLimit(clientIp, AUTH_FAIL_LIMIT, AUTH_FAIL_MAP);
     if (!fl.allowed) {
       reply.header('Retry-After', fl.retryAfter);
-      return reply.status(429).send({ error: 'Too Many Requests', retryAfter: fl.retryAfter });
+      return reply.status(429).send({ code: 429, error: 'Too Many Requests', retryAfter: fl.retryAfter });
     }
-    return reply.status(401).send({ error: 'Unauthorized' });
+    return reply.status(401).send({ code: 401, error: "Unauthorized" });
   }
 });
 // ===== 健康检查 =====
@@ -1098,11 +1098,11 @@ app.post('/api/system/restart', async (request, reply) => {
   const { target } = request.body || {};
   const containerName = CONTAINER_TARGETS[target || 'worker'];
   if (!containerName) {
-    return reply.status(400).send({ error: '无效的目标，可选: worker / all' });
+    return reply.status(400).send({ code: 400, error: '无效的目标，可选: worker / all' });
   }
   // 白名单检查：只允许重启预定义容器
   if (!ALLOWED_RESTART_CONTAINERS.has(containerName)) {
-    return reply.status(403).send({ error: '禁止重启未授权的容器' });
+    return reply.status(403).send({ code: 403, error: '禁止重启未授权的容器' });
   }
 
   // Redis 冷却检查
@@ -1184,7 +1184,7 @@ app.get('/api/system/restart/status', async (request) => {
 app.post('/api/config/okx', async (request, reply) => {
   const { apiKey, secretKey, passphrase } = request.body || {};
   if (!apiKey || !secretKey || !passphrase) {
-    return reply.status(400).send({ error: '缺少参数: apiKey, secretKey, passphrase' });
+    return reply.status(400).send({ code: 400, error: '缺少参数: apiKey, secretKey, passphrase' });
   }
 
   // 写入 sys_config 表
