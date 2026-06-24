@@ -3,7 +3,6 @@ import { TrendingUp, PiggyBank, Settings, Monitor, ChevronLeft, ChevronRight, Cr
 
 const navItems = [
   { label: "DEX 交易", icon: TrendingUp, href: "/dex" },
-  { label: "交易中心", icon: TrendingUp, href: "/trades" },
   { label: "DeFi 套利", icon: PiggyBank, href: "/defi" },
   { label: "配置", icon: Settings, href: "/config" },
   { label: "系统", icon: Monitor, href: "/system" },
