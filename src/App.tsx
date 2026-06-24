@@ -12,6 +12,7 @@ import SignalsPage from './pages/SignalsPage';
 import DexPage from "./pages/DexPage";
 import DeFiPage from "./pages/DeFiPage";
 import TradesPage from './pages/TradesPage';
+import MomentumLivePage from './pages/MomentumLivePage';
 import ConfigPage from './pages/ConfigPage';
 import SystemPage from './pages/SystemPage';
 
@@ -84,6 +85,7 @@ function AppContent() {
               <Route path="/defi" element={<DeFiPage />} />
               <Route path="/signals" element={<SignalsPage />} />
               <Route path="/trades" element={<TradesPage />} />
+              <Route path="/live" element={<MomentumLivePage />} />
               <Route path="/config" element={<ConfigPage />} />
               <Route path="/system" element={<SystemPage />} />
             </Routes>

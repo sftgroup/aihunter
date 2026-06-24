@@ -1,8 +1,9 @@
 import { Link, useLocation } from 'react-router-dom';
-import { TrendingUp, PiggyBank, Settings, Monitor, ChevronLeft, ChevronRight, Crosshair } from 'lucide-react';
+import { TrendingUp, PiggyBank, Settings, Monitor, ChevronLeft, ChevronRight, Crosshair, Target } from 'lucide-react';
 
 const navItems = [
   { label: "DEX 交易", icon: TrendingUp, href: "/dex" },
+  { label: "实盘交易", icon: Target, href: "/live" },
   { label: "DeFi 套利", icon: PiggyBank, href: "/defi" },
   { label: "配置", icon: Settings, href: "/config" },
   { label: "系统", icon: Monitor, href: "/system" },
