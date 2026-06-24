@@ -1169,15 +1169,15 @@ app.post('/api/system/restart', async (request, reply) => {
     }
   });
 
-  return reply.status(202).send({ jobId, status: 'restarting' });
+  return reply.status(202).send({ code: 202, data: { jobId, status: 'restarting' } });
 });
 
 app.get('/api/system/restart/status', async (request) => {
   const { jobId } = request.query;
-  if (!jobId) return { error: '缺少 jobId' };
+  if (!jobId) return { code: 400, error: '缺少 jobId' };
   const job = restartJobs.get(jobId);
-  if (!job) return { status: 'not_found' };
-  return { status: job.status, target: job.target, error: job.error };
+  if (!job) return { code: 404, error: '任务不存在', data: { status: 'not_found' } };
+  return { code: 200, data: { jobId, status: job.status, target: job.target, error: job.error, startedAt: job.startedAt, completedAt: job.completedAt } };
 });
 
 // ====== OKX 配置 API ======
