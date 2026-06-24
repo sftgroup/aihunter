@@ -383,7 +383,7 @@ export default function MomentumLivePage() {
           const diff: Record<string, { old: any; new: any }> = {};
           const keys: (keyof LiveConfig)[] = ['take_profit_pct', 'stop_loss_pct', 'daily_max_loss', 'max_holdings', 'max_single_amount', 'slippage_tolerance', 'gas_strategy'];
           for (const k of keys) {
-            if (String(data[k] ?? '') !== String(prev[k] ?? '')) {
+            if (data[k] !== prev[k]) {
               diff[k] = { old: prev[k] as any, new: data[k] as any };
             }
           }
@@ -392,7 +392,7 @@ export default function MomentumLivePage() {
 
             if (data.auto_apply_params) {
               // Auto-apply: POST config with new values
-              safePost(`${API}/live-trading/config`, diff, 'autoApply');
+              safePost(`${API}/live-trading/config`, Object.fromEntries(Object.entries(diff).map(([k, v]) => [k, v.new])), 'autoApply');
               setConfig(c => ({ ...c, ...Object.fromEntries(Object.entries(diff).map(([k, v]) => [k, v.new])) }));
               setLearningDiff(null);
             } else {
