@@ -29,6 +29,7 @@ export class WsConnection {
   private reconnectMs: number;
   private maxReconnectMs: number;
   private shouldReconnect: boolean;
+  private reconnectAttempt: number;
 
   private messageHandlers: Set<MessageHandler> = new Set();
   private statusHandlers: Set<StatusHandler> = new Set();
@@ -42,6 +43,7 @@ export class WsConnection {
     this.reconnectMs = options?.reconnectMs ?? 1000;
     this.maxReconnectMs = options?.maxReconnectMs ?? 30000;
     this.shouldReconnect = true;
+    this.reconnectAttempt = 0;
   }
 
   // ---- public API ----
@@ -73,6 +75,7 @@ export class WsConnection {
     this.ws.onopen = () => {
       this.notifyStatus('open');
       this.reconnectMs = 1000; // reset backoff
+      this.reconnectAttempt = 0;
     };
 
     this.ws.onmessage = (event: MessageEvent) => {
@@ -97,6 +100,8 @@ export class WsConnection {
       this.ws = null;
 
       if (this.shouldReconnect && event.code !== 1000) {
+        this.reconnectAttempt++;
+        this.reconnectAttempt = Math.min(this.reconnectAttempt, 10);
         this.scheduleReconnect();
       }
     };

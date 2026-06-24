@@ -1,6 +1,3 @@
-import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
-import { Link } from 'react-router-dom';
-
 interface ErrorFallbackProps {
   error?: Error;
   resetErrorBoundary?: () => void;
@@ -17,9 +14,10 @@ export default function ErrorFallback({ error, resetErrorBoundary }: ErrorFallba
         minHeight: '100vh',
         background: 'var(--dark-950)',
         padding: 24,
+        fontFamily: 'system-ui, -apple-system, sans-serif',
       }}
     >
-      {/* Error icon */}
+      {/* Error icon — inline SVG, no external dependency */}
       <div
         style={{
           width: 80,
@@ -33,7 +31,11 @@ export default function ErrorFallback({ error, resetErrorBoundary }: ErrorFallba
           border: '1px solid rgba(239,68,68,0.2)',
         }}
       >
-        <AlertTriangle size={40} style={{ color: 'var(--accent-red)' }} />
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--accent-red)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+          <line x1="12" y1="9" x2="12" y2="13" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
+        </svg>
       </div>
 
       {/* Title */}
@@ -67,7 +69,6 @@ export default function ErrorFallback({ error, resetErrorBoundary }: ErrorFallba
       <div style={{ display: 'flex', gap: 12, marginBottom: 32 }}>
         <button
           onClick={resetErrorBoundary}
-          className="btn-primary"
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -80,25 +81,18 @@ export default function ErrorFallback({ error, resetErrorBoundary }: ErrorFallba
             fontWeight: 500,
             cursor: 'pointer',
             border: 'none',
-            transition: 'all 0.2s',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'var(--accent-600)';
-            e.currentTarget.style.boxShadow = '0 0 16px rgba(99,102,241,0.3)';
-            e.currentTarget.style.transform = 'translateY(-1px)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'var(--accent)';
-            e.currentTarget.style.boxShadow = 'none';
-            e.currentTarget.style.transform = 'translateY(0)';
           }}
         >
-          <RefreshCw size={16} />
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="23 4 23 10 17 10" />
+            <polyline points="1 20 1 14 7 14" />
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+          </svg>
           重试
         </button>
 
-        <Link
-          to="/"
+        <a
+          href="/"
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -111,23 +105,17 @@ export default function ErrorFallback({ error, resetErrorBoundary }: ErrorFallba
             fontSize: 14,
             fontWeight: 500,
             textDecoration: 'none',
-            transition: 'all 0.2s',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-            e.currentTarget.style.color = 'white';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-            e.currentTarget.style.color = 'var(--dark-200)';
           }}
         >
-          <Home size={16} />
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+            <polyline points="9 22 9 12 15 12 15 22" />
+          </svg>
           返回首页
-        </Link>
+        </a>
       </div>
 
-      {/* Error details - collapsible */}
+      {/* Error details — collapsible */}
       {error && (
         <details
           style={{
