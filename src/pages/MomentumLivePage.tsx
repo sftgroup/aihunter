@@ -234,21 +234,52 @@ export default function MomentumLivePage() {
   }, [isTrading, safeGet]);
 
   /* ---- WebSocket signals ---- */
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
+  const reconnectAttempt = useRef(0);
+
   useEffect(() => {
-    const wsOrigin = window.location.origin.replace(/^http/, 'ws');
-    const token = getAuthToken();
-    const url = token ? `${wsOrigin}/ws?token=${encodeURIComponent(token)}` : `${wsOrigin}/ws`;
-    const ws = new WebSocket(url);
-    wsRef.current = ws;
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-        if ((msg.type === 'signal' || msg.type === 'SIGNAL') && msg.data) {
-          setSignals(prev => [msg.data, ...prev].slice(0, 100));
-        }
-      } catch { /* ignore */ }
+    let cancelled = false;
+    const MAX_DELAY = 30000;
+
+    const connect = () => {
+      if (cancelled) return;
+      const wsOrigin = window.location.origin.replace(/^http/, 'ws');
+      const token = getAuthToken();
+      const url = token ? `${wsOrigin}/ws?token=${encodeURIComponent(token)}` : `${wsOrigin}/ws`;
+      const ws = new WebSocket(url);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        reconnectAttempt.current = 0;
+      };
+
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          if ((msg.type === 'signal' || msg.type === 'SIGNAL') && msg.data) {
+            setSignals(prev => [msg.data, ...prev].slice(0, 100));
+          }
+        } catch { /* ignore */ }
+      };
+
+      ws.onclose = () => {
+        if (cancelled) return;
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttempt.current), MAX_DELAY);
+        reconnectAttempt.current++;
+        reconnectTimer.current = setTimeout(connect, delay);
+      };
+
+      ws.onerror = () => {
+        ws.close();
+      };
     };
-    return () => ws.close();
+
+    connect();
+    return () => {
+      cancelled = true;
+      clearTimeout(reconnectTimer.current);
+      if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close(); }
+    };
   }, []);
 
   /* ================================================================== */
@@ -260,16 +291,44 @@ export default function MomentumLivePage() {
   }, [config, safePost]);
 
   const configTimer = useRef<ReturnType<typeof setTimeout>>();
+  const [confirmDialog, setConfirmDialog] = useState<{ patch: Partial<LiveConfig> } | null>(null);
+
   const handleConfigChange = useCallback((patch: Partial<LiveConfig>) => {
     setConfig(prev => {
       const next = { ...prev, ...patch };
-      clearTimeout(configTimer.current);
-      configTimer.current = setTimeout(() => {
-        safePost(`${API}/live-trading/config`, next, 'saveConfig');
-      }, 500);
+      const criticalKeys = ['max_single_amount', 'slippage_tolerance', 'take_profit_pct', 'stop_loss_pct'];
+      const isCritical = Object.keys(patch).some(k => criticalKeys.includes(k));
+
+      if (isTrading && isCritical) {
+        clearTimeout(configTimer.current);
+        setConfirmDialog({ patch });
+      } else {
+        clearTimeout(configTimer.current);
+        configTimer.current = setTimeout(() => {
+          safePost(`${API}/live-trading/config`, next, 'saveConfig');
+        }, 500);
+      }
       return next;
     });
-  }, [safePost]);
+  }, [safePost, isTrading]);
+
+  const confirmConfigChange = useCallback(() => {
+    if (!confirmDialog) return;
+    safePost(`${API}/live-trading/config`, { ...config, ...confirmDialog.patch }, 'saveConfig');
+    setConfirmDialog(null);
+  }, [confirmDialog, config, safePost]);
+
+  const cancelConfigChange = useCallback(() => {
+    if (!confirmDialog) return;
+    setConfig(prev => {
+      const next = { ...prev };
+      Object.keys(confirmDialog.patch).forEach(k => {
+        (next as any)[k] = prev[k as keyof typeof prev];
+      });
+      return next;
+    });
+    setConfirmDialog(null);
+  }, [confirmDialog]);
 
   useEffect(() => { return () => clearTimeout(configTimer.current); }, []);
 
@@ -705,6 +764,22 @@ export default function MomentumLivePage() {
             </>
           )}
         </div>
+
+        {/* ============ Config confirm dialog ============ */}
+        {confirmDialog && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={cancelConfigChange}>
+            <div className="bg-gray-900 border border-yellow-700 rounded-xl p-6 max-w-sm mx-4" onClick={e => e.stopPropagation()}>
+              <h4 className="text-yellow-400 font-medium mb-2">⚠️ 确认修改</h4>
+              <p className="text-sm text-gray-300 mb-4">
+                实盘交易运行中，修改关键参数可能影响正在进行的交易。确定要保存吗？
+              </p>
+              <div className="flex space-x-3">
+                <button onClick={confirmConfigChange} className="flex-1 px-4 py-2 rounded-lg bg-yellow-600 hover:bg-yellow-700 text-white text-sm transition">确认修改</button>
+                <button onClick={cancelConfigChange} className="flex-1 px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm transition">取消</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ============ Error toast ============ */}
         {Object.keys(errors).length > 0 && (

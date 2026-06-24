@@ -330,20 +330,27 @@ if (!walletAddress) {
         return reply.status(400).send({ code: 400, message: '缺少 userId' });
       }
 
-      const result = await this.db.query(
-        `SELECT * FROM live_trading_configs WHERE user_id = $1`,
-        [userId]
-      );
+      const [configResult, statsResult] = await Promise.all([
+        this.db.query(`SELECT * FROM live_trading_configs WHERE user_id = $1`, [userId]),
+        this.db.query(
+          `SELECT COUNT(*)::int as today_trades, COALESCE(SUM(pnl_usd), 0)::float as today_pnl
+           FROM live_trade_records
+           WHERE user_id = $1 AND created_at >= CURRENT_DATE`,
+          [userId]
+        )
+      ]);
 
-      if (result.rows.length === 0) {
+      if (configResult.rows.length === 0) {
+        const stats = statsResult.rows[0] || { today_trades: 0, today_pnl: 0 };
         return reply.send({
           code: 200,
-          data: { is_active: false, strategy: 'momentum', config: null },
+          data: { is_active: false, strategy: 'momentum', config: null, ...stats },
           message: '暂无配置，交易未开启'
         });
       }
 
-      return reply.send({ code: 200, data: result.rows[0] });
+      const stats = statsResult.rows[0] || { today_trades: 0, today_pnl: 0 };
+      return reply.send({ code: 200, data: { ...configResult.rows[0], ...stats } });
     } catch (error) {
       console.error('[getStatus]', error);
       return reply.status(500).send({ code: 500, message: error.message });
@@ -408,6 +415,13 @@ if (!walletAddress) {
             countQuery += ` AND created_at >= NOW() - INTERVAL '30 days'`;
             break;
         }
+      } else if (startDate) {
+        countQuery += ` AND created_at >= $${2}`;
+        countParams.push(startDate);
+      }
+      if (endDate) {
+        countQuery += ` AND created_at <= $${countParams.length + 2}`;
+        countParams.push(endDate);
       }
       const countResult = await this.db.query(countQuery, countParams);
 
