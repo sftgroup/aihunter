@@ -152,6 +152,30 @@ export default function MomentumLivePage() {
   const [tradeDate, setTradeDate] = useState('all');
   const [tradePage, setTradePage] = useState(1);
 
+  const buildTradesQuery = useCallback(() => {
+    // Ensure date and endDate are mutually exclusive
+    const params = new URLSearchParams();
+    if (tradeDate === 'all') {
+      params.set('date', 'all');
+    } else if (tradeDate === 'today') {
+      params.set('date', 'today');
+    } else {
+      // Use date range instead of date label to avoid ambiguity
+      const now = new Date();
+      const start = new Date(now);
+      if (tradeDate === 'week') {
+        start.setDate(start.getDate() - 7);
+      } else if (tradeDate === 'month') {
+        start.setMonth(start.getMonth() - 1);
+      }
+      params.set('startDate', start.toISOString().slice(0, 10));
+      params.set('endDate', now.toISOString().slice(0, 10));
+    }
+    params.set('page', String(tradePage));
+    params.set('limit', '20');
+    return params.toString();
+  }, [tradeDate, tradePage]);
+
   /* ---- errors ---- */
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -237,9 +261,9 @@ export default function MomentumLivePage() {
 
   /* ---- load trades ---- */
   useEffect(() => {
-    safeGet<{ records: TradeRecord[]; total: number }>(`${API}/live-trading/trades?date=${tradeDate}&page=${tradePage}&limit=20`, 'trades')
+    safeGet<{ records: TradeRecord[]; total: number }>(`${API}/live-trading/trades?${buildTradesQuery()}`, 'trades')
       .then(d => d && setTrades(d.records));
-  }, [safeGet, tradeDate, tradePage]);
+  }, [safeGet, buildTradesQuery]);
 
   /* ---- trading status polling ---- */
   useEffect(() => {
@@ -293,6 +317,7 @@ export default function MomentumLivePage() {
         if (cancelled) return;
         const delay = Math.min(1000 * Math.pow(2, reconnectAttempt.current), MAX_DELAY);
         reconnectAttempt.current++;
+        reconnectAttempt.current = Math.min(reconnectAttempt.current, 10);
         reconnectTimer.current = setTimeout(connect, delay);
       };
 
@@ -673,7 +698,7 @@ export default function MomentumLivePage() {
                   </span>
                 </div>
                 <div className="text-gray-400">
-                  今日亏损: <span className="text-red-400">{fmtPnl(tradingStatus.today_loss)}</span>
+                  今日亏损: <span className="text-red-400">{fmtPnl(Math.abs(tradingStatus.today_loss ?? 0))}</span>
                   {(tradingStatus.today_loss ?? 0) <= -(config.daily_max_loss) && (
                     <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-red-900/60 text-red-300 border border-red-700">已达上限</span>
                   )}
