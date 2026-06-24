@@ -112,3 +112,42 @@ export async function executeSwap({ chain, fromToken, toToken, amount, slippage 
   const broadcast = await broadcastTransaction({ chain, txData: swapTx.tx, walletAddress });
   return { txHash: broadcast.txHash, quote: best, swapTx: swapTx.tx, status: broadcast.status, estimatedOut: best.toTokenAmount };
 }
+
+// ===== Agentic Wallet API =====
+
+/**
+ * 创建 Agentic 钱包
+ * POST /api/v5/wallet/agentic/create
+ */
+export async function createAgenticWallet(email, chain) {
+  const chainId = CHAIN_TO_OKX_ID[chain];
+  if (!chainId) throw new Error(`不支持链: ${chain}`);
+  const result = await okxRequest('POST', '/api/v5/wallet/agentic/create', { email, chainId: String(chainId) });
+  if (!result.data || !result.data.walletAddress) throw new Error('OKX 创建钱包失败: 未返回地址');
+  return { address: result.data.walletAddress, chain };
+}
+
+/**
+ * 授权 Agentic 钱包
+ * POST /api/v5/wallet/agentic/authorize
+ */
+export async function authorizeWallet(walletAddress, chain) {
+  const chainId = CHAIN_TO_OKX_ID[chain];
+  if (!chainId) throw new Error(`不支持链: ${chain}`);
+  const result = await okxRequest('POST', '/api/v5/wallet/agentic/authorize', { walletAddress, chainId: String(chainId), permissions: ['trade'] });
+  return { authorized: true, expiresAt: result.data?.expiresAt || null };
+}
+
+/**
+ * 获取钱包余额
+ * GET /api/v5/dex/wallet/balances
+ */
+export async function getWalletBalances(walletAddress, chain) {
+  const chainId = CHAIN_TO_OKX_ID[chain];
+  if (!chainId) throw new Error(`不支持链: ${chain}`);
+  const params = new URLSearchParams({ walletAddress, chainId: String(chainId) });
+  const result = await okxRequest('GET', `/api/v5/dex/wallet/balances?${params}`);
+  const balances = result.data || [];
+  const totalUsd = balances.reduce((sum, item) => sum + (parseFloat(item.usdValue) || 0), 0);
+  return { balances, totalUsd };
+}

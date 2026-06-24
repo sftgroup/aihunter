@@ -50,22 +50,12 @@ class LiveTradingRoutes {
         return reply.status(400).send({ code: 400, message: '缺少 userId' });
       }
 
-
-
-      let walletAddress = null;
-
-      if (this.okxClient && typeof this.okxClient.createAgenticWallet === 'function') {
-        try {
-          const walletData = await this.okxClient.createAgenticWallet(email, chain);
-          walletAddress = walletData.address;
-        } catch (okxErr) {
-          console.warn('[Wallet] OKX API 调用失败，使用模拟地址:', okxErr.message);
-        }
+      if (!this.okxClient || typeof this.okxClient.createAgenticWallet !== 'function') {
+        return reply.status(500).send({ code: 500, message: 'OKX 客户端未配置' });
       }
 
-if (!walletAddress) {
-        return reply.status(500).send({ code: 500, message: 'OKX API 创建钱包失败，请稍后重试' });
-      }
+      const walletData = await this.okxClient.createAgenticWallet(email, chain);
+      const walletAddress = walletData.address;
 
       const result = await this.db.query(
         `INSERT INTO agentic_wallets (user_id, wallet_address, chain, status, created_at)
@@ -98,7 +88,26 @@ if (!walletAddress) {
         return reply.send({ code: 200, data: null, message: '暂无钱包' });
       }
 
-      return reply.send({ code: 200, data: result.rows[0] });
+      const wallet = result.rows[0];
+
+      // 获取实时余额
+      let balanceInfo = { balances: [], totalUsd: 0 };
+      if (this.okxClient && typeof this.okxClient.getWalletBalances === 'function' && wallet.wallet_address) {
+        try {
+          balanceInfo = await this.okxClient.getWalletBalances(wallet.wallet_address, wallet.chain);
+        } catch (err) {
+          console.warn('[Wallet] 获取余额失败:', err.message);
+        }
+      }
+
+      return reply.send({
+        code: 200,
+        data: {
+          ...wallet,
+          balances: balanceInfo.balances,
+          totalUsd: balanceInfo.totalUsd,
+        }
+      });
     } catch (error) {
       console.error('[getWalletStatus]', error);
       return reply.status(500).send({ code: 500, message: error.message });
@@ -112,25 +121,32 @@ if (!walletAddress) {
         return reply.status(400).send({ code: 400, message: '缺少 userId 或 walletId' });
       }
 
+      // 获取钱包记录（含 address 和 chain）
+      const walletResult = await this.db.query(
+        `SELECT * FROM agentic_wallets WHERE id = $1 AND user_id = $2`,
+        [walletId, userId]
+      );
+
+      if (walletResult.rows.length === 0) {
+        return reply.status(404).send({ code: 404, message: '钱包不存在或无权操作' });
+      }
+
+      const wallet = walletResult.rows[0];
+
+      // 调用 OKX Agentic 授权
+      let expiresAt = null;
       if (this.okxClient && typeof this.okxClient.authorizeWallet === 'function') {
-        try {
-          await this.okxClient.authorizeWallet(walletId);
-        } catch (okxErr) {
-          console.warn('[Wallet] OKX 远程授权失败，继续本地授权:', okxErr.message);
-        }
+        const authResult = await this.okxClient.authorizeWallet(wallet.wallet_address, wallet.chain);
+        expiresAt = authResult.expiresAt;
       }
 
       const result = await this.db.query(
         `UPDATE agentic_wallets
-         SET status = 'authorized', authorized_at = NOW(), expires_at = NOW() + INTERVAL '1 year'
-         WHERE id = $1 AND user_id = $2
+         SET status = 'authorized', authorized_at = NOW(), expires_at = $1
+         WHERE id = $2 AND user_id = $3
          RETURNING *`,
-        [walletId, userId]
+        [expiresAt || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), walletId, userId]
       );
-
-      if (result.rows.length === 0) {
-        return reply.status(404).send({ code: 404, message: '钱包不存在或无权操作' });
-      }
 
       return reply.send({ code: 200, data: result.rows[0], message: '钱包已授权' });
     } catch (error) {
