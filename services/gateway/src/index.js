@@ -10,6 +10,8 @@ import pg from 'pg';
 import Docker from 'dockerode';
 import crypto from 'crypto';
 
+import { AutoTrader } from "./autoTrader.js";
+import { executeSwap } from "./okx-trade.js";
 const { Pool } = pg;
 
 const PORT = parseInt(process.env.PORT || '3100');
@@ -1279,6 +1281,14 @@ app.register(async function (fastify) {
         redis.lpush('signals:recent', JSON.stringify(sigEntry)).catch(() => {});
         redis.ltrim('signals:recent', 0, 199).catch(() => {});
         socket.send(JSON.stringify({ type: 'signal', data }));
+
+          // AutoTrader: 实盘自动交易
+          if (data && (data.contract || data.data?.contract)) {
+            const sigUserId = data.userId || 'live-user-1';
+            autoTrader.onSignal(sigUserId, data).catch(err =>
+              console.error('[AutoTrader] error:', err.message)
+            );
+          }
       } catch(e) {}
     });
     socket.on('close', () => subscriber.quit());
@@ -1288,6 +1298,9 @@ app.register(async function (fastify) {
 // ===== 注册实盘交易路由 =====
 import LiveTradingRoutes from "./routes/liveTrading.js";
 new LiveTradingRoutes(app, { okxClient: null });
+const okxTrade = { executeSwap };
+const wssServer = app.websocketServer || null;
+const autoTrader = new AutoTrader({ db, redis, okxClient: okxTrade, wss: wssServer });
 
 // ===== 启动 =====
 try {
