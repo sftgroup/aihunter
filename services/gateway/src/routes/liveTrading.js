@@ -50,21 +50,7 @@ class LiveTradingRoutes {
         return reply.status(400).send({ code: 400, message: '缺少 userId' });
       }
 
-      /* P1 security: validate risk fields */
-      if (daily_max_loss != null && (isNaN(daily_max_loss) || Number(daily_max_loss) < 0)) {
-        return reply.status(400).send({ code: 400, message: 'daily_max_loss must be >= 0' });
-      }
-      if (max_holdings != null && (isNaN(max_holdings) || !Number.isInteger(Number(max_holdings)) || Number(max_holdings) < 0)) {
-        return reply.status(400).send({ code: 400, message: 'max_holdings must be non-negative integer' });
-      }
 
-      // 参数校验：风控字段必须为非负数
-      if (daily_max_loss != null && (isNaN(daily_max_loss) || Number(daily_max_loss) < 0)) {
-        return reply.status(400).send({ code: 400, message: 'daily_max_loss 必须为非负数' });
-      }
-      if (max_holdings != null && (isNaN(max_holdings) || !Number.isInteger(Number(max_holdings)) || Number(max_holdings) < 0)) {
-        return reply.status(400).send({ code: 400, message: 'max_holdings 必须为非负整数' });
-      }
 
       let walletAddress = null;
 
@@ -102,13 +88,6 @@ if (!walletAddress) {
         return reply.status(400).send({ code: 400, message: '缺少 userId' });
       }
 
-      // 参数校验：风控字段必须为非负数
-      if (daily_max_loss != null && (isNaN(daily_max_loss) || Number(daily_max_loss) < 0)) {
-        return reply.status(400).send({ code: 400, message: 'daily_max_loss 必须为非负数' });
-      }
-      if (max_holdings != null && (isNaN(max_holdings) || !Number.isInteger(Number(max_holdings)) || Number(max_holdings) < 0)) {
-        return reply.status(400).send({ code: 400, message: 'max_holdings 必须为非负整数' });
-      }
 
       const result = await this.db.query(
         `SELECT * FROM agentic_wallets WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1`,
@@ -194,13 +173,6 @@ if (!walletAddress) {
         return reply.status(400).send({ code: 400, message: '缺少 userId' });
       }
 
-      // 参数校验：风控字段必须为非负数
-      if (daily_max_loss != null && (isNaN(daily_max_loss) || Number(daily_max_loss) < 0)) {
-        return reply.status(400).send({ code: 400, message: 'daily_max_loss 必须为非负数' });
-      }
-      if (max_holdings != null && (isNaN(max_holdings) || !Number.isInteger(Number(max_holdings)) || Number(max_holdings) < 0)) {
-        return reply.status(400).send({ code: 400, message: 'max_holdings 必须为非负整数' });
-      }
 
       let query = `SELECT * FROM live_trading_configs WHERE user_id = $1`;
       const params = [userId];
@@ -249,6 +221,7 @@ if (!walletAddress) {
         return reply.status(400).send({ code: 400, message: '缺少 userId' });
       }
 
+
       // 参数校验：风控字段必须为非负数
       if (daily_max_loss != null && (isNaN(daily_max_loss) || Number(daily_max_loss) < 0)) {
         return reply.status(400).send({ code: 400, message: 'daily_max_loss 必须为非负数' });
@@ -256,7 +229,6 @@ if (!walletAddress) {
       if (max_holdings != null && (isNaN(max_holdings) || !Number.isInteger(Number(max_holdings)) || Number(max_holdings) < 0)) {
         return reply.status(400).send({ code: 400, message: 'max_holdings 必须为非负整数' });
       }
-
       const result = await this.db.query(
         `INSERT INTO live_trading_configs
          (user_id, strategy, max_single_amount, slippage_tolerance, gas_strategy,
@@ -304,13 +276,6 @@ if (!walletAddress) {
         return reply.status(400).send({ code: 400, message: '缺少 userId' });
       }
 
-      // 参数校验：风控字段必须为非负数
-      if (daily_max_loss != null && (isNaN(daily_max_loss) || Number(daily_max_loss) < 0)) {
-        return reply.status(400).send({ code: 400, message: 'daily_max_loss 必须为非负数' });
-      }
-      if (max_holdings != null && (isNaN(max_holdings) || !Number.isInteger(Number(max_holdings)) || Number(max_holdings) < 0)) {
-        return reply.status(400).send({ code: 400, message: 'max_holdings 必须为非负整数' });
-      }
 
       const params = await this.redis.get(`params:momentum:${userId}`);
 
@@ -358,13 +323,6 @@ if (!walletAddress) {
         return reply.status(400).send({ code: 400, message: '缺少 userId' });
       }
 
-      // 参数校验：风控字段必须为非负数
-      if (daily_max_loss != null && (isNaN(daily_max_loss) || Number(daily_max_loss) < 0)) {
-        return reply.status(400).send({ code: 400, message: 'daily_max_loss 必须为非负数' });
-      }
-      if (max_holdings != null && (isNaN(max_holdings) || !Number.isInteger(Number(max_holdings)) || Number(max_holdings) < 0)) {
-        return reply.status(400).send({ code: 400, message: 'max_holdings 必须为非负整数' });
-      }
 
       const walletResult = await this.db.query(
         `SELECT * FROM agentic_wallets WHERE user_id = $1 AND status = 'authorized' AND expires_at > NOW()`,
@@ -397,13 +355,6 @@ if (!walletAddress) {
         return reply.status(400).send({ code: 400, message: '缺少 userId' });
       }
 
-      // 参数校验：风控字段必须为非负数
-      if (daily_max_loss != null && (isNaN(daily_max_loss) || Number(daily_max_loss) < 0)) {
-        return reply.status(400).send({ code: 400, message: 'daily_max_loss 必须为非负数' });
-      }
-      if (max_holdings != null && (isNaN(max_holdings) || !Number.isInteger(Number(max_holdings)) || Number(max_holdings) < 0)) {
-        return reply.status(400).send({ code: 400, message: 'max_holdings 必须为非负整数' });
-      }
 
       await this.db.query(
         `UPDATE live_trading_configs SET is_active = false, updated_at = NOW() WHERE user_id = $1`,
@@ -427,13 +378,6 @@ if (!walletAddress) {
         return reply.status(400).send({ code: 400, message: '缺少 userId' });
       }
 
-      // 参数校验：风控字段必须为非负数
-      if (daily_max_loss != null && (isNaN(daily_max_loss) || Number(daily_max_loss) < 0)) {
-        return reply.status(400).send({ code: 400, message: 'daily_max_loss 必须为非负数' });
-      }
-      if (max_holdings != null && (isNaN(max_holdings) || !Number.isInteger(Number(max_holdings)) || Number(max_holdings) < 0)) {
-        return reply.status(400).send({ code: 400, message: 'max_holdings 必须为非负整数' });
-      }
 
       const [configResult, statsResult, lossResult, holdingsResult] = await Promise.all([
         this.db.query(`SELECT * FROM live_trading_configs WHERE user_id = $1`, [userId]),
@@ -576,13 +520,6 @@ if (!walletAddress) {
         return reply.status(400).send({ code: 400, message: '缺少 userId' });
       }
 
-      // 参数校验：风控字段必须为非负数
-      if (daily_max_loss != null && (isNaN(daily_max_loss) || Number(daily_max_loss) < 0)) {
-        return reply.status(400).send({ code: 400, message: 'daily_max_loss 必须为非负数' });
-      }
-      if (max_holdings != null && (isNaN(max_holdings) || !Number.isInteger(Number(max_holdings)) || Number(max_holdings) < 0)) {
-        return reply.status(400).send({ code: 400, message: 'max_holdings 必须为非负整数' });
-      }
 
       const pageNum = Math.max(1, parseInt(page) || 1);
       const limitNum = Math.min(500, Math.max(1, parseInt(limit) || 20));
@@ -667,13 +604,6 @@ if (!walletAddress) {
         return reply.status(400).send({ code: 400, message: '缺少 userId' });
       }
 
-      // 参数校验：风控字段必须为非负数
-      if (daily_max_loss != null && (isNaN(daily_max_loss) || Number(daily_max_loss) < 0)) {
-        return reply.status(400).send({ code: 400, message: 'daily_max_loss 必须为非负数' });
-      }
-      if (max_holdings != null && (isNaN(max_holdings) || !Number.isInteger(Number(max_holdings)) || Number(max_holdings) < 0)) {
-        return reply.status(400).send({ code: 400, message: 'max_holdings 必须为非负整数' });
-      }
 
       const daysNum = Math.min(365, Math.max(1, parseInt(days) || 7));
 if (isNaN(daysNum)) { return reply.status(400).send({ code: 400, message: 'days 参数无效' }); }
@@ -701,13 +631,6 @@ if (isNaN(daysNum)) { return reply.status(400).send({ code: 400, message: 'days 
         return reply.status(400).send({ code: 400, message: '缺少 userId' });
       }
 
-      // 参数校验：风控字段必须为非负数
-      if (daily_max_loss != null && (isNaN(daily_max_loss) || Number(daily_max_loss) < 0)) {
-        return reply.status(400).send({ code: 400, message: 'daily_max_loss 必须为非负数' });
-      }
-      if (max_holdings != null && (isNaN(max_holdings) || !Number.isInteger(Number(max_holdings)) || Number(max_holdings) < 0)) {
-        return reply.status(400).send({ code: 400, message: 'max_holdings 必须为非负整数' });
-      }
 
       const result = await this.db.query(
         `SELECT
@@ -732,13 +655,6 @@ if (isNaN(daysNum)) { return reply.status(400).send({ code: 400, message: 'days 
         return reply.status(400).send({ code: 400, message: '缺少 userId' });
       }
 
-      // 参数校验：风控字段必须为非负数
-      if (daily_max_loss != null && (isNaN(daily_max_loss) || Number(daily_max_loss) < 0)) {
-        return reply.status(400).send({ code: 400, message: 'daily_max_loss 必须为非负数' });
-      }
-      if (max_holdings != null && (isNaN(max_holdings) || !Number.isInteger(Number(max_holdings)) || Number(max_holdings) < 0)) {
-        return reply.status(400).send({ code: 400, message: 'max_holdings 必须为非负整数' });
-      }
 
       const daysNum = Math.min(365, Math.max(1, parseInt(days) || 7));
 if (isNaN(daysNum)) { return reply.status(400).send({ code: 400, message: 'days 参数无效' }); }
@@ -766,13 +682,6 @@ if (isNaN(daysNum)) { return reply.status(400).send({ code: 400, message: 'days 
         return reply.status(400).send({ code: 400, message: '缺少 userId' });
       }
 
-      // 参数校验：风控字段必须为非负数
-      if (daily_max_loss != null && (isNaN(daily_max_loss) || Number(daily_max_loss) < 0)) {
-        return reply.status(400).send({ code: 400, message: 'daily_max_loss 必须为非负数' });
-      }
-      if (max_holdings != null && (isNaN(max_holdings) || !Number.isInteger(Number(max_holdings)) || Number(max_holdings) < 0)) {
-        return reply.status(400).send({ code: 400, message: 'max_holdings 必须为非负整数' });
-      }
 
       const result = await this.db.query(
         `SELECT token_out as token, SUM(COALESCE(pnl_usd, 0)) as pnl

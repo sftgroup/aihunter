@@ -1215,10 +1215,9 @@ function verifyWsToken(req) {
   // 1. URL query param: /ws?token=xxx
   // 2. Sec-WebSocket-Protocol header (protocol = token)
   // 3. Authorization header (fallback)
-  // @fastify/websocket passes raw http.IncomingMessage, no req.query available.
-  // Parse query string manually from req.url.
-  const query = Object.fromEntries(new URL(req.url, 'http://localhost').searchParams);
-  const token = query.token
+  // @fastify/websocket passes raw http.IncomingMessage — use regex on req.url.
+  const urlTokenMatch = (req.url || '').match(/[?&]token=([^&\s]+)/);
+  const token = (urlTokenMatch ? decodeURIComponent(urlTokenMatch[1]) : null)
     || (req.headers['sec-websocket-protocol'] || '').split(',')[0].trim()
     || (req.headers['authorization'] || '').replace('Bearer ', '').trim();
   return token && token === AUTH_TOKEN;

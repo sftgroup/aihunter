@@ -14,7 +14,6 @@ import DeFiPage from "./pages/DeFiPage";
 import TradesPage from './pages/TradesPage';
 import ConfigPage from './pages/ConfigPage';
 import SystemPage from './pages/SystemPage';
-import MomentumLivePage from './pages/MomentumLivePage';
 
 const queryClient = new QueryClient();
 
@@ -87,7 +86,6 @@ function AppContent() {
               <Route path="/trades" element={<TradesPage />} />
               <Route path="/config" element={<ConfigPage />} />
               <Route path="/system" element={<SystemPage />} />
-              <Route path="/live" element={<MomentumLivePage />} />
             </Routes>
           </ErrorBoundary>
         </div>
