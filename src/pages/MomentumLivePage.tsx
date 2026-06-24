@@ -1,18 +1,84 @@
+/**
+ * AIHunter /live — 实盘交易页面 (项目统一设计规范)
+ *
+ * 设计对齐所有其他页面：
+ * - 磨砂玻璃卡片 (linear-gradient + blur + 阴影)
+ * - 全局色板 (--accent: #6366f1, --accent-green: #10b981, --accent-red: #ef4444)
+ * - 统一底色 var(--dark-950)=#111111 / 文本色 var(--dark-400)=#808080
+ * - 页面标题区 + 副标题
+ * - 卡片圆角 16px, 边框 rgba(255,255,255,0.05), boxShadow 0 8px 32px
+ *
+ * Layout: Left Sidebar (380px) + Right Main (fluid)
+ *   Left:  Wallet → Strategy Params → Auto-Learning
+ *   Right: Control Bar → Signal Stream → Charts(2x2, 320px) → Trade History
+ */
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   LineChart, Line, AreaChart, Area, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar
 } from 'recharts';
-import { Wallet, Play, Pause, Settings, History, TrendingUp, AlertCircle, RefreshCw, BarChart as BarChartIcon, Copy } from 'lucide-react';
+import {
+  Wallet, Play, Pause, Settings, TrendingUp, AlertCircle,
+  RefreshCw, BarChart as BarChartIcon, Copy, Zap, Activity, Shield,
+  ArrowUp, ArrowDown, History
+} from 'lucide-react';
 import { api, getAuthToken } from '../utils/api';
 
+/* ================================================================== */
+/*  Project Design Tokens (from index.css)                             */
+/* ================================================================== */
+const T = {
+  accent:       '#6366f1',
+  accentGreen:  '#10b981',
+  accentRed:    '#ef4444',
+  accentBlue:   '#3b82f6',
+  accentPurple: '#8b5cf6',
+  accentOrange: '#f59e0b',
+  accentCyan:   '#06b6d4',
+  dark50:   '#f0f0f0',
+  dark100:  '#e0e0e0',
+  dark200:  '#c0c0c0',
+  dark300:  '#a0a0a0',
+  dark400:  '#808080',
+  dark500:  '#606060',
+  dark600:  '#404040',
+  dark700:  '#2a2a2a',
+  dark800:  '#1a1a1a',
+  dark900:  '#111111',
+  dark950:  '#0a0a0a',
+};
+
+const cardBase: React.CSSProperties = {
+  background: 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
+  backdropFilter: 'blur(24px)',
+  border: '1px solid rgba(255,255,255,0.05)',
+  borderRadius: 16,
+  boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+};
+
+const sectionTitle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 600,
+  color: T.dark400,
+  textTransform: 'uppercase',
+  letterSpacing: '0.05em',
+  paddingLeft: 4,
+  marginBottom: 12,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+};
+
+/* ================================================================== */
+/*  API                                                                */
+/* ================================================================== */
 const API = '/api';
 const USER_ID = 'live-user-1';
 
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
 /*  Types                                                              */
-/* ------------------------------------------------------------------ */
-
+/* ================================================================== */
 interface WalletStatus {
   id?: number;
   wallet_address?: string;
@@ -71,10 +137,9 @@ interface ChartPoint {
   token?: string;
 }
 
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
 /*  Helpers                                                            */
-/* ------------------------------------------------------------------ */
-
+/* ================================================================== */
 function fmtAddr(addr?: string) {
   if (!addr || addr.length < 10) return addr || '—';
   return addr.slice(0, 6) + '...' + addr.slice(-4);
@@ -82,8 +147,7 @@ function fmtAddr(addr?: string) {
 
 function fmtPnl(v: number | string | undefined) {
   const n = Number(v ?? 0);
-  const p = n >= 0;
-  return `${p ? '+' : ''}$${n.toFixed(2)}`;
+  return `${n >= 0 ? '+' : ''}$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function fmtTxHash(hash?: string) {
@@ -93,44 +157,59 @@ function fmtTxHash(hash?: string) {
 
 function getExplorerUrl(chain: string | undefined, txHash: string | undefined): string {
   if (!txHash) return '#';
-  const explorers: Record<string, string> = {
-    ETH: `https://etherscan.io/tx/${txHash}`,
-    BSC: `https://bscscan.com/tx/${txHash}`,
-    BASE: `https://basescan.org/tx/${txHash}`,
-    SOL: `https://solscan.io/tx/${txHash}`,
-  };
-  return explorers[chain?.toUpperCase() ?? ''] || `https://etherscan.io/tx/${txHash}`;
+  const exp: Record<string, string> = { ETH: `https://etherscan.io/tx/${txHash}`, BSC: `https://bscscan.com/tx/${txHash}`, BASE: `https://basescan.org/tx/${txHash}`, SOL: `https://solscan.io/tx/${txHash}` };
+  return exp[chain?.toUpperCase() ?? ''] || `https://etherscan.io/tx/${txHash}`;
 }
 
-const COLORS = ['#10b981', '#ef4444', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899'];
+function scoreColor(s: number): string {
+  if (s >= 80) return T.accentGreen;
+  if (s >= 60) return T.accentOrange;
+  if (s >= 40) return T.dark300;
+  return T.accentRed;
+}
 
-/* ------------------------------------------------------------------ */
-/*  Component                                                          */
-/* ------------------------------------------------------------------ */
+function scoreBg(s: number): string {
+  if (s >= 80) return 'rgba(16,185,129,0.12)';
+  if (s >= 60) return 'rgba(245,158,11,0.12)';
+  if (s >= 40) return 'rgba(255,255,255,0.04)';
+  return 'rgba(239,68,68,0.12)';
+}
+
+let _ai = false;
+function injectAnim() {
+  if (_ai) return; _ai = true;
+  if (typeof document === 'undefined') return;
+  const s = document.createElement('style');
+  s.textContent = `
+    @keyframes signalRowIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes pulseLED { 0%,100%{ opacity:1; } 50%{ opacity:0.4; } }
+  `;
+  document.head.appendChild(s);
+}
+
+/* ================================================================== */
+/*  Main Component                                                     */
+/* ================================================================== */
 
 export default function MomentumLivePage() {
+  useEffect(() => { injectAnim(); }, []);
+
   /* ---- wallet ---- */
   const [wallet, setWallet] = useState<WalletStatus | null>(null);
   const [walletLoading, setWalletLoading] = useState(true);
 
   /* ---- config ---- */
   const [config, setConfig] = useState<LiveConfig>({
-    max_single_amount: 1000,
-    slippage_tolerance: 1.0,
-    gas_strategy: 'medium',
-    take_profit_pct: 10,
-    stop_loss_pct: 5,
-    daily_max_loss: 500,
-    max_holdings: 10,
-    auto_apply_params: true,
-    pause_on_param_change: false,
+    max_single_amount: 1000, slippage_tolerance: 1.0, gas_strategy: 'medium',
+    take_profit_pct: 10, stop_loss_pct: 5, daily_max_loss: 500, max_holdings: 10,
+    auto_apply_params: true, pause_on_param_change: false,
   });
   const [configLoading, setConfigLoading] = useState(true);
 
-  /* ---- learning params ---- */
+  /* ---- learning ---- */
   const [learningParams, setLearningParams] = useState<LiveConfig | null>(null);
-  const [learningDiff, setLearningDiff] = useState<Record<string, { old: number | string | boolean; new: number | string | boolean }> | null>(null);
-  const [learningBanner, setLearningBanner] = useState<{ diff: Record<string, { old: number | string | boolean; new: number | string | boolean }> } | null>(null);
+  const [learningDiff, setLearningDiff] = useState<Record<string, { old: any; new: any }> | null>(null);
+  const [learningBanner, setLearningBanner] = useState<{ diff: Record<string, { old: any; new: any }> } | null>(null);
 
   /* ---- trading ---- */
   const [isTrading, setIsTrading] = useState(false);
@@ -152,505 +231,250 @@ export default function MomentumLivePage() {
   const [tradeDate, setTradeDate] = useState('all');
   const [tradePage, setTradePage] = useState(1);
 
-  const buildTradesQuery = useCallback(() => {
-    // Ensure date and endDate are mutually exclusive
-    const params = new URLSearchParams();
-    if (tradeDate === 'all') {
-      params.set('date', 'all');
-    } else if (tradeDate === 'today') {
-      params.set('date', 'today');
-    } else {
-      // Use date range instead of date label to avoid ambiguity
-      const now = new Date();
-      const start = new Date(now);
-      if (tradeDate === 'week') {
-        start.setDate(start.getDate() - 7);
-      } else if (tradeDate === 'month') {
-        start.setMonth(start.getMonth() - 1);
-      }
-      params.set('startDate', start.toISOString().slice(0, 10));
-      params.set('endDate', now.toISOString().slice(0, 10));
-    }
-    params.set('page', String(tradePage));
-    params.set('limit', '20');
-    return params.toString();
-  }, [tradeDate, tradePage]);
-
   /* ---- errors ---- */
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   /* ---- refs ---- */
+  const wsRef = useRef<WebSocket | null>(null);
   const statusTimer = useRef<ReturnType<typeof setInterval>>();
-  const mountedRef = useRef(true);
-
-  useEffect(() => { return () => { mountedRef.current = false; }; }, []);
+  useEffect(() => { let m = true; return () => { m = false; }; }, []);
 
   /* ================================================================== */
   /*  API helpers                                                        */
   /* ================================================================== */
-
   const safeGet = useCallback(async <T,>(path: string, key: string): Promise<T | null> => {
     try {
       const sep = path.includes('?') ? '&' : '?';
-      const url = `${path}${sep}userId=${USER_ID}`;
-      const res = await api.get<{ code: number; data?: T; message?: string }>(url);
-      if (res && res.code === 200 && res.data !== undefined) {
-        setErrors(e => { const n = { ...e }; delete n[key]; return n; });
-        return res.data;
-      }
+      const res = await api.get<{ code: number; data?: T; message?: string }>(`${path}${sep}userId=${USER_ID}`);
+      if (res && res.code === 200 && res.data !== undefined) { setErrors(e => { const n = { ...e }; delete n[key]; return n; }); return res.data; }
       return null;
-    } catch (e: any) {
-      const msg = e?.message || '请求失败';
-      setErrors(e => ({ ...e, [key]: msg }));
-      return null;
-    }
+    } catch (e: any) { setErrors(e => ({ ...e, [key]: e?.message || '请求失败' })); return null; }
   }, []);
 
   const safePost = useCallback(async <T,>(path: string, body: unknown, key: string): Promise<T | null> => {
     try {
-      const bodyWithUser = { ...(body as Record<string, unknown>), userId: USER_ID };
-      const res = await api.post<{ code: number; data?: T; message?: string; error?: string }>(path, { json: bodyWithUser });
-      if (res && res.code === 200) {
-        setErrors(e => { const n = { ...e }; delete n[key]; return n; });
-        return (res.data ?? res) as unknown as T;
-      }
-      setErrors(e => ({ ...e, [key]: res?.message || '操作失败' }));
-      return null;
-    } catch (e: any) {
-      setErrors(e => ({ ...e, [key]: e?.message || '请求失败' }));
-      return null;
-    }
+      const b = { ...(body as Record<string, unknown>), userId: USER_ID };
+      const res = await api.post<{ code: number; data?: T; message?: string }>(path, { json: b });
+      if (res && res.code === 200) { setErrors(e => { const n = { ...e }; delete n[key]; return n; }); return (res.data ?? res) as unknown as T; }
+      setErrors(e => ({ ...e, [key]: res?.message || '操作失败' })); return null;
+    } catch (e: any) { setErrors(e => ({ ...e, [key]: e?.message || '请求失败' })); return null; }
   }, []);
 
   /* ================================================================== */
-  /*  Load wallet & config                                               */
+  /*  Data loading                                                       */
   /* ================================================================== */
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setWalletLoading(true);
-      const data = await safeGet<WalletStatus>(`${API}/agentic-wallet/status`, 'wallet');
-      if (!cancelled && data) setWallet(data);
-      if (!cancelled) setWalletLoading(false);
-    })();
-    return () => { cancelled = true; };
-  }, [safeGet]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setConfigLoading(true);
-      const data = await safeGet<LiveConfig>(`${API}/live-trading/config?strategy=momentum`, 'config');
-      if (!cancelled && data) setConfig(data);
-      if (!cancelled) setConfigLoading(false);
-    })();
-    return () => { cancelled = true; };
-  }, [safeGet]);
-
-  /* ---- load charts once ---- */
-  useEffect(() => {
-    safeGet<{ date: string; pnl: number }[]>(`${API}/live-trading/chart/pnl?days=${chartDays}`, 'pnl').then(d => d && setPnlData(d.map(r => ({ time: r.date, pnl: r.pnl }))));
-    safeGet<{ wins: number; losses: number }>(`${API}/live-trading/chart/distribution`, 'dist').then(d => d && setDistributionData([
-      { name: '盈利', value: d.wins || 0, color: '#10b981' },
-      { name: '亏损', value: d.losses || 0, color: '#ef4444' },
-    ]));
-    safeGet<{ date: string; total: number }[]>(`${API}/live-trading/chart/assets?days=${chartDays}`, 'assets').then(d => d && setAssetData(d.map(r => ({ time: r.date, value: r.total }))));
-    safeGet<{ token: string; pnl: number }[]>(`${API}/live-trading/chart/tokens`, 'tokens').then(d => d && setTokenData(d));
-  }, [safeGet, chartDays]);
-
-  /* ---- load trades ---- */
-  useEffect(() => {
-    safeGet<{ records: TradeRecord[]; total: number }>(`${API}/live-trading/trades?${buildTradesQuery()}`, 'trades')
-      .then(d => d && setTrades(d.records));
-  }, [safeGet, buildTradesQuery]);
+  useEffect(() => { let c = false; (async () => { setWalletLoading(true); const d = await safeGet<WalletStatus>(`${API}/agentic-wallet/status`, 'wallet'); if (!c && d) setWallet(d); if (!c) setWalletLoading(false); })(); return () => { c = true; }; }, [safeGet]);
+  useEffect(() => { let c = false; (async () => { setConfigLoading(true); const d = await safeGet<LiveConfig>(`${API}/live-trading/config?strategy=momentum`, 'config'); if (!c && d) setConfig(d); if (!c) setConfigLoading(false); })(); return () => { c = true; }; }, [safeGet]);
+  useEffect(() => { safeGet<{ date: string; pnl: number }[]>(`${API}/live-trading/chart/pnl?days=${chartDays}`, 'pnl').then(d => d && setPnlData(d.map(r => ({ time: r.date, pnl: r.pnl })))); safeGet<{ wins: number; losses: number }>(`${API}/live-trading/chart/distribution`, 'dist').then(d => d && setDistributionData([{ name: '盈利', value: d.wins || 0, color: T.accentGreen }, { name: '亏损', value: d.losses || 0, color: T.accentRed }])); safeGet<{ date: string; total: number }[]>(`${API}/live-trading/chart/assets?days=${chartDays}`, 'assets').then(d => d && setAssetData(d.map(r => ({ time: r.date, value: r.total })))); safeGet<{ token: string; pnl: number }[]>(`${API}/live-trading/chart/tokens`, 'tokens').then(d => d && setTokenData(d)); }, [safeGet, chartDays]);
+  useEffect(() => { safeGet<{ records: TradeRecord[]; total: number }>(`${API}/live-trading/trades?date=${tradeDate}&page=${tradePage}&limit=20`, 'trades').then(d => d && setTrades(d.records)); }, [safeGet, tradeDate, tradePage]);
 
   /* ---- trading status polling ---- */
   useEffect(() => {
-    if (!isTrading) return;
-    let cancelled = false;
-    const poll = () => {
-      safeGet<{ is_active?: boolean; today_trades?: number; today_pnl?: number; today_loss?: number; current_holdings?: number }>(
-        `${API}/live-trading/status`, 'status'
-      ).then(d => {
-        if (!cancelled && d) {
-          setIsTrading(!!d.is_active);
-          setTradingStatus({ today_trades: d.today_trades, today_pnl: d.today_pnl, today_loss: d.today_loss, current_holdings: d.current_holdings });
-        }
-      });
-    };
-    poll();
-    statusTimer.current = setInterval(poll, 3000);
-    return () => { cancelled = true; clearInterval(statusTimer.current); };
+    if (!isTrading) return; let c = false;
+    const poll = () => { safeGet<{ is_active?: boolean; today_trades?: number; today_pnl?: number; today_loss?: number; current_holdings?: number }>(`${API}/live-trading/status`, 'status').then(d => { if (!c && d) { setIsTrading(!!d.is_active); setTradingStatus({ today_trades: d.today_trades, today_pnl: d.today_pnl, today_loss: d.today_loss, current_holdings: d.current_holdings }); } }); };
+    poll(); statusTimer.current = setInterval(poll, 3000);
+    return () => { c = true; clearInterval(statusTimer.current); };
   }, [isTrading, safeGet]);
 
   /* ---- WebSocket signals ---- */
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
   const reconnectAttempt = useRef(0);
-  const wsRef = useRef<WebSocket | null>(null);
-
   useEffect(() => {
-    let cancelled = false;
-    const MAX_DELAY = 30000;
-
-    const connect = () => {
-      if (cancelled) return;
-      const wsOrigin = window.location.origin.replace(/^http/, 'ws');
-      const token = getAuthToken();
-      const url = token ? `${wsOrigin}/ws?token=${encodeURIComponent(token)}` : `${wsOrigin}/ws`;
-      const ws = new WebSocket(url);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        reconnectAttempt.current = 0;
-      };
-
-      ws.onmessage = (e) => {
-        try {
-          const msg = JSON.parse(e.data);
-          if ((msg.type === 'signal' || msg.type === 'SIGNAL') && msg.data) {
-            setSignals(prev => [msg.data, ...prev].slice(0, 100));
-          }
-        } catch { /* ignore */ }
-      };
-
-      ws.onclose = () => {
-        if (cancelled) return;
-        const delay = Math.min(1000 * Math.pow(2, reconnectAttempt.current), MAX_DELAY);
-        reconnectAttempt.current++;
-        reconnectAttempt.current = Math.min(reconnectAttempt.current, 10);
-        reconnectTimer.current = setTimeout(connect, delay);
-      };
-
-      ws.onerror = () => {
-        ws.close();
-      };
+    let c = false; const MAX = 30000;
+    const conn = () => {
+      if (c) return;
+      const o = window.location.origin.replace(/^http/, 'ws');
+      const tk = getAuthToken();
+      const u = tk ? `${o}/ws?token=${encodeURIComponent(tk)}` : `${o}/ws`;
+      const ws = new WebSocket(u); wsRef.current = ws;
+      ws.onopen = () => { reconnectAttempt.current = 0; };
+      ws.onmessage = (e) => { try { const m = JSON.parse(e.data); if ((m.type === 'signal' || m.type === 'SIGNAL') && m.data) setSignals(prev => [m.data, ...prev].slice(0, 100)); } catch {} };
+      ws.onclose = () => { if (c) return; const d = Math.min(1000 * Math.pow(2, reconnectAttempt.current), MAX); reconnectAttempt.current++; reconnectTimer.current = setTimeout(conn, d); };
+      ws.onerror = () => ws.close();
     };
-
-    connect();
-    return () => {
-      cancelled = true;
-      clearTimeout(reconnectTimer.current);
-      if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close(); }
-    };
+    conn();
+    return () => { c = true; clearTimeout(reconnectTimer.current); if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close(); } };
   }, []);
 
   /* ================================================================== */
   /*  Actions                                                            */
   /* ================================================================== */
-
-  const handleSaveConfig = useCallback(async () => {
-    await safePost(`${API}/live-trading/config`, config, 'saveConfig');
-  }, [config, safePost]);
-
   const configTimer = useRef<ReturnType<typeof setTimeout>>();
   const [confirmDialog, setConfirmDialog] = useState<{ patch: Partial<LiveConfig> } | null>(null);
 
   const handleConfigChange = useCallback((patch: Partial<LiveConfig>) => {
     setConfig(prev => {
       const next = { ...prev, ...patch };
-      const criticalKeys = ['max_single_amount', 'slippage_tolerance', 'take_profit_pct', 'stop_loss_pct', 'daily_max_loss', 'max_holdings'];
-      const isCritical = Object.keys(patch).some(k => criticalKeys.includes(k));
-
-      if (isTrading && isCritical) {
-        clearTimeout(configTimer.current);
-        setConfirmDialog({ patch });
-      } else {
-        clearTimeout(configTimer.current);
-        configTimer.current = setTimeout(() => {
-          safePost(`${API}/live-trading/config`, next, 'saveConfig');
-        }, 500);
-      }
+      const critical = ['max_single_amount', 'slippage_tolerance', 'take_profit_pct', 'stop_loss_pct', 'daily_max_loss', 'max_holdings'];
+      if (isTrading && Object.keys(patch).some(k => critical.includes(k))) { clearTimeout(configTimer.current); setConfirmDialog({ patch }); }
+      else { clearTimeout(configTimer.current); configTimer.current = setTimeout(() => safePost(`${API}/live-trading/config`, next, 'saveConfig'), 500); }
       return next;
     });
   }, [safePost, isTrading]);
 
-  const confirmConfigChange = useCallback(() => {
-    if (!confirmDialog) return;
-    safePost(`${API}/live-trading/config`, { ...config, ...confirmDialog.patch }, 'saveConfig');
-    setConfirmDialog(null);
-  }, [confirmDialog, config, safePost]);
-
-  const cancelConfigChange = useCallback(() => {
-    if (!confirmDialog) return;
-    setConfig(prev => {
-      const next = { ...prev };
-      Object.keys(confirmDialog.patch).forEach(k => {
-        (next as any)[k] = prev[k as keyof typeof prev];
-      });
-      return next;
-    });
-    setConfirmDialog(null);
-  }, [confirmDialog]);
-
+  const confirmConfigChange = useCallback(() => { if (!confirmDialog) return; safePost(`${API}/live-trading/config`, { ...config, ...confirmDialog.patch }, 'saveConfig'); setConfirmDialog(null); }, [confirmDialog, config, safePost]);
+  const cancelConfigChange = useCallback(() => { if (!confirmDialog) return; setConfig(prev => { const n = { ...prev }; Object.keys(confirmDialog.patch).forEach(k => { (n as any)[k] = prev[k as keyof typeof prev]; }); return n; }); setConfirmDialog(null); }, [confirmDialog]);
   useEffect(() => { return () => clearTimeout(configTimer.current); }, []);
 
   /* ---- learning params polling ---- */
   useEffect(() => {
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout>;
-
+    let c = false; let t: ReturnType<typeof setTimeout>;
     const poll = async () => {
-      if (cancelled) return;
-      const data = await safeGet<{ version: number; auto_apply_params?: boolean; pause_on_param_change?: boolean } & Record<string, any>>(
-        `${API}/live-trading/params?strategy=momentum`,
-        'learningParams'
-      );
-      if (cancelled || !data) {
-        timer = setTimeout(poll, 10000);
-        return;
-      }
-
+      if (c) return;
+      const d = await safeGet<{ version: number; auto_apply_params?: boolean; pause_on_param_change?: boolean } & Record<string, any>>(`${API}/live-trading/params?strategy=momentum`, 'learningParams');
+      if (c || !d) { t = setTimeout(poll, 10000); return; }
       setLearningParams(prev => {
-        if (!prev) return data as unknown as LiveConfig;
-
-        // Detect version change -> compute diff
-        if ((data as any).version !== (prev as any).version) {
+        if (!prev) return d as unknown as LiveConfig;
+        if ((d as any).version !== (prev as any).version) {
           const diff: Record<string, { old: any; new: any }> = {};
-          const keys: (keyof LiveConfig)[] = ['take_profit_pct', 'stop_loss_pct', 'daily_max_loss', 'max_holdings', 'max_single_amount', 'slippage_tolerance', 'gas_strategy'];
-          for (const k of keys) {
-            if (data[k] !== prev[k]) {
-              diff[k] = { old: prev[k] as any, new: data[k] as any };
-            }
+          for (const k of ['take_profit_pct', 'stop_loss_pct', 'daily_max_loss', 'max_holdings', 'max_single_amount', 'slippage_tolerance', 'gas_strategy']) {
+            if (String(d[k] ?? '') !== String((prev as any)[k] ?? '')) diff[k] = { old: (prev as any)[k], new: d[k] };
           }
-          if (Object.keys(diff).length > 0) {
-            setLearningDiff(diff);
-
-            if (data.auto_apply_params) {
-              // Auto-apply: POST config with new values
-              safePost(`${API}/live-trading/config`, Object.fromEntries(Object.entries(diff).map(([k, v]) => [k, v.new])), 'autoApply');
-              setConfig(c => ({ ...c, ...Object.fromEntries(Object.entries(diff).map(([k, v]) => [k, v.new])) }));
-              setLearningDiff(null);
-            } else {
-              // Show banner
-              setLearningBanner({ diff });
-            }
-
-            if (data.pause_on_param_change && isTrading) {
-              safePost(`${API}/live-trading/stop`, {}, 'autoStop');
-              setIsTrading(false);
-            }
-          }
+          if (Object.keys(diff).length) { setLearningDiff(diff); if (d.auto_apply_params) { safePost(`${API}/live-trading/config`, diff, 'autoApply'); setConfig(cc => ({ ...cc, ...Object.fromEntries(Object.entries(diff).map(([k, v]) => [k, v.new])) })); setLearningDiff(null); } else { setLearningBanner({ diff }); } if (d.pause_on_param_change && isTrading) { safePost(`${API}/live-trading/stop`, {}, 'autoStop'); setIsTrading(false); } }
         }
-        return data as unknown as LiveConfig;
+        return d as unknown as LiveConfig;
       });
-
-      timer = setTimeout(poll, 10000);
+      t = setTimeout(poll, 10000);
     };
-
-    poll();
-    return () => { cancelled = true; clearTimeout(timer); };
+    poll(); return () => { c = true; clearTimeout(t); };
   }, [safeGet, isTrading]);
 
-  const handleStart = useCallback(async () => {
-    if (!wallet?.authorized) {
-      setErrors(e => ({ ...e, start: '请先创建并授权 Agentic Wallet' }));
-      return;
-    }
-    setActionLoading(true);
-    const ok = await safePost(`${API}/live-trading/start`, {}, 'start');
-    if (ok) setIsTrading(true);
-    setActionLoading(false);
-  }, [wallet, safePost]);
-
-  const handleStop = useCallback(async () => {
-    setActionLoading(true);
-    const ok = await safePost(`${API}/live-trading/stop`, {}, 'stop');
-    if (ok) setIsTrading(false);
-    setActionLoading(false);
-  }, [safePost]);
-
-  const handleRevoke = useCallback(async () => {
-    await safePost(`${API}/agentic-wallet/revoke`, { walletId: wallet?.id }, 'revoke');
-    setWallet(null);
-  }, [wallet, safePost]);
+  const handleStart = useCallback(async () => { if (!wallet?.authorized) { setErrors(e => ({ ...e, start: '请先创建并授权 Agentic Wallet' })); return; } setActionLoading(true); const ok = await safePost(`${API}/live-trading/start`, {}, 'start'); if (ok) setIsTrading(true); setActionLoading(false); }, [wallet, safePost]);
+  const handleStop = useCallback(async () => { setActionLoading(true); const ok = await safePost(`${API}/live-trading/stop`, {}, 'stop'); if (ok) setIsTrading(false); setActionLoading(false); }, [safePost]);
+  const handleRevoke = useCallback(async () => { await safePost(`${API}/agentic-wallet/revoke`, { walletId: wallet?.id }, 'revoke'); setWallet(null); }, [wallet, safePost]);
 
   /* ================================================================== */
   /*  Render                                                             */
   /* ================================================================== */
-
   const walletConnected = !!wallet?.wallet_address;
   const authorized = !!wallet?.authorized;
 
   return (
-    <div className="min-h-screen bg-[#0d1117] text-gray-100">
-      <div className="max-w-7xl mx-auto px-4 py-6">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* Page Header (aligned with all other pages) */}
+      <div>
+        <h1 style={{ fontSize: 24, fontWeight: 700, color: 'white' }}>实盘交易</h1>
+        <p style={{ fontSize: 14, color: T.dark400, marginTop: 4 }}>
+          Agentic Wallet · 自动交易 · AI 自学习优化
+        </p>
+      </div>
 
-        {/* ============ Wallet Status ============ */}
-        <div className="bg-gray-900/50 backdrop-blur-md border border-gray-800 rounded-xl p-6 mb-6">
-          {walletLoading ? (
-            <div className="flex items-center space-x-3 text-gray-400">
-              <RefreshCw className="w-4 h-4 animate-spin" /><span className="text-sm">加载钱包状态...</span>
+      {/* Learning Banner */}
+      {learningBanner && (
+        <div style={{ ...cardBase, padding: '16px 20px', borderColor: 'rgba(99,102,241,0.3)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <TrendingUp size={16} color={T.accent} />
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'white' }}>学习系统已优化参数</span>
             </div>
-          ) : walletConnected ? (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-6">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                    <Wallet className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-white">Agentic Wallet</div>
-                    <div className="text-xs text-gray-400">{fmtAddr(wallet.wallet_address)}</div>
-                  </div>
-                </div>
-                <div className="h-8 w-px bg-gray-700" />
-                <div>
-                  <div className="text-xs text-gray-400">余额</div>
-                  <div className="text-lg font-bold text-white">
-                    ${(wallet.balance ?? 0).toLocaleString()}
-                  </div>
-                </div>
-                <div className="h-8 w-px bg-gray-700" />
-                <div className="flex items-center space-x-2">
-                  <div className={`w-2 h-2 rounded-full ${authorized ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-                  <span className={`text-sm ${authorized ? 'text-green-400' : 'text-red-400'}`}>
-                    {authorized ? '已授权' : '未授权'}
-                  </span>
-                  {authorized && wallet.expires_at && (
-                    <span className="text-xs text-gray-500">有效期至 {wallet.expires_at.slice(0, 10)}</span>
-                  )}
-                </div>
-              </div>
-              <button
-                onClick={handleRevoke}
-                className="px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm text-gray-300 transition"
-              >
-                断开连接
-              </button>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {Object.entries(learningBanner.diff).map(([k, v]) => (<ParamDiffBadge key={k} paramKey={k} oldVal={v.old} newVal={v.new} />))}
             </div>
-          ) : (
-            <div className="text-center py-2">
-              <AlertCircle className="w-5 h-5 text-yellow-400 mx-auto mb-2" />
-              <p className="text-sm text-gray-400">未连接 Agentic Wallet</p>
-              <p className="text-xs text-gray-500 mt-1">请通过 API 创建钱包后刷新页面</p>
-            </div>
-          )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <button onClick={() => { const p: any = {}; Object.entries(learningBanner.diff).forEach(([k, v]) => { p[k] = v.new; }); safePost(`${API}/live-trading/config`, p, 'applyLearning'); setConfig(c => ({ ...c, ...p })); setLearningBanner(null); }} style={{ padding: '6px 16px', borderRadius: 10, background: T.accent, color: '#fff', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer' }}>应用</button>
+            <button onClick={() => setLearningBanner(null)} style={{ padding: '6px 16px', borderRadius: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: T.dark300, fontSize: 12, cursor: 'pointer' }}>忽略</button>
+            <a href="/learning" target="_blank" rel="noopener noreferrer" style={{ padding: '6px 16px', borderRadius: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: T.accent, fontSize: 12, textDecoration: 'none' }}>查看详情</a>
+          </div>
         </div>
+      )}
 
-        {/* ============ Config Grid ============ */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          {/* Strategy Params */}
-          <div className="bg-gray-900/50 backdrop-blur-md border border-gray-800 rounded-xl p-6">
-            <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-              <Settings className="w-5 h-5 mr-2" />
-              策略参数
-            </h3>
-            {configLoading ? (
-              <div className="text-center text-gray-400 text-sm py-4">
-                <RefreshCw className="w-4 h-4 animate-spin mx-auto mb-2" />加载中...
+      <div style={{ display: 'flex', gap: 32 }}>
+        {/* ===================================================== */}
+        {/*  LEFT SIDEBAR — 380px                                  */}
+        {/* ===================================================== */}
+        <div style={{ width: 380, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* Wallet Card */}
+          <div style={{ ...cardBase, padding: 20 }}>
+            <h3 style={sectionTitle}><Wallet size={14} color={T.accent} /> Agentic Wallet</h3>
+            {walletLoading ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '16px 0' }}>
+                <RefreshCw size={14} className="animate-spin" color={T.dark400} />
+                <span style={{ fontSize: 12, color: T.dark400 }}>加载钱包状态...</span>
               </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">单笔上限 (USDT)</label>
-                  <input
-                    type="number"
-                    value={config.max_single_amount}
-                    onChange={(e) => handleConfigChange({ max_single_amount: Number(e.target.value) })}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-                  />
+            ) : walletConnected ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'white' }}>Agentic Wallet</div>
+                    <div style={{ fontSize: 10, color: T.dark400, textTransform: 'uppercase', marginTop: 2 }}>{wallet.chain || 'ETH'}</div>
+                  </div>
+                  <button onClick={handleRevoke} style={{ padding: '4px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: T.dark300, fontSize: 11, cursor: 'pointer' }}>断开</button>
                 </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">滑点容忍 (%)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={config.slippage_tolerance}
-                    onChange={(e) => handleConfigChange({ slippage_tolerance: Number(e.target.value) })}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-                  />
+                <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 11, fontFamily: 'monospace', color: T.dark300 }}>{fmtAddr(wallet.wallet_address)}</span>
+                  <button onClick={() => navigator.clipboard.writeText(wallet.wallet_address!)} style={{ background: 'none', border: 'none', color: T.dark400, cursor: 'pointer', padding: 0 }}>
+                    <Copy size={13} />
+                  </button>
                 </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Gas 策略</label>
-                  <select
-                    value={config.gas_strategy}
-                    onChange={(e) => handleConfigChange({ gas_strategy: e.target.value as 'slow' | 'medium' | 'fast' })}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-                  >
-                    <option value="slow">慢 (Slow)</option>
-                    <option value="medium">中 (Medium)</option>
-                    <option value="fast">快 (Fast)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">止盈 / 止损 (%)</label>
-                  <div className="flex space-x-2">
-                    <input
-                      type="number"
-                      value={config.take_profit_pct}
-                      onChange={(e) => handleConfigChange({ take_profit_pct: Number(e.target.value) })}
-                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-                      placeholder="止盈"
-                    />
-                    <input
-                      type="number"
-                      value={config.stop_loss_pct}
-                      onChange={(e) => handleConfigChange({ stop_loss_pct: Number(e.target.value) })}
-                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-                      placeholder="止损"
-                    />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: T.dark400, textTransform: 'uppercase' }}>余额</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: 'white', fontFamily: 'monospace' }}>
+                      ${(wallet.balance ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 8, background: authorized ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)' }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: authorized ? T.accentGreen : T.accentRed, animation: authorized ? 'pulseLED 2s infinite' : 'none' }} />
+                    <span style={{ fontSize: 12, fontWeight: 600, color: authorized ? T.accentGreen : T.accentRed }}>{authorized ? '已授权' : '未授权'}</span>
                   </div>
                 </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">每日最大亏损 (USDT)</label>
-                  <input
-                    type="number"
-                    value={config.daily_max_loss}
-                    onChange={(e) => handleConfigChange({ daily_max_loss: Number(e.target.value) })}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">最大持仓数</label>
-                  <input
-                    type="number"
-                    value={config.max_holdings}
-                    onChange={(e) => handleConfigChange({ max_holdings: Number(e.target.value) })}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-                  />
-                </div>
+                {authorized && wallet.expires_at && <div style={{ fontSize: 10, color: T.dark400, marginTop: 8 }}>有效期至 {wallet.expires_at.slice(0, 10)}</div>}
+              </>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                <AlertCircle size={24} color={T.accentOrange} style={{ margin: '0 auto 8px' }} />
+                <p style={{ fontSize: 12, color: T.dark400 }}>未连接 Agentic Wallet</p>
+                <p style={{ fontSize: 10, color: T.dark500, marginTop: 4 }}>请通过 API 创建钱包后刷新页面</p>
               </div>
             )}
           </div>
 
-          {/* Learning Config */}
-          <div className="bg-gray-900/50 backdrop-blur-md border border-gray-800 rounded-xl p-6">
-            <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-              <TrendingUp className="w-5 h-5 mr-2" />
-              自动学习配置
-            </h3>
-            {configLoading ? (
-              <div className="text-center text-gray-400 text-sm py-4">
-                <RefreshCw className="w-4 h-4 animate-spin mx-auto mb-2" />加载中...
+          {/* Strategy Parameters */}
+          <div style={{ ...cardBase, padding: 20 }}>
+            <h3 style={sectionTitle}><Settings size={14} color={T.accent} /> 策略参数</h3>
+            {configLoading ? <LoadingBlock /> : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <CF label="单笔上限 (USDT)"><CI type="number" value={config.max_single_amount} onChange={e => handleConfigChange({ max_single_amount: Number(e.target.value) })} /></CF>
+                <CF label="滑点容忍 (%)"><CI type="number" step="0.1" value={config.slippage_tolerance} onChange={e => handleConfigChange({ slippage_tolerance: Number(e.target.value) })} /></CF>
+                <CF label="Gas 策略">
+                  <select value={config.gas_strategy} onChange={e => handleConfigChange({ gas_strategy: e.target.value as any })}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: 13, fontFamily: 'monospace' }}>
+                    <option value="slow">慢 (Slow)</option><option value="medium">中 (Medium)</option><option value="fast">快 (Fast)</option>
+                  </select>
+                </CF>
+                <CF label="止盈 / 止损 (%)">
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ flex: 1, position: 'relative' }}>
+                      <CI type="number" value={config.take_profit_pct} onChange={e => handleConfigChange({ take_profit_pct: Number(e.target.value) })} style={{ paddingRight: 28 }} />
+                      <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 10, fontWeight: 700, color: T.accentGreen }}>TP</span>
+                    </div>
+                    <div style={{ flex: 1, position: 'relative' }}>
+                      <CI type="number" value={config.stop_loss_pct} onChange={e => handleConfigChange({ stop_loss_pct: Number(e.target.value) })} style={{ paddingRight: 28 }} />
+                      <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 10, fontWeight: 700, color: T.accentRed }}>SL</span>
+                    </div>
+                  </div>
+                </CF>
+                <CF label="每日最大亏损 (USDT)"><CI type="number" value={config.daily_max_loss} onChange={e => handleConfigChange({ daily_max_loss: Number(e.target.value) })} /></CF>
+                <CF label="最大持仓数"><CI type="number" value={config.max_holdings} onChange={e => handleConfigChange({ max_holdings: Number(e.target.value) })} /></CF>
               </div>
-            ) : (
-              <div className="space-y-4">
-                <Toggle
-                  label="自动应用学习参数"
-                  desc="学习系统优化后的参数自动应用到实盘"
-                  checked={config.auto_apply_params}
-                  onChange={(v) => handleConfigChange({ auto_apply_params: v })}
-                />
-                <Toggle
-                  label="参数变更时暂停"
-                  desc="学习参数更新时自动暂停实盘交易"
-                  checked={config.pause_on_param_change}
-                  onChange={(v) => handleConfigChange({ pause_on_param_change: v })}
-                />
+            )}
+          </div>
+
+          {/* Auto Learning */}
+          <div style={{ ...cardBase, padding: 20 }}>
+            <h3 style={sectionTitle}><TrendingUp size={14} color={T.accentPurple} /> 自动学习配置</h3>
+            {configLoading ? <LoadingBlock /> : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <ToggleRow label="自动应用学习参数" desc="学习系统优化后的参数自动应用到实盘" checked={config.auto_apply_params} onChange={v => handleConfigChange({ auto_apply_params: v })} />
+                <ToggleRow label="参数变更时暂停" desc="学习参数更新时自动暂停实盘交易" checked={config.pause_on_param_change} onChange={v => handleConfigChange({ pause_on_param_change: v })} />
                 {learningDiff && Object.keys(learningDiff).length > 0 && (
-                  <div className="mt-3 p-3 rounded-lg bg-blue-900/20 border border-blue-800">
-                    <div className="text-xs text-blue-300 font-medium mb-2">参数差异</div>
-                    {Object.entries(learningDiff).map(([key, val]) => (
-                      <div key={key} className="flex items-center justify-between text-xs py-1">
-                        <span className="text-gray-400">{key}</span>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-red-400 line-through">{String(val.old)}</span>
-                          <span className="text-gray-500">→</span>
-                          <span className="text-green-400">{String(val.new)}</span>
-                        </div>
-                      </div>
-                    ))}
+                  <div style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 10, padding: 12 }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', color: T.accent, marginBottom: 8 }}>参数差异</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {Object.entries(learningDiff).map(([k, v]) => (<ParamDiffBadge key={k} paramKey={k} oldVal={v.old} newVal={v.new} />))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -658,417 +482,334 @@ export default function MomentumLivePage() {
           </div>
         </div>
 
-        {/* ============ Trade Control ============ */}
-        <div className="bg-gray-900/50 backdrop-blur-md border border-gray-800 rounded-xl p-6 mb-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-6">
-              <button
-                onClick={handleStart}
-                disabled={isTrading || actionLoading}
-                className={`px-6 py-3 rounded-lg font-medium transition flex items-center space-x-2 ${
-                  isTrading ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'
-                }`}
-              >
-                <Play className="w-4 h-4" />
-                <span>{actionLoading ? '处理中...' : '开启实盘'}</span>
-              </button>
-              <button
-                onClick={handleStop}
-                disabled={!isTrading || actionLoading}
-                className={`px-6 py-3 rounded-lg font-medium transition flex items-center space-x-2 ${
-                  !isTrading ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700 text-white'
-                }`}
-              >
-                <Pause className="w-4 h-4" />
-                <span>{actionLoading ? '处理中...' : '暂停实盘'}</span>
-              </button>
-              <div className="h-8 w-px bg-gray-700" />
-              <div className="flex items-center space-x-4 text-sm">
-                <div className="flex items-center space-x-2">
-                  <div className={`w-2 h-2 rounded-full ${isTrading ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`} />
-                  <span className="text-gray-400">
-                    状态: <span className={isTrading ? 'text-green-400' : 'text-gray-500'}>{isTrading ? '运行中' : '已暂停'}</span>
-                  </span>
-                </div>
-                <div className="text-gray-400">
-                  今日交易: <span className="text-white font-medium">{tradingStatus.today_trades ?? '—'}笔</span>
-                </div>
-                <div className="text-gray-400">
-                  今日盈亏: <span className={(tradingStatus.today_pnl ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}>
-                    {fmtPnl(tradingStatus.today_pnl)}
-                  </span>
-                </div>
-                <div className="text-gray-400">
-                  今日亏损: <span className="text-red-400">{fmtPnl(Math.abs(tradingStatus.today_loss ?? 0))}</span>
-                  {(tradingStatus.today_loss ?? 0) <= -(config.daily_max_loss) && (
-                    <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-red-900/60 text-red-300 border border-red-700">已达上限</span>
-                  )}
-                </div>
-                <div className="text-gray-400">
-                  当前持仓: <span className="text-white font-medium">{tradingStatus.current_holdings ?? '—'}</span>
-                  {(tradingStatus.current_holdings ?? 0) >= config.max_holdings && (
-                    <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-yellow-900/60 text-yellow-300 border border-yellow-700">已达上限</span>
-                  )}
-                </div>
-              </div>
-            </div>
-            {errors.start && <span className="text-xs text-red-400 ml-4">{errors.start}</span>}
-          </div>
-        </div>
+        {/* ===================================================== */}
+        {/*  RIGHT MAIN — fluid                                   */}
+        {/* ===================================================== */}
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-        {/* ============ Learning params notification banner ============ */}
-        {learningBanner && (
-          <div className="bg-blue-900/30 backdrop-blur-md border border-blue-700 rounded-xl p-4 mb-6">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center space-x-2 text-blue-300 text-sm font-medium mb-2">
-                  <TrendingUp className="w-4 h-4" />
-                  <span>学习系统已优化参数</span>
-                </div>
-                <div className="space-y-1">
-                  {Object.entries(learningBanner.diff).map(([key, val]) => (
-                    <div key={key} className="text-xs text-blue-200">
-                      {key === 'take_profit_pct' && `止盈${val.old}%→${val.new}%`}
-                      {key === 'stop_loss_pct' && `止损${val.old}%→${val.new}%`}
-                      {key === 'daily_max_loss' && `每日最大亏损$${val.old}→$${val.new}`}
-                      {key === 'max_holdings' && `最大持仓数${val.old}→${val.new}`}
-                      {key === 'max_single_amount' && `单笔上限$${val.old}→$${val.new}`}
-                      {key === 'slippage_tolerance' && `滑点容忍${val.old}%→${val.new}%`}
-                      {key === 'gas_strategy' && `Gas策略${val.old}→${val.new}`}
-                      {!['take_profit_pct', 'stop_loss_pct', 'daily_max_loss', 'max_holdings', 'max_single_amount', 'slippage_tolerance', 'gas_strategy'].includes(key) && `${key}: ${String(val.old)} → ${String(val.new)}`}
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="flex items-center space-x-2 ml-4 shrink-0">
-                <button
-                  onClick={() => {
-                    // Apply: POST config with new values
-                    const patch: Record<string, any> = {};
-                    Object.entries(learningBanner.diff).forEach(([k, v]) => { patch[k] = v.new; });
-                    safePost(`${API}/live-trading/config`, patch, 'applyLearning');
-                    setConfig(c => ({ ...c, ...patch }));
-                    setLearningBanner(null);
-                  }}
-                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition"
-                >
-                  应用
+          {/* Trading Control Bar */}
+          <div style={{ ...cardBase, padding: '18px 24px', borderColor: isTrading ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.05)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <button onClick={handleStart} disabled={isTrading || actionLoading}
+                  style={{ padding: '12px 32px', borderRadius: 12, background: isTrading ? 'rgba(255,255,255,0.05)' : T.accentGreen, border: isTrading ? '1px solid rgba(255,255,255,0.1)' : 'none', color: isTrading ? T.dark400 : '#fff', fontSize: 14, fontWeight: 700, cursor: isTrading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 8, opacity: isTrading ? 0.4 : 1 }}>
+                  <Play size={16} />{actionLoading ? '处理中...' : '开启实盘'}
                 </button>
-                <button
-                  onClick={() => setLearningBanner(null)}
-                  className="px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs font-medium transition"
-                >
-                  忽略
+                <button onClick={handleStop} disabled={!isTrading || actionLoading}
+                  style={{ padding: '12px 32px', borderRadius: 12, background: !isTrading ? 'rgba(255,255,255,0.05)' : T.accentRed, border: !isTrading ? '1px solid rgba(255,255,255,0.1)' : 'none', color: !isTrading ? T.dark400 : '#fff', fontSize: 14, fontWeight: 700, cursor: !isTrading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 8, opacity: !isTrading ? 0.4 : 1 }}>
+                  <Pause size={16} />{actionLoading ? '处理中...' : '暂停实盘'}
                 </button>
-                <a
-                  href="/learning"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-blue-300 text-xs font-medium transition inline-flex items-center"
-                >
-                  查看详情
-                </a>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 8 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: isTrading ? T.accentGreen : T.dark400, animation: isTrading ? 'pulseLED 2s infinite' : 'none' }} />
+                  <span style={{ fontSize: 13, fontWeight: 600, color: isTrading ? T.accentGreen : T.dark400 }}>{isTrading ? '运行中' : '已暂停'}</span>
+                </div>
+                {errors.start && <span style={{ fontSize: 12, color: T.accentRed }}>{errors.start}</span>}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
+                <HS label="今日交易" value={`${tradingStatus.today_trades ?? '—'}笔`} />
+                <HS label="今日盈亏" value={fmtPnl(tradingStatus.today_pnl)} valueColor={(tradingStatus.today_pnl ?? 0) >= 0 ? T.accentGreen : T.accentRed} />
+                <HS label="今日亏损" value={fmtPnl(tradingStatus.today_loss)} valueColor={T.accentRed} alert={(tradingStatus.today_loss ?? 0) <= -(config.daily_max_loss)} alertLabel="已达上限" />
+                <HS label="当前持仓" value={`${tradingStatus.current_holdings ?? '—'}个`} alert={(tradingStatus.current_holdings ?? 0) >= config.max_holdings} alertLabel="已达上限" />
               </div>
             </div>
           </div>
-        )}
 
-        {/* ============ Signal Stream ============ */}
-        <div className="bg-gray-900/50 backdrop-blur-md border border-gray-800 rounded-xl p-6 mb-6">
-          <h3 className="text-lg font-semibold text-white mb-4">实时信号流</h3>
-          {signals.length === 0 ? (
-            <div className="text-center py-6">
-              <AlertCircle className="w-8 h-8 text-gray-600 mx-auto mb-2" />
-              <p className="text-sm text-gray-500">等待实时信号...</p>
-              <p className="text-xs text-gray-600 mt-1">开启实盘后将通过 WebSocket 接收信号</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto max-h-80 overflow-y-auto">
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-gray-900">
-                  <tr className="text-gray-400 border-b border-gray-700">
-                    <th className="text-left py-2">时间</th>
-                    <th className="text-left py-2">代币</th>
-                    <th className="text-left py-2">方向</th>
-                    <th className="text-left py-2">价格</th>
-                    <th className="text-left py-2">评分</th>
-                    <th className="text-left py-2">状态</th>
-                  </tr>
-                </thead>
-                <tbody className="text-gray-300">
-                  {signals.map((s, i) => {
-                    const sc = s.score ?? s.confidence ?? 0;
-                    return (
-                      <tr key={s.id || i} className="border-b border-gray-800">
-                        <td className="py-3">{s.time || '—'}</td>
-                        <td className="py-3 font-medium text-white">{s.symbol || s.token || '—'}</td>
-                        <td className="py-3">
-                          <span className={`px-2 py-1 rounded text-xs ${
-                            s.direction === 'BUY' ? 'bg-green-900/50 text-green-400' : 'bg-red-900/50 text-red-400'
-                          }`}>{s.direction}</span>
-                        </td>
-                        <td className="py-3">{s.price ?? (s.price_usd ? `$${s.price_usd}` : '—')}</td>
-                        <td className="py-3 text-blue-400">{sc}</td>
-                        <td className="py-3">
-                          <span className={s.status === '已执行' || s.status === 'executed' ? 'text-green-400' : 'text-yellow-400'}>
-                            {s.status === '已执行' || s.status === 'executed' ? '✓' : '⏳'} {s.status || '待执行'}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {/* ============ Charts ============ */}
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-semibold text-white">数据图表</h3>
-          <div className="flex space-x-2">
-            {[7, 30, 90].map(d => (
-              <button key={d} onClick={() => setChartDays(d)}
-                className={`px-3 py-1 rounded text-sm ${chartDays === d ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
-                {d}天
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <ChartCard title="盈亏曲线">
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={pnlData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis dataKey="time" stroke="#9ca3af" fontSize={11} />
-                <YAxis stroke="#9ca3af" fontSize={11} />
-                <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: 8 }} />
-                <Line type="monotone" dataKey="pnl" stroke="#10b981" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </ChartCard>
-
-          <ChartCard title="交易分布">
-            {distributionData.length === 0 ? (
-              <EmptyChart />
-            ) : (
-              <>
-                <ResponsiveContainer width="100%" height={200}>
-                  <PieChart>
-                    <Pie data={distributionData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={5} dataKey="value">
-                      {distributionData.map((_, i) => (
-                        <Cell key={i} fill={_.color || COLORS[i % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: 8 }} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="flex justify-center space-x-4 mt-2">
-                  {distributionData.map((e, i) => (
-                    <div key={e.name || i} className="flex items-center space-x-2">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: e.color || COLORS[i % COLORS.length] }} />
-                      <span className="text-xs text-gray-400">{e.name} {e.value}%</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </ChartCard>
-
-          <ChartCard title="资产变化">
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={assetData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis dataKey="time" stroke="#9ca3af" fontSize={11} />
-                <YAxis stroke="#9ca3af" fontSize={11} />
-                <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: 8 }} />
-                <Area type="monotone" dataKey="value" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </ChartCard>
-
-          <ChartCard title="代币盈亏排名">
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={tokenData} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis type="number" stroke="#9ca3af" fontSize={11} />
-                <YAxis dataKey="token" type="category" stroke="#9ca3af" fontSize={11} width={60} />
-                <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: 8 }} />
-                <Bar dataKey="pnl" fill="#10b981" />
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartCard>
-        </div>
-
-        {/* ============ Trade History ============ */}
-        <div className="bg-gray-900/50 backdrop-blur-md border border-gray-800 rounded-xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-white flex items-center">
-              <History className="w-5 h-5 mr-2" />
-              交易记录
+          {/* Signal Stream */}
+          <div style={{ ...cardBase, padding: 20 }}>
+            <h3 style={{ ...sectionTitle, marginBottom: 8 }}><Zap size={14} color={T.accentGreen} /> 实时信号流
+              <span style={{ marginLeft: 'auto', fontWeight: 400, fontSize: 11, textTransform: 'none', color: T.dark500 }}>{signals.length > 0 ? `${signals.length} 条信号` : '等待信号'}</span>
             </h3>
-            <div className="flex space-x-2">
-              {[
-                { key: 'all', label: '全部' },
-                { key: 'today', label: '今日' },
-                { key: 'week', label: '本周' },
-                { key: 'month', label: '本月' },
-              ].map(b => (
-                <button key={b.key} onClick={() => { setTradeDate(b.key); setTradePage(1); }}
-                  className={`px-3 py-1 rounded text-sm ${tradeDate === b.key ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
-                  {b.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          {trades.length === 0 ? (
-            <div className="text-center py-8">
-              <History className="w-8 h-8 text-gray-600 mx-auto mb-2" />
-              <p className="text-sm text-gray-500">暂无交易记录</p>
-            </div>
-          ) : (
-            <>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-gray-400 border-b border-gray-700">
-                      <th className="text-left py-2">时间</th>
-                      <th className="text-left py-2">代币</th>
-                      <th className="text-left py-2">方向</th>
-                      <th className="text-left py-2">金额</th>
-                      <th className="text-left py-2">盈亏</th>
-                      <th className="text-left py-2">状态</th>
-                      <th className="text-left py-2">TxHash</th>
-                    </tr>
-                  </thead>
-                  <tbody className="text-gray-300">
-                    {trades.map((t) => {
-                      const pnl = parseFloat(t.pnl_usd || '0');
-                      const dir = t.direction || (pnl !== 0 ? (pnl > 0 ? 'BUY' : 'SELL') : '—');
+            {signals.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                <Activity size={36} color={T.dark500} style={{ margin: '0 auto 8px', opacity: 0.3 }} />
+                <p style={{ fontSize: 13, color: T.dark400 }}>等待实时信号...</p>
+                <p style={{ fontSize: 11, color: T.dark500, marginTop: 4 }}>开启实盘后将通过 WebSocket 接收信号</p>
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto', maxHeight: 460, overflowY: 'auto' }}>
+                <style>{`.signal-table-2 tbody tr{animation:signalRowIn .35s ease-out}.signal-table-2 tbody tr:hover{background:rgba(99,102,241,0.04)}`}</style>
+                <table className="signal-table-2" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead><tr>
+                    <th style={{ textAlign: 'left', padding: '10px 12px', color: T.dark400, fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>时间</th>
+                    <th style={{ textAlign: 'left', padding: '10px 12px', color: T.dark400, fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>代币</th>
+                    <th style={{ textAlign: 'left', padding: '10px 12px', color: T.dark400, fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>方向</th>
+                    <th style={{ textAlign: 'right', padding: '10px 12px', color: T.dark400, fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>价格</th>
+                    <th style={{ textAlign: 'right', padding: '10px 12px', color: T.dark400, fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>评分</th>
+                    <th style={{ textAlign: 'right', padding: '10px 12px', color: T.dark400, fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>状态</th>
+                  </tr></thead>
+                  <tbody>
+                    {signals.map((s, i) => {
+                      const sc = s.score ?? s.confidence ?? 0;
+                      const isBuy = s.direction === 'BUY';
+                      const exec = s.status === '已执行' || s.status === 'executed';
                       return (
-                        <tr key={t.id} className="border-b border-gray-800">
-                          <td className="py-3">{t.time || t.created_at || '—'}</td>
-                          <td className="py-3 font-medium text-white">{t.token || t.token_out || '—'}</td>
-                          <td className="py-3">
-                            <span className={dir === 'BUY' ? 'text-green-400' : 'text-red-400'}>{dir}</span>
+                        <tr key={s.id || i} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                          <td style={{ padding: '10px 12px', fontFamily: 'monospace', color: T.dark400 }}>{s.time || '—'}</td>
+                          <td style={{ padding: '10px 12px', fontWeight: 600, color: 'white' }}>{s.symbol || s.token || '—'}</td>
+                          <td style={{ padding: '10px 12px' }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700, background: isBuy ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', color: isBuy ? T.accentGreen : T.accentRed }}>
+                              {isBuy ? <ArrowUp size={12} /> : <ArrowDown size={12} />}{s.direction}
+                            </span>
                           </td>
-                          <td className="py-3">{t.amount_in ? `$${t.amount_in}` : '—'}</td>
-                          <td className={`py-3 ${pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmtPnl(pnl)}</td>
-                          <td className="py-3">
-                            <span className={`px-2 py-1 rounded text-xs ${
-                              t.status === '成功' || t.status === 'success' ? 'bg-green-900/50 text-green-400' :
-                              t.status === '失败' || t.status === 'failed' ? 'bg-red-900/50 text-red-400' :
-                              'bg-yellow-900/50 text-yellow-400'
-                            }`}>{t.status || '—'}</span>
+                          <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'monospace', color: 'white' }}>{s.price ?? (s.price_usd ? `$${s.price_usd}` : '—')}</td>
+                          <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                            <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700, fontFamily: 'monospace', background: scoreBg(sc), color: scoreColor(sc) }}>{sc}</span>
                           </td>
-                          <td className="py-3">
-                            {t.tx_hash ? (
-                              <div className="flex items-center space-x-1.5">
-                                <a
-                                  href={getExplorerUrl(t.chain, t.tx_hash)}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-blue-400 hover:text-blue-300 underline underline-offset-2 decoration-blue-700"
-                                  title={`${t.chain || 'ETH'}: ${t.tx_hash}`}
-                                >
-                                  {fmtTxHash(t.tx_hash)}
-                                </a>
-                                <button
-                                  onClick={() => navigator.clipboard.writeText(t.tx_hash!)}
-                                  className="text-gray-500 hover:text-gray-300 transition"
-                                  title="复制 TxHash"
-                                >
-                                  <Copy className="w-3 h-3" />
-                                </button>
-                              </div>
-                            ) : (
-                              <span className="text-gray-600">—</span>
-                            )}
-                          </td>
+                          <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: 11, color: exec ? T.accentGreen : T.accentOrange }}>{exec ? '✓ 已执行' : (s.status || '待执行')}</td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
               </div>
-              <div className="flex justify-center space-x-4 mt-4">
-                <button onClick={() => setTradePage(p => Math.max(1, p - 1))} disabled={tradePage <= 1}
-                  className="px-3 py-1 rounded bg-gray-800 text-gray-400 text-sm disabled:opacity-30">上一页</button>
-                <span className="text-sm text-gray-400 self-center">第 {tradePage} 页</span>
-                <button onClick={() => setTradePage(p => p + 1)} disabled={trades.length < 20}
-                  className="px-3 py-1 rounded bg-gray-800 text-gray-400 text-sm disabled:opacity-30">下一页</button>
-              </div>
-            </>
-          )}
-        </div>
+            )}
+          </div>
 
-        {/* ============ Config confirm dialog ============ */}
-        {confirmDialog && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={cancelConfigChange}>
-            <div className="bg-gray-900 border border-yellow-700 rounded-xl p-6 max-w-sm mx-4" onClick={e => e.stopPropagation()}>
-              <h4 className="text-yellow-400 font-medium mb-2">⚠️ 确认修改</h4>
-              <p className="text-sm text-gray-300 mb-4">
-                实盘交易运行中，修改关键参数可能影响正在进行的交易。确定要保存吗？
-              </p>
-              <div className="flex space-x-3">
-                <button onClick={confirmConfigChange} className="flex-1 px-4 py-2 rounded-lg bg-yellow-600 hover:bg-yellow-700 text-white text-sm transition">确认修改</button>
-                <button onClick={cancelConfigChange} className="flex-1 px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm transition">取消</button>
+          {/* Charts Dashboard */}
+          <div style={{ ...cardBase, padding: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <BarChartIcon size={16} color={T.accent} />
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'white' }}>数据图表</span>
+              </div>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {[7, 30, 90].map(d => (
+                  <button key={d} onClick={() => setChartDays(d)}
+                    style={{ padding: '4px 14px', borderRadius: 8, fontSize: 11, fontWeight: 600, border: chartDays === d ? '1px solid rgba(99,102,241,0.3)' : '1px solid transparent', background: chartDays === d ? 'rgba(99,102,241,0.1)' : 'transparent', color: chartDays === d ? T.accent : T.dark400, cursor: 'pointer' }}>{d}天</button>
+                ))}
               </div>
             </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 16 }}>
+              <ChartBox title="盈亏曲线" titleColor={T.accentGreen}>
+                {pnlData.length === 0 ? <EC /> : (
+                  <ResponsiveContainer width="100%" height={320}>
+                    <LineChart data={pnlData}><CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" /><XAxis dataKey="time" stroke={T.dark400} fontSize={10} tickLine={false} axisLine={false} /><YAxis stroke={T.dark400} fontSize={10} tickLine={false} axisLine={false} /><Tooltip contentStyle={{ background: 'rgba(0,0,0,0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 11, color: 'white' }} /><Line type="monotone" dataKey="pnl" stroke={T.accentGreen} strokeWidth={2} dot={false} /></LineChart>
+                  </ResponsiveContainer>
+                )}
+              </ChartBox>
+              <ChartBox title="交易分布" titleColor={T.accentBlue}>
+                {distributionData.length === 0 ? <EC /> : (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <ResponsiveContainer width="100%" height={320}>
+                      <PieChart><Pie data={distributionData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={4} dataKey="value">
+                        {distributionData.map((_, i) => (<Cell key={i} fill={_.color || [T.accentGreen, T.accentRed][i % 2]} stroke="rgba(0,0,0,0.6)" strokeWidth={2} />))}
+                      </Pie></PieChart>
+                    </ResponsiveContainer>
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginTop: 8 }}>
+                      {distributionData.map((e, i) => (<div key={e.name || i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: e.color || [T.accentGreen, T.accentRed][i % 2] }} /><span style={{ fontSize: 12, color: T.dark300 }}>{e.name} {e.value}%</span></div>))}
+                    </div>
+                  </div>
+                )}
+              </ChartBox>
+              <ChartBox title="资产变化" titleColor={T.accentPurple}>
+                {assetData.length === 0 ? <EC /> : (
+                  <ResponsiveContainer width="100%" height={320}>
+                    <AreaChart data={assetData}><CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" /><XAxis dataKey="time" stroke={T.dark400} fontSize={10} tickLine={false} axisLine={false} /><YAxis stroke={T.dark400} fontSize={10} tickLine={false} axisLine={false} /><defs><linearGradient id="ag2" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={T.accentPurple} stopOpacity={0.3} /><stop offset="95%" stopColor={T.accentPurple} stopOpacity={0} /></linearGradient></defs><Tooltip contentStyle={{ background: 'rgba(0,0,0,0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 11, color: 'white' }} /><Area type="monotone" dataKey="value" stroke={T.accentPurple} strokeWidth={2} fill="url(#ag2)" /></AreaChart>
+                  </ResponsiveContainer>
+                )}
+              </ChartBox>
+              <ChartBox title="代币盈亏排名" titleColor={T.accentOrange}>
+                {tokenData.length === 0 ? <EC /> : (
+                  <ResponsiveContainer width="100%" height={320}>
+                    <BarChart data={tokenData} layout="vertical"><CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" /><XAxis type="number" stroke={T.dark400} fontSize={10} tickLine={false} axisLine={false} /><YAxis dataKey="token" type="category" stroke={T.dark400} fontSize={10} tickLine={false} axisLine={false} width={60} /><Tooltip contentStyle={{ background: 'rgba(0,0,0,0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 11, color: 'white' }} /><Bar dataKey="pnl" radius={[0, 4, 4, 0]}>{tokenData.map((_, i) => (<Cell key={i} fill={(tokenData[i]?.pnl ?? 0) >= 0 ? T.accentGreen : T.accentRed} />))}</Bar></BarChart>
+                  </ResponsiveContainer>
+                )}
+              </ChartBox>
+            </div>
           </div>
-        )}
 
-        {/* ============ Error toast ============ */}
-        {Object.keys(errors).length > 0 && (
-          <div className="fixed bottom-4 right-4 bg-red-900/90 border border-red-700 rounded-lg p-3 max-w-sm z-50">
-            <p className="text-sm text-red-200 font-medium mb-1">数据加载失败</p>
-            {Object.entries(errors).slice(0, 3).map(([k, v]) => (
-              <p key={k} className="text-xs text-red-300">{v}</p>
-            ))}
-            <button onClick={() => setErrors({})}
-              className="text-xs text-red-400 hover:text-red-200 mt-2">✕ 关闭</button>
+          {/* Trade History */}
+          <div style={{ ...cardBase, padding: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <h3 style={{ ...sectionTitle, marginBottom: 0 }}><History size={14} color={T.dark400} /> 交易记录</h3>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {[{ k: 'all', l: '全部' }, { k: 'today', l: '今日' }, { k: 'week', l: '本周' }, { k: 'month', l: '本月' }].map(b => (
+                  <button key={b.k} onClick={() => { setTradeDate(b.k); setTradePage(1); }}
+                    style={{ padding: '4px 14px', borderRadius: 8, fontSize: 11, fontWeight: 600, border: tradeDate === b.k ? '1px solid rgba(99,102,241,0.2)' : '1px solid transparent', background: tradeDate === b.k ? 'rgba(99,102,241,0.08)' : 'transparent', color: tradeDate === b.k ? T.accent : T.dark400, cursor: 'pointer' }}>{b.l}</button>
+                ))}
+              </div>
+            </div>
+            {trades.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                <History size={36} color={T.dark500} style={{ margin: '0 auto 8px', opacity: 0.3 }} />
+                <p style={{ fontSize: 13, color: T.dark400 }}>暂无交易记录</p>
+              </div>
+            ) : (
+              <>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead><tr>
+                      <th style={{ textAlign: 'left', padding: '10px 12px', color: T.dark400, fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>时间</th>
+                      <th style={{ textAlign: 'left', padding: '10px 12px', color: T.dark400, fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>代币</th>
+                      <th style={{ textAlign: 'left', padding: '10px 12px', color: T.dark400, fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>方向</th>
+                      <th style={{ textAlign: 'right', padding: '10px 12px', color: T.dark400, fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>金额</th>
+                      <th style={{ textAlign: 'right', padding: '10px 12px', color: T.dark400, fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>盈亏</th>
+                      <th style={{ textAlign: 'right', padding: '10px 12px', color: T.dark400, fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>状态</th>
+                      <th style={{ textAlign: 'right', padding: '10px 12px', color: T.dark400, fontWeight: 500, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>TxHash</th>
+                    </tr></thead>
+                    <tbody>{trades.map(t => {
+                      const pnl = parseFloat(t.pnl_usd || '0');
+                      const dir = t.direction || (pnl !== 0 ? (pnl > 0 ? 'BUY' : 'SELL') : '—');
+                      const isBuy = dir === 'BUY';
+                      const ok = t.status === '成功' || t.status === 'success';
+                      const fail = t.status === '失败' || t.status === 'failed';
+                      return (
+                        <tr key={t.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                          <td style={{ padding: '10px 12px', fontFamily: 'monospace', color: T.dark400 }}>{t.time || t.created_at || '—'}</td>
+                          <td style={{ padding: '10px 12px', fontWeight: 600, color: 'white' }}>{t.token || t.token_out || '—'}</td>
+                          <td style={{ padding: '10px 12px' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: isBuy ? T.accentGreen : T.accentRed }}>
+                              {isBuy ? <ArrowUp size={12} /> : <ArrowDown size={12} />}{dir}
+                            </span>
+                          </td>
+                          <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'monospace', color: 'white' }}>{t.amount_in ? `$${t.amount_in}` : '—'}</td>
+                          <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: pnl >= 0 ? T.accentGreen : T.accentRed }}>{fmtPnl(pnl)}</td>
+                          <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: 11 }}>
+                            <span style={{ padding: '2px 8px', borderRadius: 6, fontWeight: 600, background: ok ? 'rgba(16,185,129,0.1)' : fail ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)', color: ok ? T.accentGreen : fail ? T.accentRed : T.accentOrange }}>{t.status || '—'}</span>
+                          </td>
+                          <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'monospace', color: T.dark400 }}>
+                            {t.tx_hash ? (
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                                <a href={getExplorerUrl(t.chain, t.tx_hash)} target="_blank" rel="noopener noreferrer" style={{ color: T.accent, textDecoration: 'none' }}>{fmtTxHash(t.tx_hash)}</a>
+                                <button onClick={() => navigator.clipboard.writeText(t.tx_hash!)} style={{ background: 'none', border: 'none', color: T.dark400, cursor: 'pointer', padding: 0 }}><Copy size={12} /></button>
+                              </div>
+                            ) : <span style={{ color: T.dark500 }}>—</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}</tbody>
+                  </table>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 16 }}>
+                  <button onClick={() => setTradePage(p => Math.max(1, p - 1))} disabled={tradePage <= 1}
+                    style={{ padding: '6px 16px', borderRadius: 8, fontSize: 11, fontWeight: 600, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)', color: T.dark400, cursor: tradePage <= 1 ? 'not-allowed' : 'pointer', opacity: tradePage <= 1 ? 0.3 : 1 }}>← 上一页</button>
+                  <span style={{ fontSize: 12, color: T.dark400 }}>第 {tradePage} 页</span>
+                  <button onClick={() => setTradePage(p => p + 1)} disabled={trades.length < 20}
+                    style={{ padding: '6px 16px', borderRadius: 8, fontSize: 11, fontWeight: 600, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)', color: T.dark400, cursor: trades.length < 20 ? 'not-allowed' : 'pointer', opacity: trades.length < 20 ? 0.3 : 1 }}>下一页 →</button>
+                </div>
+              </>
+            )}
           </div>
-        )}
+        </div>
       </div>
+
+      {/* Confirm Dialog */}
+      {confirmDialog && (
+        <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, background: 'rgba(0,0,0,0.7)' }} onClick={cancelConfigChange}>
+          <div style={{ ...cardBase, padding: 24, maxWidth: 360, borderColor: 'rgba(245,158,11,0.3)' }} onClick={e => e.stopPropagation()}>
+            <h4 style={{ fontSize: 15, fontWeight: 600, color: T.accentOrange, marginBottom: 8 }}>⚠️ 确认修改</h4>
+            <p style={{ fontSize: 12, color: T.dark300, marginBottom: 16 }}>实盘交易运行中，修改关键参数可能影响正在进行的交易。确定要保存吗？</p>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button onClick={confirmConfigChange} style={{ flex: 1, padding: '10px 16px', borderRadius: 10, background: T.accentOrange, color: '#000', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>确认修改</button>
+              <button onClick={cancelConfigChange} style={{ flex: 1, padding: '10px 16px', borderRadius: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: T.dark300, fontSize: 12, cursor: 'pointer' }}>取消</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error Toast */}
+      {Object.keys(errors).length > 0 && (
+        <div style={{ position: 'fixed', bottom: 16, right: 16, borderRadius: 12, padding: 12, maxWidth: 320, zIndex: 50, background: 'rgba(239,68,68,0.95)', border: '1px solid rgba(239,68,68,0.5)' }}>
+          <p style={{ fontSize: 12, fontWeight: 600, color: '#fff', marginBottom: 4 }}>数据加载失败</p>
+          {Object.entries(errors).slice(0, 3).map(([k, v]) => (<p key={k} style={{ fontSize: 10, color: 'rgba(255,255,255,0.8)' }}>{v}</p>))}
+          <button onClick={() => setErrors({})} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: 10, cursor: 'pointer', padding: 0, marginTop: 4 }}>✕ 关闭</button>
+        </div>
+      )}
     </div>
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Sub-components                                                     */
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
+/*  Sub-components (aligned with project design)                       */
+/* ================================================================== */
 
-function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
+function ChartBox({ title, titleColor, children }: { title: string; titleColor: string; children: React.ReactNode }) {
   return (
-    <div className="bg-gray-900/50 backdrop-blur-md border border-gray-800 rounded-xl p-6">
-      <h3 className="text-lg font-semibold text-white mb-4">{title}</h3>
+    <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 12, padding: 16, border: '1px solid rgba(255,255,255,0.04)' }}>
+      <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: titleColor, marginBottom: 12 }}>{title}</div>
       {children}
     </div>
   );
 }
 
-function EmptyChart() {
+function HS({ label, value, valueColor, alert, alertLabel }: { label: string; value: string; valueColor?: string; alert?: boolean; alertLabel?: string }) {
   return (
-    <div className="text-center py-10">
-      <BarChartIcon className="w-8 h-8 text-gray-600 mx-auto mb-2" />
-      <p className="text-xs text-gray-500">暂无数据</p>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <span style={{ fontSize: 10, textTransform: 'uppercase', color: T.dark400 }}>{label}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <span style={{ fontSize: 16, fontWeight: 700, fontFamily: 'monospace', color: valueColor || 'white' }}>{value}</span>
+        {alert && alertLabel && <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, fontWeight: 600, background: 'rgba(239,68,68,0.1)', color: T.accentRed }}>{alertLabel}</span>}
+      </div>
     </div>
   );
 }
 
-function Toggle({ label, desc, checked, onChange }: {
-  label: string; desc: string; checked: boolean; onChange: (v: boolean) => void;
-}) {
+function CF({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between">
+    <div>
+      <label style={{ display: 'block', fontSize: 10, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', color: T.dark400, marginBottom: 4 }}>{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function CI(props: React.InputHTMLAttributes<HTMLInputElement> & { style?: React.CSSProperties }) {
+  const { style, ...rest } = props;
+  return (
+    <input {...rest} style={{
+      width: '100%', padding: '8px 12px', borderRadius: 8,
+      background: 'rgba(255,255,255,0.05)',
+      border: '1px solid rgba(255,255,255,0.1)',
+      color: 'white', fontSize: 13, fontFamily: 'JetBrains Mono, monospace',
+      ...style,
+    }} />
+  );
+}
+
+function LoadingBlock() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 0', gap: 8 }}>
+      <RefreshCw size={14} className="animate-spin" color={T.dark400} />
+      <span style={{ fontSize: 12, color: T.dark400 }}>加载中...</span>
+    </div>
+  );
+}
+
+function EC() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 0' }}>
+      <BarChartIcon size={24} color={T.dark500} style={{ marginBottom: 8, opacity: 0.3 }} />
+      <span style={{ fontSize: 12, color: T.dark400 }}>暂无数据</span>
+    </div>
+  );
+}
+
+function ToggleRow({ label, desc, checked, onChange }: { label: string; desc: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
       <div>
-        <div className="text-sm text-white">{label}</div>
-        <div className="text-xs text-gray-400">{desc}</div>
+        <div style={{ fontSize: 13, fontWeight: 500, color: 'white' }}>{label}</div>
+        <div style={{ fontSize: 11, color: T.dark400, marginTop: 2 }}>{desc}</div>
       </div>
-      <label className="relative inline-flex items-center cursor-pointer">
-        <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} className="sr-only peer" />
-        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600" />
+      <label style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}>
+        <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }} />
+        <div style={{ width: 44, height: 24, borderRadius: 12, transition: 'background 0.2s', background: checked ? T.accent : 'rgba(255,255,255,0.1)' }}>
+          <div style={{ position: 'absolute', top: 2, left: 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'transform 0.2s', transform: checked ? 'translateX(20px)' : 'translateX(0)' }} />
+        </div>
       </label>
     </div>
+  );
+}
+
+function ParamDiffBadge({ paramKey, oldVal, newVal }: { paramKey: string; oldVal: any; newVal: any }) {
+  const m: Record<string, string> = { take_profit_pct: '止盈', stop_loss_pct: '止损', daily_max_loss: '每日最大亏损', max_holdings: '最大持仓', max_single_amount: '单笔上限', slippage_tolerance: '滑点容忍', gas_strategy: 'Gas策略' };
+  const s: Record<string, string> = { take_profit_pct: '%', stop_loss_pct: '%', slippage_tolerance: '%' };
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 10px', borderRadius: 6, fontSize: 10, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <span style={{ color: T.dark400 }}>{m[paramKey] || paramKey}</span>
+      <span style={{ color: T.accentRed, textDecoration: 'line-through' }}>{String(oldVal)}{s[paramKey] || ''}</span>
+      <span style={{ color: T.dark500 }}>→</span>
+      <span style={{ color: T.accentGreen, fontWeight: 700 }}>{String(newVal)}{s[paramKey] || ''}</span>
+    </span>
   );
 }
