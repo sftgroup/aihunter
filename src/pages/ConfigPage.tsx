@@ -112,6 +112,7 @@ export default function ConfigPage() {
   const handleOkxSecretChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => setOkxSecret(e.target.value), []);
   const handleOkxPassphraseChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => setOkxPassphrase(e.target.value), []);
   const [okxConfigured, setOkxConfigured] = useState(false);
+  const [okxStatus, setOkxStatus] = useState<{ hasKey?: boolean; hasSecret?: boolean; hasPassphrase?: boolean; keyHint?: string; configured?: boolean } | null>(null);
   const [okxSaving, setOkxSaving] = useState(false);
   const [okxResult, setOkxResult] = useState("");
 
@@ -163,8 +164,11 @@ export default function ConfigPage() {
   }
 
   async function loadOkxConfig() {
-    const res = await okxApi.getConfig();
-    if (res.code === 200) setOkxConfigured(res.data?.configured === true);
+    const res = await okxApi.getStatus();
+    if (res.code === 200 && res.data) {
+      setOkxConfigured(res.data.configured === true);
+      setOkxStatus(res.data);
+    }
   }
 
   async function saveAi() {
@@ -624,24 +628,45 @@ export default function ConfigPage() {
       <div>
         <SectionTitle icon={<Key size={14} />} title="OKX API 配置" />
         <div style={{ ...cardBase, overflow: "hidden" }}>
+          {/* Status Banner */}
+          <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', gap: 12 }}>
+            {okxConfigured ? (
+              <>
+                <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--accent-green)' }} />
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent-green)' }}>✅ OKX API 已配置</span>
+              </>
+            ) : (
+              <>
+                <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--accent-red)' }} />
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent-red)' }}>⚠️ OKX API 未完整配置</span>
+              </>
+            )}
+            {okxStatus && okxStatus.keyHint && (
+              <span style={{ fontSize: 10, color: 'var(--dark-400)', marginLeft: 'auto' }}>
+                Key: {okxStatus.keyHint}
+              </span>
+            )}
+          </div>
+
+          {/* Field Status Indicators */}
+          {okxStatus && !okxConfigured && (
+            <div style={{ padding: '10px 16px', background: 'rgba(239,68,68,0.05)', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', gap: 20 }}>
+              {[
+                { ok: okxStatus.hasKey, label: 'API Key' },
+                { ok: okxStatus.hasSecret, label: 'Secret Key' },
+                { ok: okxStatus.hasPassphrase, label: 'Passphrase' },
+              ].map(f => (
+                <span key={f.label} style={{ fontSize: 10, color: f.ok ? 'var(--accent-green)' : 'var(--accent-red)', display: 'flex', alignItems: 'center', gap: 3 }}>
+                  {f.ok ? '✓' : '✗'} {f.label}
+                </span>
+              ))}
+            </div>
+          )}
+
           <Row
             icon={<Key size={16} color="white" />}
             color="linear-gradient(135deg, #f59e0b, #ef4444)"
           >
-            {okxConfigured && (
-              <p
-                style={{
-                  fontSize: 11,
-                  color: "var(--accent-green)",
-                  marginBottom: 8,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4,
-                }}
-              >
-                ✅ OKX 已配置
-              </p>
-            )}
             <p style={{ fontSize: 13, fontWeight: 500, color: "white", marginBottom: 8 }}>
               API Key
             </p>
@@ -649,7 +674,7 @@ export default function ConfigPage() {
               value={okxApiKey}
               onChange={handleOkxApiKeyChange}
               type="password"
-              placeholder="API Key"
+              placeholder="e8f5e44c-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
               style={inputStyle}
             />
           </Row>
@@ -671,7 +696,7 @@ export default function ConfigPage() {
           <Row
             icon={<Key size={16} color="white" />}
             color="linear-gradient(135deg, #f59e0b, #ef4444)"
-            >
+          >
             <p style={{ fontSize: 13, fontWeight: 500, color: "white", marginBottom: 8 }}>
               Passphrase
             </p>
@@ -697,8 +722,10 @@ export default function ConfigPage() {
                   padding: "6px 16px",
                   borderRadius: 8,
                   fontSize: 12,
+                  fontWeight: 600,
                   background: "linear-gradient(135deg, #f59e0b, #ef4444)",
                   color: "white",
+                  border: "none",
                   cursor: okxSaving ? "not-allowed" : "pointer",
                   opacity: okxSaving ? 0.5 : 1,
                 }}
@@ -720,6 +747,11 @@ export default function ConfigPage() {
                 </span>
               )}
             </div>
+            {okxConfigured && (
+              <p style={{ fontSize: 10, color: 'var(--dark-400)', marginTop: 6 }}>
+                ℹ️ 如需更换 Key，请重新填写并保存
+              </p>
+            )}
           </Row>
         </div>
       </div>

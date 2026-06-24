@@ -1206,6 +1206,27 @@ app.get('/api/config/okx', async () => {
   return { code: 200, data: { configured: okxConfigCache.configured } };
 });
 
+app.get('/api/config/okx/status', async () => {
+  await broadcastOkxConfig();
+  try {
+    const { getOkxConfig } = await import('./okx-trade.js');
+    const cfg = getOkxConfig();
+    const hasKey = !!(cfg.apiKey && cfg.apiSecret && cfg.passphrase);
+    return {
+      code: 200,
+      data: {
+        configured: hasKey,
+        hasKey: !!cfg.apiKey,
+        hasSecret: !!cfg.apiSecret,
+        hasPassphrase: !!cfg.passphrase,
+        keyHint: cfg.apiKey ? cfg.apiKey.slice(0, 4) + '****' : '',
+      }
+    };
+  } catch {
+    return { code: 200, data: { configured: okxConfigCache.configured } };
+  }
+});
+
 
 // ====== 系统重启 API ======
 // ===== WebSocket =====

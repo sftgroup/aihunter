@@ -44,8 +44,6 @@ export default function SystemPage() {
     { k: 'gateway', label: 'Gateway', icon: Server, s: status.gateway?.status },
     { k: 'redis', label: 'Redis', icon: Database, s: status.redis?.status },
     { k: 'postgresql', label: 'PostgreSQL', icon: Database, s: status.postgresql?.status },
-    { k: 'evm_worker', label: 'EVM Worker', icon: Cpu, s: status.evm_worker?.status },
-    { k: 'sol_worker', label: 'SOL Worker', icon: Cpu, s: status.sol_worker?.status },
     { k: 'v2_engine', label: 'V2 引擎', icon: TrendingUp, s: status.v2_engine?.status },
   ] : [];
 

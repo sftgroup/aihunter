@@ -347,6 +347,7 @@ export const offlineBacktestApi = {
 // ===== OKX 配置 + 重启 =====
 export const okxApi = {
   getConfig: () => typedRequest<{ configured: boolean }>('/config/okx'),
+  getStatus: () => typedRequest<{ configured: boolean; hasKey: boolean; hasSecret: boolean; hasPassphrase: boolean; keyHint: string }>('/config/okx/status'),
   saveConfig: (apiKey: string, secretKey: string, passphrase: string) =>
     typedPost('/config/okx', { apiKey, secretKey, passphrase }),
 };
