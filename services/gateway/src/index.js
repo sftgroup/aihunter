@@ -38,7 +38,7 @@ const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 
 // 重启任务状态存储
 const restartJobs = new Map();
-const RESTART_COOLDOWN_MS = 300000;
+const RESTART_COOLDOWN_MS = 30000;
 
 // 重启目标容器（白名单，仅允许重启以下容器）
 const CONTAINER_TARGETS = {
@@ -1112,7 +1112,7 @@ app.post('/api/system/restart', async (request, reply) => {
     const ttl = await redis.pttl(cooldownKey);
     const retryAfter = Math.ceil(ttl / 1000);
     reply.header("Retry-After", String(retryAfter));
-    return reply.status(429).send({ error: "冷却中，请稍后再试", retryAfter });
+    return reply.status(429).send({ code: 429, error: '冷却中，请 ' + retryAfter + ' 秒后再试', retryAfter });
   }
 
   const jobId = `restart_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
