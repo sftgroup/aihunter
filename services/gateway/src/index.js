@@ -1263,6 +1263,10 @@ app.register(async function (fastify) {
   });
 });
 
+// ===== 注册实盘交易路由 =====
+import LiveTradingRoutes from "./routes/liveTrading.js";
+new LiveTradingRoutes(app, { okxClient: null });
+
 // ===== 启动 =====
 try {
   await app.listen({ port: PORT, host: '0.0.0.0' });
