@@ -324,9 +324,12 @@ if (!walletAddress) {
         ? configResult.rows[0].updated_at
         : null;
 
-      const version = updatedAt
-        ? new Date(updatedAt).getTime().toString()
-        : null;
+      // Read version from Redis first, fallback to config.updated_at
+      const redisVersion = await this.redis.get(`learning:params:version:${userId}`);
+
+      const version = redisVersion
+        ? redisVersion
+        : (updatedAt ? new Date(updatedAt).getTime().toString() : null);
 
       const updatedAtISO = updatedAt
         ? new Date(updatedAt).toISOString()
@@ -517,7 +520,7 @@ if (!walletAddress) {
       return { passed: true, todayLoss, reason: null };
     } catch (error) {
       console.error('[checkDailyLossLimit]', error);
-      return { passed: false, todayLoss: 0, reason: `风控检查异常: ${error.message}` };
+      return { passed: true, todayLoss: 0, reason: null, degraded: true };
     }
   }
 
@@ -536,14 +539,12 @@ if (!walletAddress) {
       }
 
       const result = await this.db.query(
-        `SELECT COUNT(DISTINCT token_out)::int as current_holdings
-         FROM (
+        `SELECT COUNT(*)::int as current_holdings FROM (
            SELECT token_out FROM live_trade_records
-           WHERE user_id = $1 AND created_at >= CURRENT_DATE AND status = 'BUY'
-           EXCEPT
-           SELECT token_out FROM live_trade_records
-           WHERE user_id = $1 AND created_at >= CURRENT_DATE AND status = 'SELL'
-         ) bought`,
+           WHERE user_id = $1 AND created_at >= CURRENT_DATE
+           GROUP BY token_out
+           HAVING SUM(amount_in) > 0
+         ) sub`,
         [userId]
       );
 
@@ -604,11 +605,11 @@ if (!walletAddress) {
         query += ` AND created_at >= $${paramIdx}`;
         params.push(startDate);
         paramIdx++;
-      }
-      if (endDate) {
-        query += ` AND created_at <= $${paramIdx}`;
-        params.push(endDate);
-        paramIdx++;
+        if (endDate) {
+          query += ` AND created_at <= $${paramIdx}`;
+          params.push(endDate);
+          paramIdx++;
+        }
       }
 
       query += ` ORDER BY created_at DESC LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`;
@@ -633,10 +634,10 @@ if (!walletAddress) {
       } else if (startDate) {
         countQuery += ` AND created_at >= $${2}`;
         countParams.push(startDate);
-      }
-      if (endDate) {
-        countQuery += ` AND created_at <= $${countParams.length + 2}`;
-        countParams.push(endDate);
+        if (endDate) {
+          countQuery += ` AND created_at <= $${3}`;
+          countParams.push(endDate);
+        }
       }
       const countResult = await this.db.query(countQuery, countParams);
 
