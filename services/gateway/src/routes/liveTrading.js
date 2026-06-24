@@ -326,8 +326,9 @@ if (!walletAddress) {
 
       // Read version from Redis first, fallback to config.updated_at
       const redisVersion = await this.redis.get(`learning:params:version:${userId}`);
+      const isValidRedisVersion = redisVersion && /^\d{13}$/.test(redisVersion);
 
-      const version = redisVersion
+      const version = isValidRedisVersion
         ? redisVersion
         : (updatedAt ? new Date(updatedAt).getTime().toString() : null);
 
@@ -449,14 +450,14 @@ if (!walletAddress) {
           [userId]
         ),
         this.db.query(
-          `SELECT COUNT(DISTINCT token_out)::int as current_holdings
+          `SELECT COUNT(*)::int as current_holdings
            FROM (
              SELECT token_out FROM live_trade_records
-             WHERE user_id = $1 AND created_at >= CURRENT_DATE AND status = 'BUY'
-             EXCEPT
-             SELECT token_out FROM live_trade_records
-             WHERE user_id = $1 AND created_at >= CURRENT_DATE AND status = 'SELL'
-           ) bought`,
+             WHERE user_id = $1 AND created_at >= CURRENT_DATE
+             GROUP BY token_out
+             HAVING SUM(CASE WHEN status = 'BUY' THEN amount_in ELSE 0 END)
+                  - SUM(CASE WHEN status = 'SELL' THEN COALESCE(amount_out, 0) ELSE 0 END) > 0
+           ) sub`,
           [userId]
         )
       ]);
@@ -520,7 +521,7 @@ if (!walletAddress) {
       return { passed: true, todayLoss, reason: null };
     } catch (error) {
       console.error('[checkDailyLossLimit]', error);
-      return { passed: true, todayLoss: 0, reason: null, degraded: true };
+      return { passed: false, todayLoss: 0, reason: `风控检查异常: ${error.message}` };
     }
   }
 
@@ -543,7 +544,8 @@ if (!walletAddress) {
            SELECT token_out FROM live_trade_records
            WHERE user_id = $1 AND created_at >= CURRENT_DATE
            GROUP BY token_out
-           HAVING SUM(amount_in) > 0
+           HAVING SUM(CASE WHEN status = 'BUY' THEN amount_in ELSE 0 END)
+                - SUM(CASE WHEN status = 'SELL' THEN COALESCE(amount_out, 0) ELSE 0 END) > 0
          ) sub`,
         [userId]
       );
