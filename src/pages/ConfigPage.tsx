@@ -126,11 +126,27 @@ export default function ConfigPage() {
   >("idle");
   const [restartMsg, setRestartMsg] = useState("");
 
+  const [restartCooldown, setRestartCooldown] = useState(0);
   useEffect(() => {
     loadAiConfig();
     loadRpcConfig();
     loadOkxConfig();
   }, []);
+
+  // 重启冷却倒计时
+  useEffect(() => {
+    if (restartCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setRestartCooldown(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [restartCooldown]);
 
   async function loadAiConfig() {
     const res = await aiApi.getConfig();
@@ -213,6 +229,16 @@ export default function ConfigPage() {
     // restart state managed via restartStatus
     setRestartMsg("正在重启 Worker 服务...");
     const res = await systemApiExt.restart("worker");
+
+    // 处理 429 冷却
+    if (res.code === 429) {
+      const retryAfter = res.retryAfter || 30;
+      setRestartCooldown(retryAfter);
+      setRestartStatus("failed");
+      setRestartMsg(`冷却中，请 ${retryAfter} 秒后再试`);
+      return;
+    }
+
     if (res.code === 200 || res.code === 202) {
       const jobId = res.data?.jobId || "";
       
@@ -243,7 +269,8 @@ export default function ConfigPage() {
     } else {
       setRestartStatus("failed");
       
-      setRestartMsg(`❌ 重启失败: ${res.error}`);
+      const errMsg = res.error || res.message || `HTTP ${res.code}` || "未知错误";
+      setRestartMsg(`❌ 重启失败: ${errMsg}`);
     }
   }
 
