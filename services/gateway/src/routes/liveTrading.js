@@ -147,11 +147,11 @@ if (!walletAddress) {
          SET status = 'revoked', expires_at = NOW()
          WHERE id = $1 AND user_id = $2`,
         [walletId, userId]
+      );
 
       if (result.rowCount === 0) {
-        return reply.status(404).send({ code: 404, message: 钱包不存在或无权操作 });
+        return reply.status(404).send({ code: 404, message: '钱包不存在或无权操作' });
       }
-      );
 
       return reply.send({ code: 200, message: '授权已撤销' });
     } catch (error) {
@@ -207,7 +207,8 @@ if (!walletAddress) {
     try {
       const body = request.body || {};
       const { userId, strategy, max_single_amount, slippage_tolerance, gas_strategy,
-              take_profit_pct, stop_loss_pct, auto_apply_params, pause_on_param_change } = body;
+              take_profit_pct, stop_loss_pct, auto_apply_params, pause_on_param_change,
+              daily_max_loss, max_holdings } = body;
 
       if (!userId) {
         return reply.status(400).send({ code: 400, message: '缺少 userId' });
@@ -216,8 +217,9 @@ if (!walletAddress) {
       const result = await this.db.query(
         `INSERT INTO live_trading_configs
          (user_id, strategy, max_single_amount, slippage_tolerance, gas_strategy,
-          take_profit_pct, stop_loss_pct, auto_apply_params, pause_on_param_change, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+          take_profit_pct, stop_loss_pct, auto_apply_params, pause_on_param_change,
+          daily_max_loss, max_holdings, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
          ON CONFLICT (user_id)
          DO UPDATE SET
            strategy = EXCLUDED.strategy,
@@ -228,6 +230,8 @@ if (!walletAddress) {
            stop_loss_pct = EXCLUDED.stop_loss_pct,
            auto_apply_params = EXCLUDED.auto_apply_params,
            pause_on_param_change = EXCLUDED.pause_on_param_change,
+           daily_max_loss = EXCLUDED.daily_max_loss,
+           max_holdings = EXCLUDED.max_holdings,
            updated_at = NOW()
          RETURNING *`,
         [userId,
@@ -238,7 +242,9 @@ if (!walletAddress) {
          take_profit_pct != null ? take_profit_pct : 10,
          stop_loss_pct != null ? stop_loss_pct : 5,
          auto_apply_params !== false,
-         pause_on_param_change === true]
+         pause_on_param_change === true,
+         daily_max_loss != null ? daily_max_loss : 0,
+         max_holdings != null ? max_holdings : 0]
       );
 
       return reply.send({ code: 200, data: result.rows[0], message: '配置已保存' });
@@ -257,9 +263,29 @@ if (!walletAddress) {
 
       const params = await this.redis.get(`params:momentum:${userId}`);
 
+      // Read updated_at from config for version tracking
+      const configResult = await this.db.query(
+        `SELECT updated_at FROM live_trading_configs WHERE user_id = $1`,
+        [userId]
+      );
+
+      const updatedAt = configResult.rows.length > 0
+        ? configResult.rows[0].updated_at
+        : null;
+
+      const version = updatedAt
+        ? new Date(updatedAt).getTime().toString()
+        : null;
+
+      const updatedAtISO = updatedAt
+        ? new Date(updatedAt).toISOString()
+        : null;
+
       return reply.send({
         code: 200,
         data: params ? JSON.parse(params) : null,
+        version,
+        updated_at: updatedAtISO,
         message: params ? '成功' : '暂无学习参数'
       });
     } catch (error) {
@@ -330,30 +356,136 @@ if (!walletAddress) {
         return reply.status(400).send({ code: 400, message: '缺少 userId' });
       }
 
-      const [configResult, statsResult] = await Promise.all([
+      const [configResult, statsResult, lossResult, holdingsResult] = await Promise.all([
         this.db.query(`SELECT * FROM live_trading_configs WHERE user_id = $1`, [userId]),
         this.db.query(
           `SELECT COUNT(*)::int as today_trades, COALESCE(SUM(pnl_usd), 0)::float as today_pnl
            FROM live_trade_records
            WHERE user_id = $1 AND created_at >= CURRENT_DATE`,
           [userId]
+        ),
+        this.db.query(
+          `SELECT COALESCE(SUM(pnl_usd), 0)::float as today_loss
+           FROM live_trade_records
+           WHERE user_id = $1 AND created_at >= CURRENT_DATE AND pnl_usd < 0`,
+          [userId]
+        ),
+        this.db.query(
+          `SELECT COUNT(DISTINCT token_out)::int as current_holdings
+           FROM (
+             SELECT token_out FROM live_trade_records
+             WHERE user_id = $1 AND created_at >= CURRENT_DATE AND status = 'BUY'
+             EXCEPT
+             SELECT token_out FROM live_trade_records
+             WHERE user_id = $1 AND created_at >= CURRENT_DATE AND status = 'SELL'
+           ) bought`,
+          [userId]
         )
       ]);
+
+      const today_loss = lossResult.rows[0] ? lossResult.rows[0].today_loss : 0;
+      const current_holdings = holdingsResult.rows[0] ? holdingsResult.rows[0].current_holdings : 0;
 
       if (configResult.rows.length === 0) {
         const stats = statsResult.rows[0] || { today_trades: 0, today_pnl: 0 };
         return reply.send({
           code: 200,
-          data: { is_active: false, strategy: 'momentum', config: null, ...stats },
+          data: { is_active: false, strategy: 'momentum', config: null, ...stats, today_loss, current_holdings },
           message: '暂无配置，交易未开启'
         });
       }
 
       const stats = statsResult.rows[0] || { today_trades: 0, today_pnl: 0 };
-      return reply.send({ code: 200, data: { ...configResult.rows[0], ...stats } });
+      return reply.send({
+        code: 200,
+        data: { ...configResult.rows[0], ...stats, today_loss, current_holdings }
+      });
     } catch (error) {
       console.error('[getStatus]', error);
       return reply.status(500).send({ code: 500, message: error.message });
+    }
+  }
+
+  // ===== 风控检查 =====
+
+  /**
+   * 检查当日累计亏损是否超过每日最大亏损限制
+   * TODO: 在交易引擎执行下单前调用此方法，若 !result.passed 则阻止下单
+   * 挂载点示例（在 liveTradingEngine.js 中）:
+   *   const riskCheck = await this.liveTradingRoutes.checkDailyLossLimit(userId, config);
+   *   if (!riskCheck.passed) { 跳过交易, 记录日志 }
+   */
+  async checkDailyLossLimit(userId, config) {
+    try {
+      const dailyMaxLoss = parseFloat(config.daily_max_loss) || 0;
+      if (dailyMaxLoss <= 0) {
+        return { passed: true, todayLoss: 0, reason: null };
+      }
+
+      const result = await this.db.query(
+        `SELECT COALESCE(SUM(pnl_usd), 0)::float as today_loss
+         FROM live_trade_records
+         WHERE user_id = $1 AND created_at >= CURRENT_DATE AND pnl_usd < 0`,
+        [userId]
+      );
+
+      const todayLoss = Math.abs(result.rows[0]?.today_loss || 0);
+
+      if (todayLoss >= dailyMaxLoss) {
+        return {
+          passed: false,
+          todayLoss,
+          reason: `当日亏损 ${todayLoss.toFixed(2)} 已达到或超过每日最大亏损限制 ${dailyMaxLoss.toFixed(2)}`
+        };
+      }
+
+      return { passed: true, todayLoss, reason: null };
+    } catch (error) {
+      console.error('[checkDailyLossLimit]', error);
+      return { passed: false, todayLoss: 0, reason: `风控检查异常: ${error.message}` };
+    }
+  }
+
+  /**
+   * 检查当前持仓数是否超过最大持仓限制
+   * TODO: 在交易引擎执行买入前调用此方法，若 !result.passed 则阻止买入
+   * 挂载点示例（在 liveTradingEngine.js 中）:
+   *   const holdingsCheck = await this.liveTradingRoutes.checkHoldingsLimit(userId, config);
+   *   if (!holdingsCheck.passed) { 跳过买入, 记录日志 }
+   */
+  async checkHoldingsLimit(userId, config) {
+    try {
+      const maxHoldings = parseInt(config.max_holdings) || 0;
+      if (maxHoldings <= 0) {
+        return { passed: true, currentHoldings: 0, reason: null };
+      }
+
+      const result = await this.db.query(
+        `SELECT COUNT(DISTINCT token_out)::int as current_holdings
+         FROM (
+           SELECT token_out FROM live_trade_records
+           WHERE user_id = $1 AND created_at >= CURRENT_DATE AND status = 'BUY'
+           EXCEPT
+           SELECT token_out FROM live_trade_records
+           WHERE user_id = $1 AND created_at >= CURRENT_DATE AND status = 'SELL'
+         ) bought`,
+        [userId]
+      );
+
+      const currentHoldings = result.rows[0]?.current_holdings || 0;
+
+      if (currentHoldings >= maxHoldings) {
+        return {
+          passed: false,
+          currentHoldings,
+          reason: `当前持仓 ${currentHoldings} 已达到或超过最大持仓限制 ${maxHoldings}`
+        };
+      }
+
+      return { passed: true, currentHoldings, reason: null };
+    } catch (error) {
+      console.error('[checkHoldingsLimit]', error);
+      return { passed: false, currentHoldings: 0, reason: `风控检查异常: ${error.message}` };
     }
   }
 
