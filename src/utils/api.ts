@@ -241,7 +241,7 @@ async function typedRequest<T>(url: string, options?: RequestInit): Promise<ApiR
     });
     return response;
   } catch (e: any) {
-    if (e instanceof ApiError && e.data && typeof e.data === 'object') {
+    if (e && e.name === 'ApiError' && e.data && typeof e.data === 'object') {
       return e.data as ApiResponse<T>;
     }
     return { code: 500, error: e.message };
@@ -254,7 +254,7 @@ async function typedPost<T>(url: string, body?: unknown): Promise<ApiResponse<T>
       json: body,
     });
   } catch (e: any) {
-    if (e instanceof ApiError && e.data && typeof e.data === 'object') {
+    if (e && e.name === 'ApiError' && e.data && typeof e.data === 'object') {
       return e.data as ApiResponse<T>;
     }
     return { code: 500, error: e.message };
