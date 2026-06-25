@@ -159,3 +159,9 @@ export async function onchainosWalletAdd(userId) {
 export async function onchainosWalletAddresses(userId) {
   return onchainosForUser(userId, 'wallet addresses');
 }
+
+export async function onchainosWalletSend(userId, { recipient, chain, amount, tokenContract }) {
+  let cmd = `wallet send --recipient ${recipient} --chain ${chain} --readable-amount ${amount} --force`;
+  if (tokenContract) cmd += ` --contract-token ${tokenContract}`;
+  return onchainosForUser(userId, cmd);
+}

@@ -24,6 +24,7 @@ class LiveTradingRoutes {
     this.fastify.post('/api/agentic-wallet/logout', this.logoutWallet.bind(this));
     this.fastify.post('/api/agentic-wallet/switch', this.switchWallet.bind(this));
     this.fastify.post('/api/agentic-wallet/revoke', this.revokeWallet.bind(this));
+    this.fastify.post('/api/agentic-wallet/send', this.sendToken.bind(this));
 
     this.fastify.get('/api/live-trading/config', this.getConfig.bind(this));
     this.fastify.post('/api/live-trading/config', this.saveConfig.bind(this));

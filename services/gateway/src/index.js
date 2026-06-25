@@ -20,6 +20,7 @@ import {
   onchainosLogout,
   onchainosWalletAdd,
   onchainosWalletAddresses,
+  onchainosWalletSend,
 } from "./okx-trade.js";
 const { Pool } = pg;
 

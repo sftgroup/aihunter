@@ -213,15 +213,8 @@ function injectAnim() {
 
 export default function MomentumLivePage() {
   useEffect(() => { injectAnim(); }, []);
-
-  // Watch MetaMask address: if it changes, sync to localStorage and reload
   const { address } = useAccount();
-  useEffect(() => {
-    if (address && address !== getUserId()) {
-      localStorage.setItem('aihunter_user_id', address);
-      window.location.reload();
-    }
-  }, [address]);
+  useEffect(() => { if (address && address !== getUserId()) { localStorage.setItem('aihunter_user_id', address); window.location.reload(); } }, [address]);
 
   /* ---- wallet login ---- */
   const [wallet, setWallet] = useState<WalletStatus | null>(null);
