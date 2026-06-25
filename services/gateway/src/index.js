@@ -144,13 +144,6 @@ function checkRateLimit(key, max, map) {
 app.addHook('preHandler', async (request, reply) => {
   const clientIp = request.ip || request.socket?.remoteAddress || 'unknown';
 
-  // 全局请求限流
-  const rl = checkRateLimit(clientIp, RATE_LIMIT_MAX, rateLimitMap);
-  if (!rl.allowed) {
-    reply.header('Retry-After', rl.retryAfter);
-    return reply.status(429).send({ code: 429, error: 'Too Many Requests', retryAfter: rl.retryAfter });
-  }
-
   const publicRoutes = [
     '/health', '/api/rank/ping', '/api/prize/ping', '/api/system/status',
     '/api/signals/recent',
@@ -159,6 +152,14 @@ app.addHook('preHandler', async (request, reply) => {
   ];
   const urlPath = request.url.split('?')[0];
   if (publicRoutes.includes(urlPath)) return;
+
+  // 全局请求限流
+  const rl = checkRateLimit(clientIp, RATE_LIMIT_MAX, rateLimitMap);
+  if (!rl.allowed) {
+    reply.header('Retry-After', rl.retryAfter);
+    return reply.status(429).send({ code: 429, error: 'Too Many Requests', retryAfter: rl.retryAfter });
+  }
+
 
   const auth = request.headers.authorization;
   if (!auth || auth !== `Bearer ${AUTH_TOKEN}`) {
