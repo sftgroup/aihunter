@@ -18,6 +18,7 @@ class LiveTradingRoutes {
   registerRoutes() {
     // 用户钱包（每人独立邮箱登录）
     this.fastify.post('/api/agentic-wallet/login', this.loginWallet.bind(this));
+    this.fastify.post('/api/agentic-wallet/lookup', this.lookupWallet.bind(this));
     this.fastify.post('/api/agentic-wallet/verify', this.verifyOtp.bind(this));
     this.fastify.get('/api/agentic-wallet/status', this.getWalletStatus.bind(this));
     this.fastify.post('/api/agentic-wallet/logout', this.logoutWallet.bind(this));
@@ -44,6 +45,43 @@ class LiveTradingRoutes {
   // 用户钱包 — 每人用自己的邮箱独立登录
   // 后端通过 HOME=/tmp/onchainos-users/{userId} 完全隔离 onchainos 凭证
   // ====================================================================
+
+  // ====================================================================
+  // 邮箱查已有地址（免验证码）→ 有则直接展示，无则发OTP建新地址
+  // ====================================================================
+
+  async lookupWallet(request, reply) {
+    try {
+      const { userId, email } = request.body || {};
+      if (!userId || !email) {
+        return reply.status(400).send({ code: 400, message: '缺少 userId 或 email' });
+      }
+      const { getWalletBalances } = this.okx;
+      const result = await this.db.query(
+        "SELECT * FROM agentic_wallets WHERE user_id = $1 AND email = $2 AND status = 'active' ORDER BY is_default DESC, created_at DESC",
+        [userId, email]);
+      const wallets = result.rows;
+      if (wallets.length === 0) {
+        return reply.send({ code: 200, data: { hasWallets: false, wallets: [] } });
+      }
+      for (const w of wallets) {
+        w.authorized = !!w.authorized_at;
+        w.balances = []; w.totalUsd = 0;
+        if (getWalletBalances) {
+          try {
+            const chain = (w.chain || 'ETH') === 'ETH' ? 'ethereum' : w.chain?.toLowerCase() || 'ethereum';
+            const bal = await getWalletBalances(userId, chain);
+            w.balances = bal.balances || [];
+            w.totalUsd = bal.totalUsd || 0;
+          } catch (_) {}
+        }
+      }
+      return reply.send({ code: 200, data: { hasWallets: true, wallets } });
+    } catch (error) {
+      console.error('[lookupWallet]', error);
+      return reply.status(500).send({ code: 500, message: error.message });
+    }
+  }
 
   async loginWallet(request, reply) {
     try {

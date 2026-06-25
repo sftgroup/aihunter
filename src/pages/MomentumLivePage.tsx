@@ -101,6 +101,11 @@ interface WalletStatus {
   balance?: number;
   authorized?: boolean;
   expires_at?: string;
+  wallets?: WalletStatus[];
+  email?: string;
+  label?: string;
+  totalUsd?: number;
+  is_default?: boolean;
 }
 
 interface LiveConfig {
@@ -210,13 +215,16 @@ export default function MomentumLivePage() {
 
   /* ---- wallet login ---- */
   const [wallet, setWallet] = useState<WalletStatus | null>(null);
+  const [wallets, setWallets] = useState<WalletStatus[]>([]);
   const [walletLoading, setWalletLoading] = useState(true);
-  const [loginStep, setLoginStep] = useState<'idle' | 'email' | 'otp'>('idle');
+  const [loginStep, setLoginStep] = useState<'idle' | 'email' | 'lookup' | 'otp'>('idle');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginOtp, setLoginOtp] = useState('');
   const [loginError, setLoginError] = useState('');
   const [loginSending, setLoginSending] = useState(false);
   const [loginVerifying, setLoginVerifying] = useState(false);
+  const [lookupWallets, setLookupWallets] = useState<WalletStatus[] | null>(null);
+  const [lookupLoading, setLookupLoading] = useState(false);
 
   /* ---- config ---- */
   const [config, setConfig] = useState<LiveConfig>({
@@ -283,7 +291,7 @@ export default function MomentumLivePage() {
   /* ================================================================== */
   /*  Data loading                                                       */
   /* ================================================================== */
-  useEffect(() => { let c = false; (async () => { setWalletLoading(true); const d = await safeGet<WalletStatus>(`${API}/agentic-wallet/status`, 'wallet'); if (!c && d) setWallet(d); if (!c) setWalletLoading(false); })(); return () => { c = true; }; }, [safeGet]);
+  useEffect(() => { let c = false; (async () => { setWalletLoading(true); try { const d = await safeGet<WalletStatus>(`${API}/agentic-wallet/status`, 'wallet'); if (!c && d) { setWallet(d); if (d.wallets) setWallets(d.wallets); } } finally { if (!c) setWalletLoading(false); } })(); return () => { c = true; }; }, [safeGet]);
   useEffect(() => { let c = false; (async () => { setConfigLoading(true); const d = await safeGet<LiveConfig>(`${API}/live-trading/config?strategy=momentum`, 'config'); if (!c && d) setConfig(d); if (!c) setConfigLoading(false); })(); return () => { c = true; }; }, [safeGet]);
   useEffect(() => { safeGet<{ date: string; pnl: number }[]>(`${API}/live-trading/chart/pnl?days=${chartDays}`, 'pnl').then(d => d && setPnlData(d.map(r => ({ time: r.date, pnl: r.pnl })))); safeGet<{ wins: number; losses: number }>(`${API}/live-trading/chart/distribution`, 'dist').then(d => d && setDistributionData([{ name: '盈利', value: d.wins || 0, color: T.accentGreen }, { name: '亏损', value: d.losses || 0, color: T.accentRed }])); safeGet<{ date: string; total: number }[]>(`${API}/live-trading/chart/assets?days=${chartDays}`, 'assets').then(d => d && setAssetData(d.map(r => ({ time: r.date, value: r.total })))); safeGet<{ token: string; pnl: number }[]>(`${API}/live-trading/chart/tokens`, 'tokens').then(d => d && setTokenData(d)); }, [safeGet, chartDays]);
   useEffect(() => { safeGet<{ records: TradeRecord[]; total: number }>(`${API}/live-trading/trades?date=${tradeDate}&page=${tradePage}&limit=20`, 'trades').then(d => d && setTrades(d.records)); }, [safeGet, tradeDate, tradePage]);
@@ -359,6 +367,90 @@ export default function MomentumLivePage() {
     poll(); return () => { c = true; clearTimeout(t); };
   }, [safeGet, isTrading]);
 
+  /* ---- lookup wallet (no OTP) ---- */
+  const handleLookupWallet = useCallback(async () => {
+    if (!loginEmail.trim()) { setLoginError('请输入邮箱地址'); return; }
+    setLookupLoading(true);
+    setLoginError('');
+    try {
+      const res = await fetch(`${API}/agentic-wallet/lookup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: USER_ID, email: loginEmail.trim() }),
+      });
+      const d = await res.json();
+      if (d.code === 200 && d.data?.hasWallets) {
+        // 已有地址，直接展示，无需 OTP
+        setLookupWallets(d.data.wallets);
+        setLoginStep('lookup');
+      } else {
+        // 没有已有地址 → 发 OTP 创建新地址
+        setLookupWallets([]);
+        setLoginStep('otp');
+        // 触发发送验证码
+        const otpRes = await fetch(`${API}/agentic-wallet/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: USER_ID, email: loginEmail.trim() }),
+        });
+        const otpData = await otpRes.json();
+        if (otpData.code !== 200) {
+          setLoginError(otpData.message || '发送验证码失败');
+          setLoginStep('email');
+        }
+      }
+    } catch (e: any) {
+      setLoginError(e.message || '网络错误');
+    } finally {
+      setLookupLoading(false);
+    }
+  }, [loginEmail, USER_ID]);
+
+  /* ---- select existing wallet (no OTP) ---- */
+  const handleSelectWallet = useCallback(async (w: WalletStatus) => {
+    setWalletLoading(true);
+    try {
+      // 切换为默认钱包
+      await fetch(`${API}/agentic-wallet/switch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: USER_ID, walletAddress: w.wallet_address }),
+      });
+      // 刷新状态
+      const d = await safeGet<WalletStatus>(`${API}/agentic-wallet/status`, 'wallet');
+      if (d) {
+        setWallet(d);
+        if (d.wallets) setWallets(d.wallets);
+      }
+      setLoginStep('idle');
+      setLoginEmail('');
+      setLoginError('');
+    } catch (e: any) {
+      setLoginError(e.message || '切换失败');
+    } finally {
+      setWalletLoading(false);
+    }
+  }, [USER_ID, safeGet]);
+
+  /* ---- add new address to existing wallet (requires OTP) ---- */
+  const handleAddNewAddress = useCallback(async () => {
+    if (!loginEmail.trim()) { setLoginError('请输入邮箱地址'); return; }
+    setLoginSending(true);
+    setLoginError('');
+    try {
+      const res = await fetch(`${API}/agentic-wallet/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: USER_ID, email: loginEmail.trim() }),
+      });
+      const d = await res.json();
+      if (d.code === 200) { setLoginStep('otp'); setLoginError(''); }
+      else { setLoginError(d.message || '发送验证码失败'); }
+    } catch (e: any) { setLoginError(e.message || '网络错误'); }
+    finally { setLoginSending(false); }
+  }, [loginEmail, USER_ID]);
+
+  /* ---- send OTP (legacy, for first-time creation) ---- */
   const handleSendOtp = useCallback(async () => {
     if (!loginEmail.trim()) { setLoginError('请输入邮箱地址'); return; }
     setLoginSending(true);
@@ -394,7 +486,7 @@ export default function MomentumLivePage() {
         setLoginError('');
         // Refresh wallet status
         const w = await safeGet<WalletStatus>(`${API}/agentic-wallet/status`, 'wallet');
-        if (w) setWallet(w);
+        if (w) { setWallet(w); if (w.wallets) setWallets(w.wallets); }
       } else { setLoginError(d.message || '验证失败'); }
     } catch (e: any) { setLoginError(e.message || '网络错误'); }
     finally { setLoginVerifying(false); }
@@ -409,12 +501,25 @@ export default function MomentumLivePage() {
 
   const handleStart = useCallback(async () => { if (!wallet?.authorized) { setErrors(e => ({ ...e, start: '请先创建并授权 Agentic Wallet' })); return; } setActionLoading(true); const ok = await safePost(`${API}/live-trading/start`, {}, 'start'); if (ok) setIsTrading(true); setActionLoading(false); }, [wallet, safePost]);
   const handleStop = useCallback(async () => { setActionLoading(true); const ok = await safePost(`${API}/live-trading/stop`, {}, 'stop'); if (ok) setIsTrading(false); setActionLoading(false); }, [safePost]);
-  const handleRevoke = useCallback(async () => { await safePost(`${API}/agentic-wallet/revoke`, { walletId: wallet?.id }, 'revoke'); setWallet(null); }, [wallet, safePost]);
+  const handleSwitchWallet = useCallback(async (address: string) => {
+    try {
+      await fetch(`${API}/agentic-wallet/switch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: USER_ID, walletAddress: address }),
+      });
+      const d = await safeGet<WalletStatus>(`${API}/agentic-wallet/status`, 'wallet');
+      if (d) { setWallet(d); if (d.wallets) setWallets(d.wallets); }
+    } catch (e: any) {}
+  }, [USER_ID, safeGet]);
+
+  const handleRevoke = useCallback(async () => { await safePost(`${API}/agentic-wallet/revoke`, { walletId: wallet?.id }, 'revoke'); setWallet(null); setWallets([]); }, [wallet, safePost]);
 
   /* ================================================================== */
   /*  Render                                                             */
   /* ================================================================== */
   const walletConnected = !!wallet?.wallet_address;
+  const hasWallets = wallets.length > 1;
   const authorized = !!wallet?.authorized;
 
   return (
@@ -470,6 +575,42 @@ export default function MomentumLivePage() {
                   </div>
                   <button onClick={handleRevoke} style={{ padding: '4px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: T.dark300, fontSize: 11, cursor: 'pointer' }}>断开</button>
                 </div>
+
+                {/* Multi-address list */}
+                {hasWallets && (
+                  <div style={{ marginBottom: 12, background: 'rgba(255,255,255,0.02)', borderRadius: 10, padding: '6px 8px' }}>
+                    <div style={{ fontSize: 10, color: T.dark400, marginBottom: 6 }}>钱包地址列表</div>
+                    {wallets.map((w, i) => (
+                      <div
+                        key={w.wallet_address || i}
+                        onClick={() => handleSwitchWallet(w.wallet_address!)}
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          padding: '4px 8px', borderRadius: 6, cursor: w.wallet_address === wallet.wallet_address ? 'default' : 'pointer',
+                          background: w.wallet_address === wallet.wallet_address ? 'rgba(99,102,241,0.1)' : 'transparent',
+                          marginBottom: 2,
+                        }}
+                      >
+                        <span style={{ fontSize: 10, fontFamily: 'monospace', color: w.wallet_address === wallet.wallet_address ? T.accent : T.dark300 }}>
+                          {w.label || fmtAddr(w.wallet_address)}
+                        </span>
+                        <span style={{ fontSize: 10, fontFamily: 'monospace', color: T.dark300 }}>
+                          ${(w.totalUsd ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {!hasWallets && (
+                  <button
+                    onClick={() => { setLoginEmail(wallet.email || ''); }}
+                    style={{
+                      width: '100%', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)',
+                      borderRadius: 8, color: T.accent, fontSize: 10, padding: '6px 0', cursor: 'pointer', marginBottom: 12,
+                    }}
+                  >+ 添加新地址</button>
+                )}
                 <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: 11, fontFamily: 'monospace', color: T.dark300 }}>{fmtAddr(wallet.wallet_address)}</span>
                   <button onClick={() => navigator.clipboard.writeText(wallet.wallet_address!)} style={{ background: 'none', border: 'none', color: T.dark400, cursor: 'pointer', padding: 0 }}>
@@ -512,12 +653,12 @@ export default function MomentumLivePage() {
                 )}
                 {loginStep === 'email' && (
                   <div style={{ padding: '0 4px' }}>
-                    <p style={{ fontSize: 12, color: T.dark300, marginBottom: 12 }}>输入邮箱接收验证码</p>
+                    <p style={{ fontSize: 12, color: T.dark300, marginBottom: 12 }}>输入邮箱查找或创建钱包</p>
                     <input
                       type="email"
                       value={loginEmail}
                       onChange={e => setLoginEmail(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && handleSendOtp()}
+                      onKeyDown={e => e.key === 'Enter' && handleLookupWallet()}
                       placeholder="your@email.com"
                       autoFocus
                       style={{
@@ -534,12 +675,58 @@ export default function MomentumLivePage() {
                         flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)',
                         borderRadius: 10, color: T.dark300, fontSize: 12, padding: '8px 0', cursor: 'pointer',
                       }}>取消</button>
-                      <button onClick={handleSendOtp} disabled={loginSending} style={{
+                      <button onClick={handleLookupWallet} disabled={lookupLoading} style={{
                         flex: 1, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
                         border: 'none', borderRadius: 10, color: 'white', fontSize: 12, fontWeight: 600,
-                        padding: '8px 0', cursor: loginSending ? 'default' : 'pointer', opacity: loginSending ? 0.6 : 1,
-                      }}>{loginSending ? '发送中...' : '发送验证码'}</button>
+                        padding: '8px 0', cursor: lookupLoading ? 'default' : 'pointer', opacity: lookupLoading ? 0.6 : 1,
+                      }}>{lookupLoading ? '查找中...' : '查找已有地址'}</button>
                     </div>
+                  </div>
+                )}
+                {loginStep === 'lookup' && lookupWallets && (
+                  <div style={{ padding: '0 4px' }}>
+                    <p style={{ fontSize: 11, color: T.accentGreen, marginBottom: 12 }}>
+                      ✅ 找到 {lookupWallets.length} 个钱包地址
+                    </p>
+                    <div style={{ maxHeight: 160, overflowY: 'auto', marginBottom: 12 }}>
+                      {lookupWallets.map((w, i) => (
+                        <div
+                          key={w.wallet_address || i}
+                          onClick={() => handleSelectWallet(w)}
+                          style={{
+                            background: 'rgba(255,255,255,0.04)',
+                            borderRadius: 8, padding: '8px 12px', marginBottom: 6,
+                            cursor: 'pointer', border: '1px solid rgba(99,102,241,0.2)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          }}
+                        >
+                          <div>
+                            <span style={{ fontSize: 11, fontFamily: 'monospace', color: T.dark300 }}>{fmtAddr(w.wallet_address)}</span>
+                            <span style={{ fontSize: 9, color: T.dark500, marginLeft: 8 }}>{w.label || ''}</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 11, fontFamily: 'monospace', color: 'white' }}>
+                              ${(w.totalUsd ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </span>
+                            {w.is_default ? <span style={{ fontSize: 9, color: T.accentGreen, background: 'rgba(16,185,129,0.15)', padding: '1px 6px', borderRadius: 4 }}>当前</span> : null}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <p style={{ fontSize: 10, color: T.dark500, marginBottom: 8 }}>或创建新地址（需要邮箱验证码）</p>
+                    <button
+                      onClick={() => { setLoginStep('otp'); handleSendOtp(); }}
+                      disabled={loginSending}
+                      style={{
+                        width: '100%', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                        border: 'none', borderRadius: 10, color: 'white', fontSize: 12, fontWeight: 600,
+                        padding: '8px 0', cursor: loginSending ? 'default' : 'pointer', opacity: loginSending ? 0.6 : 1,
+                      }}
+                    >{loginSending ? '发送中...' : '创建新地址'}</button>
+                    <button onClick={handleCancelLogin} style={{
+                      width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)',
+                      borderRadius: 10, color: T.dark300, fontSize: 12, padding: '8px 0', cursor: 'pointer', marginTop: 8,
+                    }}>取消</button>
                   </div>
                 )}
                 {loginStep === 'otp' && (
