@@ -26,27 +26,10 @@ export const AUTH_TOKEN_KEY = 'aihunter_token';
 
 /**
  * Read the auth token from the canonical source.
- * Priority: localStorage > VITE_AUTH_TOKEN env var (auto-synced to localStorage).
- *
- * At app startup (module load), if VITE_AUTH_TOKEN is set and localStorage
- * has no token yet, we automatically persist it so that hasAuthToken()
- * returns true even before any user interaction.
+ * Priority: localStorage > VITE_AUTH_TOKEN env var.
  */
-let _envTokenSynced = false;
-
-function _syncEnvToken(): void {
-  if (_envTokenSynced) return;
-  _envTokenSynced = true;
-  if (typeof window === 'undefined') return;
-  const envToken = import.meta.env.VITE_AUTH_TOKEN;
-  if (envToken && !localStorage.getItem(AUTH_TOKEN_KEY)) {
-    localStorage.setItem(AUTH_TOKEN_KEY, envToken);
-  }
-}
-
 export function getAuthToken(): string | null {
   if (typeof window !== 'undefined') {
-    _syncEnvToken();
     const stored = localStorage.getItem(AUTH_TOKEN_KEY);
     if (stored) return stored;
   }
@@ -101,7 +84,7 @@ export class ApiError extends Error {
 // Central fetch wrapper
 // ---------------------------------------------------------------------------
 
-interface RequestOptions extends RequestInit {
+interface RequestOptions extends Omit<RequestInit, 'body'> {
   /** Query parameters appended to the URL. */
   params?: Record<string, string | number | boolean | undefined>;
   /** JSON-serialisable request body (sets Content-Type: application/json). */
@@ -232,18 +215,25 @@ export const api = {
 
 const API_BASE = window.location.origin + '/api';
 
-async function typedRequest<T>(url: string, options?: RequestInit): Promise<ApiResponse<T>> {
+interface TypedRequestOptions {
+  method?: string;
+  headers?: Record<string, string>;
+  body?: BodyInit;
+  json?: unknown;
+  params?: Record<string, string | number | boolean | undefined>;
+}
+
+async function typedRequest<T>(url: string, options?: TypedRequestOptions): Promise<ApiResponse<T>> {
   try {
     const response = await request<ApiResponse<T>>('GET', API_BASE + url, {
       headers: { 'Content-Type': 'application/json', ...options?.headers } as Record<string, string>,
       method: (options?.method || 'GET') as string,
       body: options?.body,
+      json: options?.json,
+      params: options?.params,
     });
     return response;
   } catch (e: any) {
-    if (e && e.name === 'ApiError' && e.data && typeof e.data === 'object') {
-      return e.data as ApiResponse<T>;
-    }
     return { code: 500, error: e.message };
   }
 }
@@ -254,9 +244,6 @@ async function typedPost<T>(url: string, body?: unknown): Promise<ApiResponse<T>
       json: body,
     });
   } catch (e: any) {
-    if (e && e.name === 'ApiError' && e.data && typeof e.data === 'object') {
-      return e.data as ApiResponse<T>;
-    }
     return { code: 500, error: e.message };
   }
 }
@@ -347,7 +334,6 @@ export const offlineBacktestApi = {
 // ===== OKX 配置 + 重启 =====
 export const okxApi = {
   getConfig: () => typedRequest<{ configured: boolean }>('/config/okx'),
-  getStatus: () => typedRequest<{ configured: boolean; hasKey: boolean; hasSecret: boolean; hasPassphrase: boolean; keyHint: string }>('/config/okx/status'),
   saveConfig: (apiKey: string, secretKey: string, passphrase: string) =>
     typedPost('/config/okx', { apiKey, secretKey, passphrase }),
 };
@@ -359,4 +345,87 @@ export const systemApiExt = {
     typedRequest<{ status: string; target?: string; error?: string }>(
       `/system/restart/status?jobId=${jobId}`,
     ),
+};
+
+// ===== 套利 =====
+
+export interface ArbConfig {
+  id?: number;
+  userId: string;
+  minSpreadPct: number;
+  maxSlippagePct: number;
+  gasCapGwei: number;
+  minProfitUsdt: number;
+  chains: string[];
+}
+
+export interface ArbOpportunity {
+  id: string;
+  chain: string;
+  tokenPair: string;
+  buyDex: string;
+  sellDex: string;
+  buyPrice: number;
+  sellPrice: number;
+  spreadPct: number;
+  estimatedProfitUsdt: number;
+  gasEstimateUsdt: number;
+  ttl: number;
+}
+
+export interface ArbTrade {
+  id: number;
+  userId: string;
+  chain: string;
+  tokenPair: string;
+  buyDex: string;
+  sellDex: string;
+  amountIn: number;
+  amountInUsdt: number;
+  grossProfitUsdt: number;
+  gasCostUsdt: number;
+  slippageLossUsdt: number;
+  netProfitUsdt: number;
+  status: 'pending' | 'success' | 'failed';
+  failReason?: string;
+  txHashBuy?: string;
+  txHashSell?: string;
+  createdAt: string;
+  completedAt?: string;
+}
+
+export interface ArbTradeStats {
+  totalTrades: number;
+  successRate: number;
+  cumulativeProfit: number;
+  avgProfit: number;
+}
+
+export interface ArbTradeResult {
+  tradeId: number;
+  status: 'success' | 'failed';
+  txHashBuy?: string;
+  txHashSell?: string;
+  netProfit?: number;
+  failReason?: string;
+}
+
+export const arbitrageApi = {
+  getConfig: (userId: string) =>
+    typedRequest<ArbConfig>(`/arbitrage/config?userId=${encodeURIComponent(userId)}`),
+
+  saveConfig: (config: Partial<ArbConfig> & { userId: string }) =>
+    typedRequest<ArbConfig>('/arbitrage/config', { method: 'POST', json: config }),
+
+  getOpportunities: (params?: { chain?: string; minProfit?: number; limit?: number }) =>
+    typedRequest<ArbOpportunity[]>('/arbitrage/opportunities', { params: params as Record<string,string|number|boolean|undefined> }),
+
+  execute: (payload: { userId: string; opportunityId: string; amount: string; slippage: number }) =>
+    typedRequest<ArbTradeResult>('/arbitrage/execute', { method: 'POST', json: payload }),
+
+  getTrades: (params?: { userId: string; page?: number; limit?: number; status?: string }) =>
+    typedRequest<{ trades: ArbTrade[]; total: number; page: number }>('/arbitrage/trades', { params: params as Record<string,string|number|boolean|undefined> }),
+
+  getTradeStats: (userId: string) =>
+    typedRequest<ArbTradeStats>('/arbitrage/trades/stats', { params: { userId } as Record<string,string|number|boolean|undefined> }),
 };

@@ -1307,6 +1307,8 @@ app.register(async function (fastify) {
   });
 });
 
+import ArbitrageRoutes from "./routes/arbitrage.js";
+
 // ===== 注册实盘交易路由 =====
 import LiveTradingRoutes from "./routes/liveTrading.js";
 new LiveTradingRoutes(app, {
@@ -1328,6 +1330,7 @@ const okxTrade = {
   onchainosWalletAdd,
   onchainosWalletAddresses,
 };
+new ArbitrageRoutes(app, { pool: db }, redis);
 const wssServer = app.websocketServer || null;
 const autoTrader = new AutoTrader({ db, redis, okxClient: okxTrade, wss: wssServer });
 
