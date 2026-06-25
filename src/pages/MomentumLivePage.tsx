@@ -233,6 +233,7 @@ export default function MomentumLivePage() {
   const [transferTarget, setTransferTarget] = useState('');
   const [transferAmount, setTransferAmount] = useState('');
   const [transferChain, setTransferChain] = useState('ethereum');
+  const [transferToken, setTransferToken] = useState('');
   const [transferLoading, setTransferLoading] = useState(false);
   const [transferMsg, setTransferMsg] = useState('');
 
@@ -513,11 +514,11 @@ export default function MomentumLivePage() {
   const handleTransfer = useCallback(async () => {
     if (!transferTarget || !transferAmount) return;
     setTransferLoading(true); setTransferMsg('');
-    const d = await safePost(`${API}/agentic-wallet/send`, { userId: USER_ID, recipient: transferTarget.trim(), chain: transferChain, amount: transferAmount.trim() }, 'transfer');
+    const d = await safePost(`${API}/agentic-wallet/send`, { userId: USER_ID, recipient: transferTarget.trim(), chain: transferChain, amount: transferAmount.trim(), tokenContract: transferToken || undefined }, 'transfer');
     if (d) { setTransferMsg('转账已提交'); setShowTransfer(false); setTransferTarget(''); setTransferAmount(''); }
     else setTransferMsg('转账失败');
     setTransferLoading(false);
-  }, [transferTarget, transferAmount, transferChain, safePost, USER_ID]);
+  }, [transferTarget, transferAmount, transferChain, transferToken, safePost, USER_ID]);
 
   const handleCancelLogin = useCallback(() => {
     setLoginStep('idle');
@@ -1126,12 +1127,16 @@ export default function MomentumLivePage() {
               <input value={transferAmount} onChange={e => setTransferAmount(e.target.value)} placeholder="0.1" style={{ width: '100%', background: 'var(--dark100)', border: '1px solid var(--dark300)', borderRadius: 8, color: '#fff', padding: '8px 12px', fontSize: 13, boxSizing: 'border-box' }} />
             </div>
             <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>代币合约（可选，留空为主链币）</label>
+              <input value={transferToken} onChange={e => setTransferToken(e.target.value)} placeholder="0x... 合约地址" style={{ width: '100%', background: 'var(--dark100)', border: '1px solid var(--dark300)', borderRadius: 8, color: '#fff', padding: '8px 12px', fontSize: 13, boxSizing: 'border-box' }} />
+            </div>
+            <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>链</label>
               <select value={transferChain} onChange={e => setTransferChain(e.target.value)} style={{ width: '100%', background: 'var(--dark100)', border: '1px solid var(--dark300)', borderRadius: 8, color: '#fff', padding: '8px 12px', fontSize: 13, boxSizing: 'border-box' }}>
-                <option value="ethereum">Ethereum</option>
-                <option value="bsc">BSC</option>
-                <option value="base">Base</option>
-                <option value="501">Solana</option>
+                <option value="ethereum" style={{ background: '#1a1a2e', color: '#fff' }}>Ethereum</option>
+                <option value="bsc" style={{ background: '#1a1a2e', color: '#fff' }}>BSC</option>
+                <option value="base" style={{ background: '#1a1a2e', color: '#fff' }}>Base</option>
+                <option value="501" style={{ background: '#1a1a2e', color: '#fff' }}>Solana</option>
               </select>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
