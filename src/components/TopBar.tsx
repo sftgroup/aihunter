@@ -110,9 +110,10 @@ export default function TopBar({ onConnectClick }: { onConnectClick: () => void 
           </button>
         ) : (
           <div ref={accRef} style={{ position: 'relative' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
             <button
               onClick={() => setShowAccount(!showAccount)}
-              style={btnStyle}
+              style={{ ...btnStyle, borderRadius: '12px 0 0 12px' }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
                 e.currentTarget.style.color = 'white';
@@ -128,6 +129,12 @@ export default function TopBar({ onConnectClick }: { onConnectClick: () => void 
               </span>
               <ChevronDown size={14} />
             </button>
+            <button
+              onClick={() => { disconnect(); localStorage.removeItem('aihunter_user_id'); }}
+              style={{ ...btnStyle, borderRadius: '0 12px 12px 0', borderLeft: 'none', color: 'var(--accent-red)', padding: '8px 10px' }}
+              title="断开钱包连接"
+            ><LogOut size={14} /></button>
+            </div>
 
             {showAccount && (
               <div style={dropdownStyle}>
