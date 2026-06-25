@@ -258,6 +258,17 @@ class LiveTradingRoutes {
       return reply.status(500).send({ code: 500, message: error.message });
     }
   }
+  async sendToken(request, reply) {
+    const { userId, recipient, chain, amount, tokenContract } = request.body || {};
+    if (!userId || !recipient || !chain || !amount) { return reply.status(400).send({ code: 400, message: '缺少必填参数' }); }
+    try {
+      const { onchainosWalletSend } = this.okx;
+      if (!onchainosWalletSend) return reply.status(500).send({ code: 500, message: 'onchainos 模块未加载' });
+      const result = await onchainosWalletSend(userId, { recipient, chain, amount, tokenContract });
+      return reply.send({ code: 200, message: '转账已提交', data: result });
+    } catch (error) { return reply.status(500).send({ code: 500, message: error.message }); }
+  }
+
 
   async revokeWallet(request, reply) {
     try {
