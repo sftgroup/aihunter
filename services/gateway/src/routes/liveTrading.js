@@ -93,12 +93,12 @@ class LiveTradingRoutes {
         return reply.status(400).send({ code: 400, message: verifyResult.message || verifyResult.error || '验证码错误' });
       }
 
-      // 创建新地址（每次验证都创建新地址）
+      // 创建新链上地址
       if (onchainosWalletAdd) {
         try { await onchainosWalletAdd(userId); } catch (e) { console.warn('[verifyOtp] wallet add 失败:', e.message); }
       }
 
-      // 获取最新地址 + 余额
+      // 获取最新地址和余额
       let walletAddress = '', totalUsd = 0, balances = [];
       if (onchainosWalletAddresses) {
         try {
@@ -119,7 +119,7 @@ class LiveTradingRoutes {
         } catch (_) {}
       }
 
-      // 新地址直接 INSERT（不覆盖已有地址）
+      // 新地址直接INSERT（不覆盖已有地址）
       const chainUpper = chain.toUpperCase();
       const shortAddr = walletAddress.slice(0,6)+'...'+walletAddress.slice(-4);
       const cnt = await this.db.query(`SELECT COUNT(*) as n FROM agentic_wallets WHERE user_id=$1`,[userId]);
@@ -148,20 +148,22 @@ class LiveTradingRoutes {
       if (!userId) return reply.status(400).send({ code: 400, message: '缺少 userId' });
 
       const { getWalletBalances } = this.okx;
+
       const result = await this.db.query(
         `SELECT * FROM agentic_wallets WHERE user_id = $1 AND status = 'active' ORDER BY is_default DESC, created_at DESC`,
         [userId]
       );
 
       const wallets = result.rows;
-      if (wallets.length === 0) return reply.send({ code: 200, data: [] });
+      if (wallets.length === 0) return reply.send({ code: 200, data: null, wallets: [] });
 
+      // 补标记
       for (const w of wallets) {
         w.authorized = !!w.authorized_at;
-        const chain = (w.chain || 'ETH') === 'ETH' ? 'ethereum' : w.chain?.toLowerCase() || 'ethereum';
         w.balances = []; w.totalUsd = 0;
         if (getWalletBalances) {
           try {
+            const chain = (w.chain || 'ETH') === 'ETH' ? 'ethereum' : w.chain?.toLowerCase() || 'ethereum';
             const bal = await getWalletBalances(userId, chain);
             w.balances = bal.balances || [];
             w.totalUsd = bal.totalUsd || 0;
@@ -169,7 +171,22 @@ class LiveTradingRoutes {
         }
       }
 
-      return reply.send({ code: 200, data: wallets });
+      // 兼容旧前端：data 是第一个钱包对象 + wallets 数组
+      const first = wallets[0];
+      const chain = (first.chain || 'ETH') === 'ETH' ? 'ethereum' : first.chain?.toLowerCase() || 'ethereum';
+      let totalUsd = 0, balances = [];
+      if (getWalletBalances) {
+        try {
+          const bal = await getWalletBalances(userId, chain);
+          balances = bal.balances || [];
+          totalUsd = bal.totalUsd || 0;
+        } catch (_) {}
+      }
+
+      return reply.send({
+        code: 200,
+        data: { ...first, authorized: !!first.authorized_at, balances, totalUsd, wallets },
+      });
     } catch (error) {
       console.error('[getWalletStatus]', error);
       return reply.status(500).send({ code: 500, message: error.message });
@@ -182,9 +199,10 @@ class LiveTradingRoutes {
       if (!userId || !walletAddress) return reply.status(400).send({ code: 400, message: '缺少参数' });
       await this.db.query(`UPDATE agentic_wallets SET is_default = false WHERE user_id = $1`, [userId]);
       await this.db.query(`UPDATE agentic_wallets SET is_default = true WHERE user_id = $1 AND wallet_address = $2`, [userId, walletAddress]);
-      return reply.send({ code: 200, message: '已切换' });
+      return reply.send({ code: 200, message: '已切换默认钱包' });
     } catch (e) { console.error('[switchWallet]', e); return reply.status(500).send({ code: 500, message: e.message }); }
   }
+
   async logoutWallet(request, reply) {
     try {
       const { userId } = request.body || {};

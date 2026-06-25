@@ -18,6 +18,8 @@ import {
   onchainosWalletStatus,
   getWalletBalances,
   onchainosLogout,
+  onchainosWalletAdd,
+  onchainosWalletAddresses,
 } from "./okx-trade.js";
 const { Pool } = pg;
 
@@ -155,6 +157,7 @@ app.addHook('preHandler', async (request, reply) => {
     '/health', '/api/rank/ping', '/api/prize/ping', '/api/system/status',
     '/api/signals/recent',
     '/api/agentic-wallet/login', '/api/agentic-wallet/verify', '/api/agentic-wallet/status',
+    '/api/agentic-wallet/switch',
   ];
   const urlPath = request.url.split('?')[0];
   if (publicRoutes.includes(urlPath)) return;
@@ -1312,6 +1315,8 @@ new LiveTradingRoutes(app, {
     onchainosWalletStatus,
     getWalletBalances,
     onchainosLogout,
+    onchainosWalletAdd,
+    onchainosWalletAddresses,
     executeSwap,
   },
 });
@@ -1319,6 +1324,8 @@ const okxTrade = {
   executeSwap,
   onchainosWalletStatus,
   getWalletBalances,
+  onchainosWalletAdd,
+  onchainosWalletAddresses,
 };
 const wssServer = app.websocketServer || null;
 const autoTrader = new AutoTrader({ db, redis, okxClient: okxTrade, wss: wssServer });
