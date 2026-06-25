@@ -18,9 +18,6 @@ import {
   onchainosWalletStatus,
   getWalletBalances,
   onchainosLogout,
-  onchainosWalletAdd,
-  onchainosWalletAddresses,
-  onchainosWalletSwitch,
 } from "./okx-trade.js";
 const { Pool } = pg;
 
@@ -147,15 +144,6 @@ function checkRateLimit(key, max, map) {
 app.addHook('preHandler', async (request, reply) => {
   const clientIp = request.ip || request.socket?.remoteAddress || 'unknown';
 
-  const publicRoutes = [
-    '/health', '/api/rank/ping', '/api/prize/ping', '/api/system/status',
-    '/api/signals/recent',
-    '/api/agentic-wallet/login', '/api/agentic-wallet/verify', '/api/agentic-wallet/status',
-    '/api/agentic-wallet/login', '/api/agentic-wallet/verify', '/api/agentic-wallet/status',
-  ];
-  const urlPath = request.url.split('?')[0];
-  if (publicRoutes.includes(urlPath)) return;
-
   // 全局请求限流
   const rl = checkRateLimit(clientIp, RATE_LIMIT_MAX, rateLimitMap);
   if (!rl.allowed) {
@@ -163,6 +151,13 @@ app.addHook('preHandler', async (request, reply) => {
     return reply.status(429).send({ code: 429, error: 'Too Many Requests', retryAfter: rl.retryAfter });
   }
 
+  const publicRoutes = [
+    '/health', '/api/rank/ping', '/api/prize/ping', '/api/system/status',
+    '/api/signals/recent',
+    '/api/agentic-wallet/login', '/api/agentic-wallet/verify', '/api/agentic-wallet/status',
+  ];
+  const urlPath = request.url.split('?')[0];
+  if (publicRoutes.includes(urlPath)) return;
 
   const auth = request.headers.authorization;
   if (!auth || auth !== `Bearer ${AUTH_TOKEN}`) {
@@ -1311,17 +1306,12 @@ app.register(async function (fastify) {
 // ===== 注册实盘交易路由 =====
 import LiveTradingRoutes from "./routes/liveTrading.js";
 new LiveTradingRoutes(app, {
-  db: db,
-  redis: redis,
   okx: {
     onchainosLogin,
     onchainosVerifyOtp,
     onchainosWalletStatus,
     getWalletBalances,
     onchainosLogout,
-    onchainosWalletAdd,
-    onchainosWalletAddresses,
-  onchainosWalletSwitch,
     executeSwap,
   },
 });
