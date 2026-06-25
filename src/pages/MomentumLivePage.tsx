@@ -293,6 +293,19 @@ export default function MomentumLivePage() {
   /*  Data loading                                                       */
   /* ================================================================== */
   useEffect(() => { let c = false; (async () => { setWalletLoading(true); try { const d = await safeGet<WalletStatus>(`${API}/agentic-wallet/status`, 'wallet'); if (!c && d) { setWallet(d); if (d.wallets) setWallets(d.wallets); } } finally { if (!c) setWalletLoading(false); } })(); return () => { c = true; }; }, [safeGet]);
+
+  // Detect MetaMask address change via localStorage poll, refresh wallet
+  const lastUid = useRef<string>(USER_ID);
+  useEffect(() => {
+    const i = setInterval(() => {
+      const uid = getUserId();
+      if (uid !== lastUid.current) {
+        lastUid.current = uid;
+        safeGet<WalletStatus>(`${API}/agentic-wallet/status`, 'wallet').then(d => { if (d) { setWallet(d); if (d.wallets) setWallets(d.wallets); } });
+      }
+    }, 2000);
+    return () => clearInterval(i);
+  }, [safeGet]);
   useEffect(() => { let c = false; (async () => { setConfigLoading(true); const d = await safeGet<LiveConfig>(`${API}/live-trading/config?strategy=momentum`, 'config'); if (!c && d) setConfig(d); if (!c) setConfigLoading(false); })(); return () => { c = true; }; }, [safeGet]);
   useEffect(() => { safeGet<{ date: string; pnl: number }[]>(`${API}/live-trading/chart/pnl?days=${chartDays}`, 'pnl').then(d => d && setPnlData(d.map(r => ({ time: r.date, pnl: r.pnl })))); safeGet<{ wins: number; losses: number }>(`${API}/live-trading/chart/distribution`, 'dist').then(d => d && setDistributionData([{ name: '盈利', value: d.wins || 0, color: T.accentGreen }, { name: '亏损', value: d.losses || 0, color: T.accentRed }])); safeGet<{ date: string; total: number }[]>(`${API}/live-trading/chart/assets?days=${chartDays}`, 'assets').then(d => d && setAssetData(d.map(r => ({ time: r.date, value: r.total })))); safeGet<{ token: string; pnl: number }[]>(`${API}/live-trading/chart/tokens`, 'tokens').then(d => d && setTokenData(d)); }, [safeGet, chartDays]);
   useEffect(() => { safeGet<{ records: TradeRecord[]; total: number }>(`${API}/live-trading/trades?date=${tradeDate}&page=${tradePage}&limit=20`, 'trades').then(d => d && setTrades(d.records)); }, [safeGet, tradeDate, tradePage]);
