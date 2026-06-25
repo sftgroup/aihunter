@@ -101,7 +101,7 @@ export class ApiError extends Error {
 // Central fetch wrapper
 // ---------------------------------------------------------------------------
 
-interface RequestOptions extends Omit<RequestInit, 'body'> {
+interface RequestOptions extends RequestInit {
   /** Query parameters appended to the URL. */
   params?: Record<string, string | number | boolean | undefined>;
   /** JSON-serialisable request body (sets Content-Type: application/json). */

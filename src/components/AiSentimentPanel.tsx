@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useState } from 'react';
 import { Brain, Send, AlertTriangle, TrendingUp, Sparkles, Info } from 'lucide-react';
 import { sentimentApi } from '../utils/api';

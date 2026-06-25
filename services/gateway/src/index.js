@@ -1297,7 +1297,7 @@ app.register(async function (fastify) {
 
 // ===== 注册实盘交易路由 =====
 import LiveTradingRoutes from "./routes/liveTrading.js";
-new LiveTradingRoutes(app, { okxClient: null });
+new LiveTradingRoutes(app, {});
 const okxTrade = { executeSwap };
 const wssServer = app.websocketServer || null;
 const autoTrader = new AutoTrader({ db, redis, okxClient: okxTrade, wss: wssServer });

@@ -1,65 +1,50 @@
 // OKX 实盘交易模块 — 供 index.js require
 import crypto from 'crypto';
+import { execSync } from 'child_process';
 
 const OKX_REST_HOST = 'https://www.okx.com';
-
 const CHAIN_TO_OKX_ID = { ETH: 1, BSC: 56, BASE: 8453, POLYGON: 137, ARBITRUM: 42161, OPTIMISM: 10 };
 const OKX_CHAIN_NAMES = { 1: 'ETH', 56: 'BSC', 8453: 'BASE' };
 
-// 直接从环境变量 / sys_config 读取 OKX 配置
 let _okxConfig = { apiKey: '', apiSecret: '', passphrase: '', projectId: '' };
 
-export function setOkxConfig(cfg) {
-  _okxConfig = { ..._okxConfig, ...cfg };
-}
-
-export function getOkxConfig() {
-  return _okxConfig;
-}
+export function setOkxConfig(cfg) { _okxConfig = { ..._okxConfig, ...cfg }; }
+export function getOkxConfig() { return _okxConfig; }
 
 function signRequest(timestamp, method, requestPath, body) {
   const { apiSecret } = getOkxConfig();
   if (!apiSecret) throw new Error('OKX Secret 未配置');
-  const message = timestamp + method + requestPath + (body || '');
-  return crypto.createHmac('sha256', apiSecret).update(message).digest('base64');
+  return crypto.createHmac('sha256', apiSecret).update(timestamp + method + requestPath + (body || '')).digest('base64');
 }
 
 async function okxRequest(method, requestPath, body = null) {
   const { apiKey, apiSecret, passphrase, projectId } = getOkxConfig();
-  if (!apiKey || !apiSecret || !passphrase) {
-    throw new Error('OKX API 未配置：请在配置页设置');
-  }
+  if (!apiKey || !apiSecret || !passphrase) throw new Error('OKX API 未配置');
   const timestamp = new Date().toISOString().slice(0, 19) + 'Z';
   const sign = signRequest(timestamp, method, requestPath, body);
   const headers = {
-    'OK-ACCESS-KEY': apiKey,
-    'OK-ACCESS-SIGN': sign,
-    'OK-ACCESS-TIMESTAMP': timestamp,
-    'OK-ACCESS-PASSPHRASE': passphrase,
-    'Content-Type': 'application/json',
+    'OK-ACCESS-KEY': apiKey, 'OK-ACCESS-SIGN': sign, 'OK-ACCESS-TIMESTAMP': timestamp,
+    'OK-ACCESS-PASSPHRASE': passphrase, 'Content-Type': 'application/json',
   };
   if (projectId) headers['OK-ACCESS-PROJECT'] = projectId;
   const url = OKX_REST_HOST + requestPath;
   const response = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
   const data = await response.json();
-  if (data.code !== '0') throw new Error(`OKX API 错误: [${data.code}] ${data.msg || JSON.stringify(data)}`);
+  if (data.code !== '0') throw new Error(`OKX API: [${data.code}] ${data.msg || JSON.stringify(data)}`);
   return data;
 }
 
 export async function getQuote({ chain, fromToken, toToken, amount, slippage = 0.5 }) {
   const chainId = CHAIN_TO_OKX_ID[chain];
-  if (!chainId) throw new Error(`不支持链: ${chain}`);
-  const params = new URLSearchParams({
-    chainId: String(chainId), fromTokenAddress: fromToken || '', toTokenAddress: toToken,
-    amount, slippage: String(slippage),
-  });
+  if (!chainId) throw new Error(`unsupported chain: ${chain}`);
+  const params = new URLSearchParams({ chainId: String(chainId), fromTokenAddress: fromToken || '', toTokenAddress: toToken, amount, slippage: String(slippage) });
   const result = await okxRequest('GET', `/api/v5/dex/aggregator/quote?${params}`);
   return result.data;
 }
 
 export async function getApproveTransaction({ chain, tokenAddress, amount = '0' }) {
   const chainId = CHAIN_TO_OKX_ID[chain];
-  if (!chainId) throw new Error(`不支持链: ${chain}`);
+  if (!chainId) throw new Error(`unsupported chain: ${chain}`);
   const params = new URLSearchParams({ chainId: String(chainId), tokenAddress, amount });
   const result = await okxRequest('GET', `/api/v5/dex/aggregator/approve-transaction?${params}`);
   return result.data;
@@ -67,11 +52,8 @@ export async function getApproveTransaction({ chain, tokenAddress, amount = '0' 
 
 export async function getSwapTransaction({ chain, fromToken, toToken, amount, slippage = 0.5, userWallet, router, routerType, approveTx }) {
   const chainId = CHAIN_TO_OKX_ID[chain];
-  if (!chainId) throw new Error(`不支持链: ${chain}`);
-  const body = {
-    chainId: String(chainId), fromTokenAddress: fromToken || '', toTokenAddress: toToken,
-    amount, slippage: String(slippage), userWalletAddress: userWallet, router, routerType,
-  };
+  if (!chainId) throw new Error(`unsupported chain: ${chain}`);
+  const body = { chainId: String(chainId), fromTokenAddress: fromToken || '', toTokenAddress: toToken, amount, slippage: String(slippage), userWalletAddress: userWallet, router, routerType };
   if (approveTx) body.approveTx = approveTx;
   const result = await okxRequest('POST', '/api/v5/dex/aggregator/swap', body);
   return result.data;
@@ -79,21 +61,18 @@ export async function getSwapTransaction({ chain, fromToken, toToken, amount, sl
 
 export async function broadcastTransaction({ chain, txData, walletAddress }) {
   const chainId = CHAIN_TO_OKX_ID[chain];
-  if (!chainId) throw new Error(`不支持链: ${chain}`);
+  if (!chainId) throw new Error(`unsupported chain: ${chain}`);
   try {
     const result = await okxRequest('POST', '/api/v5/wallet/broadcast', { chainId: String(chainId), tx: txData, ...(walletAddress ? { walletAddress } : {}) });
     return { txHash: result.data?.txHash, status: 'broadcasted' };
   } catch (err) {
-    console.warn('[OKX] Onchain Gateway 广播失败，尝试 RPC:', err.message);
+    console.warn('[OKX] broadcast failed, trying RPC:', err.message);
     const rpcUrls = { ETH: 'https://ethereum-rpc.publicnode.com', BSC: 'https://bsc-rpc.publicnode.com', BASE: 'https://base-rpc.publicnode.com' };
     const rpcUrl = rpcUrls[chain];
-    if (!rpcUrl) throw new Error(`不支持链: ${chain}`);
-    const response = await fetch(rpcUrl, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_sendRawTransaction', params: [txData.rawTransaction || txData], id: 1 }),
-    });
+    if (!rpcUrl) throw new Error(`unsupported chain: ${chain}`);
+    const response = await fetch(rpcUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_sendRawTransaction', params: [txData.rawTransaction || txData], id: 1 }) });
     const result = await response.json();
-    if (result.error) throw new Error(`RPC 广播失败: ${result.error.message}`);
+    if (result.error) throw new Error(`RPC broadcast failed: ${result.error.message}`);
     return { txHash: result.result, status: 'broadcasted' };
   }
 }
@@ -101,7 +80,7 @@ export async function broadcastTransaction({ chain, txData, walletAddress }) {
 export async function executeSwap({ chain, fromToken, toToken, amount, slippage = 0.5, walletAddress }) {
   console.log(`[OKX] Swap: ${chain} ${fromToken||'ETH'}→${toToken} amt=${amount}`);
   const quotes = await getQuote({ chain, fromToken, toToken, amount, slippage });
-  if (!quotes || quotes.length === 0) throw new Error('无有效报价');
+  if (!quotes || quotes.length === 0) throw new Error('no quote');
   const best = quotes[0];
   let approveTx = null;
   if (fromToken && fromToken !== '') {
@@ -113,41 +92,25 @@ export async function executeSwap({ chain, fromToken, toToken, amount, slippage 
   return { txHash: broadcast.txHash, quote: best, swapTx: swapTx.tx, status: broadcast.status, estimatedOut: best.toTokenAmount };
 }
 
-// ===== Agentic Wallet API =====
+// ===== Agentic Wallet — 通过 onchainos CLI =====
 
-/**
- * 创建 Agentic 钱包
- * POST /api/v5/wallet/agentic/create
- */
-export async function createAgenticWallet(email, chain) {
-  const chainId = CHAIN_TO_OKX_ID[chain];
-  if (!chainId) throw new Error(`不支持链: ${chain}`);
-  const result = await okxRequest('POST', '/api/v5/wallet/agentic/create', { email, chainId: String(chainId) });
-  if (!result.data || !result.data.walletAddress) throw new Error('OKX 创建钱包失败: 未返回地址');
-  return { address: result.data.walletAddress, chain };
+function onchainos(args) {
+  try {
+    const stdout = execSync(`/root/.local/bin/onchainos ${args}`, { encoding: 'utf8', timeout: 30000, maxBuffer: 10 * 1024 * 1024 });
+    return JSON.parse(stdout);
+  } catch (err) {
+    if (err.stdout) { try { return JSON.parse(err.stdout); } catch {} }
+    if (err.stderr) { try { return JSON.parse(err.stderr); } catch {} }
+    throw new Error(`onchainos failed: ${err.message}`);
+  }
 }
 
-/**
- * 授权 Agentic 钱包
- * POST /api/v5/wallet/agentic/authorize
- */
-export async function authorizeWallet(walletAddress, chain) {
-  const chainId = CHAIN_TO_OKX_ID[chain];
-  if (!chainId) throw new Error(`不支持链: ${chain}`);
-  const result = await okxRequest('POST', '/api/v5/wallet/agentic/authorize', { walletAddress, chainId: String(chainId), permissions: ['trade'] });
-  return { authorized: true, expiresAt: result.data?.expiresAt || null };
-}
+export async function onchainosLogin(email) { return onchainos(`wallet login ${email}`); }
+export async function onchainosVerifyOtp(code) { return onchainos(`wallet verify ${code}`); }
+export async function onchainosWalletStatus() { return onchainos('wallet status'); }
 
-/**
- * 获取钱包余额
- * GET /api/v5/dex/wallet/balances
- */
-export async function getWalletBalances(walletAddress, chain) {
-  const chainId = CHAIN_TO_OKX_ID[chain];
-  if (!chainId) throw new Error(`不支持链: ${chain}`);
-  const params = new URLSearchParams({ walletAddress, chainId: String(chainId) });
-  const result = await okxRequest('GET', `/api/v5/dex/wallet/balances?${params}`);
-  const balances = result.data || [];
-  const totalUsd = balances.reduce((sum, item) => sum + (parseFloat(item.usdValue) || 0), 0);
-  return { balances, totalUsd };
+export async function getWalletBalances(chain = 'ethereum') {
+  const result = onchainos(`wallet balance --chain ${chain}`);
+  const data = result.data || result;
+  return { walletAddress: data.address || '', balances: data.balances || [], totalUsd: typeof data.totalUsd === 'number' ? data.totalUsd : 0 };
 }

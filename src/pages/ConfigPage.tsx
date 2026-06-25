@@ -236,7 +236,7 @@ export default function ConfigPage() {
 
     // 处理 429 冷却
     if (res.code === 429) {
-      const retryAfter = res.retryAfter || 30;
+      const retryAfter = (res as any).retryAfter || 30;
       setRestartCooldown(retryAfter);
       setRestartStatus("failed");
       setRestartMsg(`冷却中，请 ${retryAfter} 秒后再试`);

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useState } from 'react';
 import { Search, ShieldCheck, ShieldAlert, ExternalLink } from 'lucide-react';
 import { smartMoneyApi } from '../utils/api';

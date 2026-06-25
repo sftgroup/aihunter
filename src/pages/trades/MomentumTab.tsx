@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { TrendingUp, Activity, Zap, ChevronLeft, ChevronRight, Filter, Copy, Check, Wallet, ExternalLink, BarChart3, Power, RefreshCw } from 'lucide-react';
-import { signalsPageApi } from "../../utils/api";
+import { signalsPageApi, api } from "../../utils/api";
 import LearningTab from "./LearningTab";
 import MomentumLivePage from "../MomentumLivePage";
 import { useAccount, useDisconnect, useBalance } from 'wagmi';
@@ -190,7 +190,7 @@ function RealTradeTab() {
     }
     fetch('/api/trade/realtrades?limit=50', { headers })
       .then(r => r.json())
-      .then(d => { if (d?.code === 200) setRealTrades(d.data || []); })
+      .then((d: any) => { if (d?.code === 200) setRealTrades(d.data || []); })
       .catch(() => {});
   }, []);
 
@@ -217,7 +217,7 @@ function RealTradeTab() {
         }
         if (msg.type === 'TRADE_CONFIRMED') {
           setPendingTx(prev => prev.filter(t => t.contract !== msg.data.contract));
-          api('/api/trade/realtrades?limit=50').then(d => { if (d?.code === 200) setRealTrades(d.data || []); }).catch(() => {});
+          api.get('/api/trade/realtrades?limit=50').then((d: any) => { if (d?.code === 200) setRealTrades(d.data || []); }).catch(() => {});
         }
       } catch(e) {}
     };
@@ -363,7 +363,7 @@ function RealTradeTab() {
                         });
                         alert("交易已发送: " + tx.slice(0, 10) + "...");
                         // 上报后端
-                        api("/api/trade/confirm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chain:tx.chain,contract:tx.tokenAddress,symbol:tx.tokenSymbol,status:"open",amount:0.01,price:tx.price,txHash:tx})});
+                        api.post("/api/trade/confirm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chain:tx.chain,contract:tx.tokenAddress,symbol:tx.tokenSymbol,status:"open",amount:0.01,price:tx.price,txHash:tx})});
                       } catch(e:any) { alert("失败: " + (e.message || e)); }
                     }}
                       style={{padding:"4px 10px",borderRadius:6,border:"1px solid rgba(99,102,241,0.3)",background:"rgba(99,102,241,0.1)",color:"var(--accent)",fontSize:10,cursor:"pointer",fontWeight:500}}>
