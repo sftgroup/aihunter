@@ -604,12 +604,27 @@ export default function MomentumLivePage() {
 
                 {!hasWallets && (
                   <button
-                    onClick={() => { setLoginEmail(wallet.email || ''); setLoginStep('otp'); handleAddNewAddress(); }}
+                    onClick={() => { setLoginEmail(wallet.email || ''); setLoginStep('email'); }}
                     style={{
                       width: '100%', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)',
                       borderRadius: 8, color: T.accent, fontSize: 10, padding: '6px 0', cursor: 'pointer', marginBottom: 12,
                     }}
                   >+ 添加新地址</button>
+                )}
+                {loginStep === 'email' && (
+                  <div style={{ padding: '4px 8px', marginBottom: 12, background: 'rgba(99,102,241,0.05)', borderRadius: 10 }}>
+                    <input
+                      type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleAddNewAddress()}
+                      placeholder="输入邮箱创建新地址" autoFocus
+                      style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 8, color: 'white', fontSize: 13, padding: '8px 12px', outline: 'none' }}
+                    />
+                    {loginError && <p style={{ fontSize: 10, color: T.accentRed, marginTop: 4, textAlign: 'center' }}>{loginError}</p>}
+                    <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                      <button onClick={handleCancelLogin} style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, color: T.dark300, fontSize: 11, padding: '6px 0', cursor: 'pointer' }}>取消</button>
+                      <button onClick={handleAddNewAddress} disabled={loginSending} style={{ flex: 1, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', borderRadius: 8, color: 'white', fontSize: 11, fontWeight: 600, padding: '6px 0', cursor: loginSending ? 'default' : 'pointer', opacity: loginSending ? 0.6 : 1 }}>{loginSending ? '发送中...' : '发送验证码'}</button>
+                    </div>
+                  </div>
                 )}
                 {loginStep === 'otp' && (
                   <div style={{ padding: '4px 8px', marginBottom: 12, background: 'rgba(99,102,241,0.05)', borderRadius: 10 }}>
