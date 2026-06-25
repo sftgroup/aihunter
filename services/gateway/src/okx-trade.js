@@ -151,3 +151,11 @@ export async function getWalletBalances(userId, chain = 'ethereum') {
 export async function onchainosLogout(userId) {
   return onchainosForUser(userId, 'wallet logout');
 }
+
+export async function onchainosWalletAdd(userId) {
+  return onchainosForUser(userId, 'wallet add');
+}
+
+export async function onchainosWalletAddresses(userId) {
+  return onchainosForUser(userId, 'wallet addresses');
+}

@@ -92,14 +92,61 @@ class LiveTradingRoutes {
         return reply.status(400).send({ code: 400, message: verifyResult.message || verifyResult.error || '验证码错误' });
       }
 
-      // 获取钱包地址和余额
+      // 检查是否已有钱包地址（避免重复创建）
+      const existing = await this.db.query(
+        `SELECT * FROM agentic_wallets WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1`,
+        [userId]
+      );
+      const hasExistingWallet = existing.rows.length > 0
+        && existing.rows[0].wallet_address
+        && existing.rows[0].wallet_address.startsWith('0x');
+
+      // 只有全新用户才需要 wallet add 创建链上地址
+      if (!hasExistingWallet) {
+        const { onchainosWalletAdd } = this.okx;
+        if (onchainosWalletAdd) {
+          try {
+            const addResult = await onchainosWalletAdd(userId);
+            console.log('[verifyOtp] wallet add result:', JSON.stringify(addResult).slice(0, 200));
+          } catch (e) {
+            console.warn('[verifyOtp] wallet add 失败:', e.message);
+          }
+        }
+      } else {
+        console.log('[verifyOtp] 用户已有钱包地址，跳过 wallet add');
+      }
+
+      // Step 3: 获取真实链上地址
       let walletAddress = '';
       let totalUsd = 0;
       let balances = [];
       try {
+        // 先获取钱包状态
         const statusResult = await onchainosWalletStatus(userId);
         const sd = statusResult.data || statusResult;
-        walletAddress = sd.currentAccountId || sd.walletAddress || '';
+        const accountId = sd.currentAccountId || '';
+
+        // 再获取链上地址列表
+        const { onchainosWalletAddresses } = this.okx;
+        if (onchainosWalletAddresses) {
+          try {
+            const addrResult = await onchainosWalletAddresses(userId);
+            const addrs = addrResult.data || addrResult;
+            // 优先找对应链的地址
+            const chainKey = chain === 'ethereum' ? 'evm' : chain;
+            if (addrs[chainKey] && Array.isArray(addrs[chainKey]) && addrs[chainKey].length > 0) {
+              walletAddress = addrs[chainKey][0].address || '';
+            } else if (addrs.evm && Array.isArray(addrs.evm) && addrs.evm.length > 0) {
+              walletAddress = addrs.evm[0].address || '';
+            }
+            console.log('[verifyOtp] addresses:', JSON.stringify(addrs).slice(0, 300));
+          } catch (e) { console.warn('[verifyOtp] 地址查询失败:', e.message); }
+        }
+
+        // 如果 addresses 没拿到，用 accountId
+        if (!walletAddress) walletAddress = accountId;
+
+        // 查余额
         if (walletAddress) {
           const balResult = await getWalletBalances(userId, chain);
           balances = balResult.balances || [];
@@ -110,24 +157,33 @@ class LiveTradingRoutes {
       }
 
       const chainUpper = chain.toUpperCase();
-      await this.db.query(
-        `INSERT INTO agentic_wallets (user_id, wallet_address, chain, status, email, created_at)
-         VALUES ($1, $2, $3, 'active', $4, NOW())
-         ON CONFLICT (user_id) DO UPDATE
-           SET wallet_address = EXCLUDED.wallet_address,
-               chain = EXCLUDED.chain,
-               status = 'active',
-               email = EXCLUDED.email,
-               authorized_at = NOW()
-         RETURNING *`,
-        [userId, walletAddress, chainUpper, email]
-      );
+      if (hasExistingWallet) {
+        // 已有钱包：只更新授权状态，不覆盖地址
+        await this.db.query(
+          `UPDATE agentic_wallets SET status = 'active', authorized_at = NOW(), email = $1 WHERE user_id = $2`,
+          [email, userId]
+        );
+      } else {
+        // 新钱包：INSERT
+        await this.db.query(
+          `INSERT INTO agentic_wallets (user_id, wallet_address, chain, status, email, created_at, authorized_at)
+           VALUES ($1, $2, $3, 'active', $4, NOW(), NOW())
+           ON CONFLICT (user_id) DO UPDATE
+             SET wallet_address = EXCLUDED.wallet_address,
+                 chain = EXCLUDED.chain,
+                 status = 'active',
+                 email = EXCLUDED.email,
+                 authorized_at = NOW()
+           RETURNING *`,
+          [userId, walletAddress, chainUpper, email]
+        );
+      }
 
       await this.redis.del(`agentic:login:${userId}`);
       return reply.send({
         code: 200,
         message: '钱包登录成功',
-        data: { userId, wallet_address: walletAddress, chain, balances, totalUsd, email },
+        data: { userId, wallet_address: walletAddress, chain, balances, totalUsd, email, authorized: true },
       });
     } catch (error) {
       console.error('[verifyOtp]', error);
@@ -143,7 +199,7 @@ class LiveTradingRoutes {
       const { onchainosWalletStatus, getWalletBalances } = this.okx;
 
       const result = await this.db.query(
-        `SELECT * FROM agentic_wallets WHERE user_id = $1 AND status = 'active' ORDER BY created_at DESC LIMIT 1`,
+        `SELECT * FROM agentic_wallets WHERE user_id = $1 AND status IN ('active', 'logged_out') ORDER BY created_at DESC LIMIT 1`,
         [userId]
       );
 
@@ -152,6 +208,43 @@ class LiveTradingRoutes {
       }
 
       const wallet = result.rows[0];
+
+      // 自动恢复 'logged_out' → 'active'（钱包地址永久绑定）
+      if (wallet.status === 'logged_out') {
+        await this.db.query(
+          `UPDATE agentic_wallets SET status = 'active' WHERE user_id = $1`,
+          [userId]
+        );
+        wallet.status = 'active';
+      }
+
+      // 如果已登录但没有真实链上地址，尝试创建
+      if (wallet.wallet_address && !wallet.wallet_address.startsWith('0x')) {
+        const { onchainosWalletAdd, onchainosWalletAddresses } = this.okx;
+        if (onchainosWalletAdd) {
+          try {
+            const addResult = await onchainosWalletAdd(userId);
+            console.log('[getWalletStatus] auto wallet add:', JSON.stringify(addResult).slice(0, 200));
+          } catch (e) { console.warn('[getWalletStatus] wallet add failed:', e.message); }
+        }
+        if (onchainosWalletAddresses) {
+          try {
+            const addrResult = await onchainosWalletAddresses(userId);
+            const addrs = addrResult.data || addrResult;
+            if (addrs.evm && Array.isArray(addrs.evm) && addrs.evm.length > 0) {
+              const realAddr = addrs.evm[0].address || '';
+              if (realAddr) {
+                await this.db.query(
+                  `UPDATE agentic_wallets SET wallet_address = $1 WHERE user_id = $2`,
+                  [realAddr, userId]
+                );
+                wallet.wallet_address = realAddr;
+              }
+            }
+          } catch (e) { console.warn('[getWalletStatus] address lookup failed:', e.message); }
+        }
+      }
+
       const chain = (wallet.chain || 'ETH') === 'ETH' ? 'ethereum' : wallet.chain?.toLowerCase() || 'ethereum';
 
       let totalUsd = 0, balances = [];
@@ -165,7 +258,7 @@ class LiveTradingRoutes {
 
       return reply.send({
         code: 200,
-        data: { ...wallet, balances, totalUsd },
+        data: { ...wallet, authorized: !!wallet.authorized_at, balances, totalUsd },
       });
     } catch (error) {
       console.error('[getWalletStatus]', error);
