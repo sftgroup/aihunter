@@ -16,11 +16,14 @@ export default function ConnectModal({
   onClose: () => void;
 }) {
   const { connect, connectors, isPending, error } = useConnect();
-  const { isConnected } = useAccount();
+  const { address, isConnected } = useAccount();
 
   useEffect(() => {
-    if (isConnected) onClose();
-  }, [isConnected, onClose]);
+    if (isConnected && address) {
+      localStorage.setItem('aihunter_user_id', address);
+      onClose();
+    }
+  }, [isConnected, address, onClose]);
 
   if (!isOpen) return null;
 
