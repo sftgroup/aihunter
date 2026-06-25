@@ -367,6 +367,9 @@ export default function MomentumLivePage() {
     poll(); return () => { c = true; clearTimeout(t); };
   }, [safeGet, isTrading]);
 
+  // OTP cooldown timer
+  useEffect(() => { if (otpCooldown <= 0) return; const t = setInterval(() => setOtpCooldown(c => Math.max(0,c-1)), 1000); return () => clearInterval(t); }, [otpCooldown > 0 ? otpCooldown : 0]);
+
   /* ---- lookup wallet (no OTP) ---- */
   const handleLookupWallet = useCallback(async () => {
     if (!loginEmail.trim()) { setLoginError('请输入邮箱地址'); return; }
@@ -450,7 +453,7 @@ export default function MomentumLivePage() {
       });
       const d = await res.json();
       if (d.code === 200) { setLoginStep('otp'); setLoginError(''); }
-      else { setLoginError(d.message || '发送验证码失败'); }
+      else { setLoginError(d.message || '发送验证码失败'); if (d.message?.includes('frequent')) setOtpCooldown(60); }
     } catch (e: any) { setLoginError(e.message || '网络错误'); }
     finally { setLoginSending(false); }
   }, [loginEmail, USER_ID]);
@@ -627,7 +630,7 @@ export default function MomentumLivePage() {
                     {loginError && <p style={{ fontSize: 10, color: T.accentRed, marginTop: 4, textAlign: 'center' }}>{loginError}</p>}
                     <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                       <button onClick={handleCancelLogin} style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, color: T.dark300, fontSize: 11, padding: '6px 0', cursor: 'pointer' }}>取消</button>
-                      <button onClick={handleAddNewAddress} disabled={loginSending} style={{ flex: 1, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', borderRadius: 8, color: 'white', fontSize: 11, fontWeight: 600, padding: '6px 0', cursor: loginSending ? 'default' : 'pointer', opacity: loginSending ? 0.6 : 1 }}>{loginSending ? '发送中...' : '发送验证码'}</button>
+                      <button onClick={handleAddNewAddress} disabled={loginSending || otpCooldown > 0} style={{ flex: 1, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', borderRadius: 8, color: 'white', fontSize: 11, fontWeight: 600, padding: '6px 0', cursor: loginSending ? 'default' : 'pointer', opacity: loginSending ? 0.6 : 1 }}>{loginSending ? '发送中...' : otpCooldown > 0 ? `${otpCooldown}s` : '发送验证码'}</button>
                     </div>
                   </div>
                 )}
@@ -710,11 +713,11 @@ export default function MomentumLivePage() {
                         flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)',
                         borderRadius: 10, color: T.dark300, fontSize: 12, padding: '8px 0', cursor: 'pointer',
                       }}>取消</button>
-                      <button onClick={handleLookupWallet} disabled={lookupLoading} style={{
+                      <button onClick={handleLookupWallet} disabled={lookupLoading || otpCooldown > 0} style={{
                         flex: 1, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
                         border: 'none', borderRadius: 10, color: 'white', fontSize: 12, fontWeight: 600,
                         padding: '8px 0', cursor: lookupLoading ? 'default' : 'pointer', opacity: lookupLoading ? 0.6 : 1,
-                      }}>{lookupLoading ? '查找中...' : '查找已有地址'}</button>
+                      }}>{lookupLoading ? '查找中...' : otpCooldown > 0 ? `${otpCooldown}s` : '查找已有地址'}</button>
                     </div>
                   </div>
                 )}
@@ -751,13 +754,13 @@ export default function MomentumLivePage() {
                     <p style={{ fontSize: 10, color: T.dark500, marginBottom: 8 }}>或创建新地址（需要邮箱验证码）</p>
                     <button
                       onClick={() => { setLoginStep('otp'); handleSendOtp(); }}
-                      disabled={loginSending}
+                      disabled={loginSending || otpCooldown > 0}
                       style={{
                         width: '100%', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
                         border: 'none', borderRadius: 10, color: 'white', fontSize: 12, fontWeight: 600,
                         padding: '8px 0', cursor: loginSending ? 'default' : 'pointer', opacity: loginSending ? 0.6 : 1,
                       }}
-                    >{loginSending ? '发送中...' : '创建新地址'}</button>
+                    >{loginSending ? '发送中...' : otpCooldown > 0 ? `${otpCooldown}s` : '创建新地址'}</button>
                     <button onClick={handleCancelLogin} style={{
                       width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)',
                       borderRadius: 10, color: T.dark300, fontSize: 12, padding: '8px 0', cursor: 'pointer', marginTop: 8,
