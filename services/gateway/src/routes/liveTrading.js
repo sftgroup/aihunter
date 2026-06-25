@@ -58,8 +58,8 @@ class LiveTradingRoutes {
       }
       const { getWalletBalances } = this.okx;
       const result = await this.db.query(
-        "SELECT * FROM agentic_wallets WHERE user_id = $1 AND email = $2 AND status = 'active' ORDER BY is_default DESC, created_at DESC",
-        [userId, email]);
+        "SELECT * FROM agentic_wallets WHERE email = $1 AND status = 'active' ORDER BY is_default DESC, created_at DESC",
+        [email]);
       const wallets = result.rows;
       if (wallets.length === 0) {
         return reply.send({ code: 200, data: { hasWallets: false, wallets: [] } });
@@ -70,7 +70,7 @@ class LiveTradingRoutes {
         if (getWalletBalances) {
           try {
             const chain = (w.chain || 'ETH') === 'ETH' ? 'ethereum' : w.chain?.toLowerCase() || 'ethereum';
-            const bal = await getWalletBalances(userId, chain);
+            const bal = await getWalletBalances(w.user_id, chain);
             w.balances = bal.balances || [];
             w.totalUsd = bal.totalUsd || 0;
           } catch (_) {}
@@ -202,7 +202,7 @@ class LiveTradingRoutes {
         if (getWalletBalances) {
           try {
             const chain = (w.chain || 'ETH') === 'ETH' ? 'ethereum' : w.chain?.toLowerCase() || 'ethereum';
-            const bal = await getWalletBalances(userId, chain);
+            const bal = await getWalletBalances(w.user_id, chain);
             w.balances = bal.balances || [];
             w.totalUsd = bal.totalUsd || 0;
           } catch (_) {}

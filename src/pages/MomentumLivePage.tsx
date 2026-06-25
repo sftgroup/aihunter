@@ -380,6 +380,9 @@ export default function MomentumLivePage() {
       });
       const d = await res.json();
       if (d.code === 200 && d.data?.hasWallets) {
+        // 保存正确的 user_id 到 localStorage
+        const w0 = d.data.wallets[0];
+        if (w0 && w0.user_id) { localStorage.setItem('aihunter_user_id', w0.user_id); }
         // 已有地址，直接展示，无需 OTP
         setLookupWallets(d.data.wallets);
         setLoginStep('lookup');
@@ -410,7 +413,9 @@ export default function MomentumLivePage() {
   const handleSelectWallet = useCallback(async (w: WalletStatus) => {
     setWalletLoading(true);
     try {
-      // 切换为默认钱包
+      // 保存正确的 user_id
+      if (w.user_id) { localStorage.setItem('aihunter_user_id', w.user_id); }
+      // 切换到该钱包
       await fetch(`${API}/agentic-wallet/switch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
