@@ -229,6 +229,12 @@ export default function MomentumLivePage() {
   const [loginVerifying, setLoginVerifying] = useState(false);
   const [lookupWallets, setLookupWallets] = useState<WalletStatus[] | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
+  const [showTransfer, setShowTransfer] = useState(false);
+  const [transferTarget, setTransferTarget] = useState('');
+  const [transferAmount, setTransferAmount] = useState('');
+  const [transferChain, setTransferChain] = useState('ethereum');
+  const [transferLoading, setTransferLoading] = useState(false);
+  const [transferMsg, setTransferMsg] = useState('');
 
   /* ---- config ---- */
   const [config, setConfig] = useState<LiveConfig>({
@@ -504,6 +510,15 @@ export default function MomentumLivePage() {
     finally { setLoginVerifying(false); }
   }, [loginOtp, USER_ID, safeGet]);
 
+  const handleTransfer = useCallback(async () => {
+    if (!transferTarget || !transferAmount) return;
+    setTransferLoading(true); setTransferMsg('');
+    const d = await safePost(`${API}/agentic-wallet/send`, { userId: USER_ID, recipient: transferTarget.trim(), chain: transferChain, amount: transferAmount.trim() }, 'transfer');
+    if (d) { setTransferMsg('转账已提交'); setShowTransfer(false); setTransferTarget(''); setTransferAmount(''); }
+    else setTransferMsg('转账失败');
+    setTransferLoading(false);
+  }, [transferTarget, transferAmount, transferChain, safePost, USER_ID]);
+
   const handleCancelLogin = useCallback(() => {
     setLoginStep('idle');
     setLoginEmail('');
@@ -660,6 +675,7 @@ export default function MomentumLivePage() {
                   <button onClick={() => navigator.clipboard.writeText(wallet.wallet_address!)} style={{ background: 'none', border: 'none', color: T.dark400, cursor: 'pointer', padding: 0 }}>
                     <Copy size={13} />
                   </button>
+                  <button onClick={() => setShowTransfer(true)} style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid var(--accent-green)', borderRadius: 8, color: 'var(--accent-green)', fontSize: 11, fontWeight: 600, padding: '4px 10px', cursor: 'pointer', marginLeft: 8 }}>💸 转出</button>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
