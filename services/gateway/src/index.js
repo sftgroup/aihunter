@@ -11,7 +11,14 @@ import Docker from 'dockerode';
 import crypto from 'crypto';
 
 import { AutoTrader } from "./autoTrader.js";
-import { executeSwap } from "./okx-trade.js";
+import {
+  executeSwap,
+  onchainosLogin,
+  onchainosVerifyOtp,
+  onchainosWalletStatus,
+  getWalletBalances,
+  onchainosLogout,
+} from "./okx-trade.js";
 const { Pool } = pg;
 
 const PORT = parseInt(process.env.PORT || '3100');
@@ -146,7 +153,9 @@ app.addHook('preHandler', async (request, reply) => {
 
   const publicRoutes = [
     '/health', '/api/rank/ping', '/api/prize/ping', '/api/system/status',
-    '/api/signals/recent'
+    '/api/signals/recent',
+    '/api/agentic-wallet/login', '/api/agentic-wallet/verify',
+    '/api/agentic-wallet/login', '/api/agentic-wallet/verify',
   ];
   const urlPath = request.url.split('?')[0];
   if (publicRoutes.includes(urlPath)) return;
@@ -1297,8 +1306,21 @@ app.register(async function (fastify) {
 
 // ===== 注册实盘交易路由 =====
 import LiveTradingRoutes from "./routes/liveTrading.js";
-new LiveTradingRoutes(app, {});
-const okxTrade = { executeSwap };
+new LiveTradingRoutes(app, {
+  okx: {
+    onchainosLogin,
+    onchainosVerifyOtp,
+    onchainosWalletStatus,
+    getWalletBalances,
+    onchainosLogout,
+    executeSwap,
+  },
+});
+const okxTrade = {
+  executeSwap,
+  onchainosWalletStatus,
+  getWalletBalances,
+};
 const wssServer = app.websocketServer || null;
 const autoTrader = new AutoTrader({ db, redis, okxClient: okxTrade, wss: wssServer });
 

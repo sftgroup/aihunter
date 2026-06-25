@@ -1,10 +1,14 @@
 // OKX 实盘交易模块 — 供 index.js require
+// v4: 多用户独立登录（per-user HOME 隔离）
+// 每个用户独立 onchainos session，通过 HOME 环境变量隔离
 import crypto from 'crypto';
 import { execSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 
 const OKX_REST_HOST = 'https://www.okx.com';
 const CHAIN_TO_OKX_ID = { ETH: 1, BSC: 56, BASE: 8453, POLYGON: 137, ARBITRUM: 42161, OPTIMISM: 10 };
-const OKX_CHAIN_NAMES = { 1: 'ETH', 56: 'BSC', 8453: 'BASE' };
+const ONCHAINOS_USERS_BASE = '/tmp/onchainos-users';
 
 let _okxConfig = { apiKey: '', apiSecret: '', passphrase: '', projectId: '' };
 
@@ -92,11 +96,26 @@ export async function executeSwap({ chain, fromToken, toToken, amount, slippage 
   return { txHash: broadcast.txHash, quote: best, swapTx: swapTx.tx, status: broadcast.status, estimatedOut: best.toTokenAmount };
 }
 
-// ===== Agentic Wallet — 通过 onchainos CLI =====
+// ====================================================================
+// Agentic Wallet — 多用户独立登录
+// 每个用户分配独立 HOME 目录，onchainos 凭证完全隔离
+// ====================================================================
 
-function onchainos(args) {
+function ensureUserHome(userId) {
+  const home = path.join(ONCHAINOS_USERS_BASE, userId);
+  fs.mkdirSync(home, { recursive: true });
+  return home;
+}
+
+function onchainosForUser(userId, args) {
+  const userHome = ensureUserHome(userId);
   try {
-    const stdout = execSync(`/root/.local/bin/onchainos ${args}`, { encoding: 'utf8', timeout: 30000, maxBuffer: 10 * 1024 * 1024 });
+    const stdout = execSync(`/root/.local/bin/onchainos ${args}`, {
+      encoding: 'utf8',
+      timeout: 30000,
+      maxBuffer: 10 * 1024 * 1024,
+      env: { ...process.env, HOME: userHome },
+    });
     return JSON.parse(stdout);
   } catch (err) {
     if (err.stdout) { try { return JSON.parse(err.stdout); } catch {} }
@@ -105,12 +124,30 @@ function onchainos(args) {
   }
 }
 
-export async function onchainosLogin(email) { return onchainos(`wallet login ${email}`); }
-export async function onchainosVerifyOtp(code) { return onchainos(`wallet verify ${code}`); }
-export async function onchainosWalletStatus() { return onchainos('wallet status'); }
+// --------------- 用户登录（每人用自己的邮箱） ---------------
+export async function onchainosLogin(userId, email) {
+  return onchainosForUser(userId, `wallet login ${email}`);
+}
 
-export async function getWalletBalances(chain = 'ethereum') {
-  const result = onchainos(`wallet balance --chain ${chain}`);
+export async function onchainosVerifyOtp(userId, code) {
+  return onchainosForUser(userId, `wallet verify ${code}`);
+}
+
+export async function onchainosWalletStatus(userId) {
+  return onchainosForUser(userId, 'wallet status');
+}
+
+export async function getWalletBalances(userId, chain = 'ethereum') {
+  const result = onchainosForUser(userId, `wallet balance --chain ${chain}`);
   const data = result.data || result;
-  return { walletAddress: data.address || '', balances: data.balances || [], totalUsd: typeof data.totalUsd === 'number' ? data.totalUsd : 0 };
+  return {
+    walletAddress: data.address || '',
+    balances: data.balances || [],
+    totalUsd: typeof data.totalUsd === 'number' ? data.totalUsd : 0,
+  };
+}
+
+// --------------- 管理（几乎不需要） ---------------
+export async function onchainosLogout(userId) {
+  return onchainosForUser(userId, 'wallet logout');
 }

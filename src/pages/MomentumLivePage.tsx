@@ -102,7 +102,13 @@ const btnPrimary: React.CSSProperties = {
 /*  API                                                                */
 /* ================================================================== */
 const API = '/api';
-const USER_ID = 'live-user-1';
+const getUserId = () => {
+  if (typeof window === 'undefined') return '';
+  let id = localStorage.getItem('aihunter_user_id');
+  if (!id) { id = crypto.randomUUID(); localStorage.setItem('aihunter_user_id', id); }
+  return id;
+};
+const USER_ID = getUserId();
 
 /* ================================================================== */
 /*  Types                                                              */
@@ -224,7 +230,7 @@ export default function MomentumLivePage() {
   /* ---- wallet login flow ---- */
   const [loginEmail, setLoginEmail] = useState('');
   const [loginOtp, setLoginOtp] = useState('');
-  const [loginStep, setLoginStep] = useState<'idle' | 'email' | 'otp'>('idle');
+  const [loginStep, setLoginStep] = useState('idle');
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
 
@@ -354,7 +360,7 @@ export default function MomentumLivePage() {
     if (!loginEmail || loginLoading) return;
     setLoginLoading(true); setLoginError('');
     try {
-      const res = await api.post<{ code: number; message?: string; data?: any }>(`${API}/agentic-wallet/login`, { json: { userId: USER_ID, email: loginEmail } });
+      const res: any = await api.post(`${API}/agentic-wallet/login`, { json: { userId: USER_ID, email: loginEmail } });
       if (res && res.code === 200) {
         setLoginStep('otp');
       } else {
@@ -371,7 +377,7 @@ export default function MomentumLivePage() {
     if (!loginOtp || loginLoading) return;
     setLoginLoading(true); setLoginError('');
     try {
-      const res = await api.post<{ code: number; message?: string; data?: WalletStatus }>(`${API}/agentic-wallet/verify`, { json: { userId: USER_ID, code: loginOtp } });
+      const res: any = await api.post(`${API}/agentic-wallet/verify`, { json: { userId: USER_ID, code: loginOtp } });
       if (res && res.code === 200 && res.data) {
         setWallet(res.data);
         setLoginStep('idle');
@@ -439,7 +445,7 @@ export default function MomentumLivePage() {
   }, [learningParams, safePost]);
 
   const walletConnected = !!wallet?.wallet_address;
-  const authorized = wallet?.status === 'authorized';
+  const authorized = !!wallet?.wallet_address;
 
   /* ================================================================== */
   /*  RENDER                                                            */
@@ -517,14 +523,15 @@ export default function MomentumLivePage() {
             ) : loginStep === 'idle' ? (
               <div style={{ textAlign: 'center', padding: '16px 0' }}>
                 <AlertCircle size={24} color={T.accentOrange} style={{ margin: '0 auto 8px' }} />
-                <p style={{ fontSize: 12, color: T.dark400, marginBottom: 12 }}>未连接 Agentic Wallet</p>
+                <p style={{ fontSize: 12, color: T.dark400, marginBottom: 4 }}>未连接 Agentic Wallet</p>
+                <p style={{ fontSize: 10, color: T.dark500, marginBottom: 12 }}>用你的邮箱创建独立 TEE 安全钱包</p>
                 <button onClick={() => setLoginStep('email')} style={btnPrimary}>
                   <Wallet size={14} /> 连接钱包
                 </button>
               </div>
             ) : loginStep === 'email' ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ fontSize: 12, color: T.dark300 }}>输入邮箱创建 Agentic Wallet</div>
+                <div style={{ fontSize: 12, color: T.dark300 }}>输入你的邮箱创建 Agentic Wallet</div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input
                     type="email"
