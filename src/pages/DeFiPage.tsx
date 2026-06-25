@@ -8,15 +8,37 @@ import type { RateSnapshot, ArbOpportunity, ArbConfig, ArbTrade, ArbTradeStats, 
 // ---------------------------------------------------------------------------
 
 const T = {
-  accent: '#6366f1',
-  accentGreen: '#10b981',
-  accentRed: '#ef4444',
+  accent:       '#6366f1',
+  accentGreen:  '#10b981',
+  accentRed:    '#ef4444',
+  accentBlue:   '#3b82f6',
+  accentPurple: '#8b5cf6',
   accentOrange: '#f59e0b',
-  dark100: '#1a1a2e',
-  dark200: '#16213e',
-  dark300: '#0f3460',
-  dark400: '#808080',
-  dark950: '#111111',
+  accentCyan:   '#06b6d4',
+  dark50:   '#f0f0f0',
+  dark100:  '#e0e0e0',
+  dark200:  '#c0c0c0',
+  dark300:  '#a0a0a0',
+  dark400:  '#808080',
+  dark500:  '#606060',
+  dark600:  '#404040',
+  dark700:  '#2a2a2a',
+  dark800:  '#1a1a1a',
+  dark900:  '#111111',
+  dark950:  '#0a0a0a',
+};
+
+const sectionTitle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 600,
+  color: T.dark400,
+  textTransform: 'uppercase',
+  letterSpacing: '0.05em',
+  paddingLeft: 4,
+  marginBottom: 12,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
 };
 
 const cardBase: React.CSSProperties = {
@@ -33,34 +55,39 @@ const inputStyle: React.CSSProperties = {
   borderRadius: 8,
   color: 'white',
   fontSize: 14,
-  padding: '8px 12px',
+  padding: '10px 14px',
   width: '100%',
   outline: 'none',
   boxSizing: 'border-box' as const,
 };
 
 const labelStyle: React.CSSProperties = {
-  fontSize: 11,
+  fontSize: 13,
   color: T.dark400,
-  marginBottom: 4,
+  marginBottom: 6,
   fontWeight: 500,
 };
 
 const btnBase: React.CSSProperties = {
-  padding: '8px 16px',
+  padding: '7px 14px',
   borderRadius: 10,
-  border: 'none',
+  border: '1px solid transparent',
   fontSize: 12,
   fontWeight: 600,
   cursor: 'pointer',
   transition: 'all 0.2s',
 };
 
-const tabBtn = (active: boolean): React.CSSProperties => ({
-  ...btnBase,
-  background: active ? 'rgba(99,102,241,0.15)' : 'transparent',
-  color: active ? T.accent : T.dark400,
-  border: active ? '1px solid rgba(99,102,241,0.3)' : '1px solid transparent',
+const tabBtn = (isActive: boolean): React.CSSProperties => ({
+  background: isActive ? 'rgba(99,102,241,0.15)' : 'transparent',
+  color: isActive ? T.accent : T.dark400,
+  border: isActive ? '1px solid rgba(99,102,241,0.3)' : '1px solid transparent',
+  padding: '7px 14px',
+  borderRadius: 10,
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: 'pointer',
+  transition: 'all 0.2s',
 });
 
 // ---------------------------------------------------------------------------
