@@ -604,12 +604,27 @@ export default function MomentumLivePage() {
 
                 {!hasWallets && (
                   <button
-                    onClick={() => { setLoginEmail(wallet.email || ''); }}
+                    onClick={() => { setLoginEmail(wallet.email || ''); setLoginStep('otp'); handleAddNewAddress(); }}
                     style={{
                       width: '100%', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)',
                       borderRadius: 8, color: T.accent, fontSize: 10, padding: '6px 0', cursor: 'pointer', marginBottom: 12,
                     }}
                   >+ 添加新地址</button>
+                )}
+                {loginStep === 'otp' && (
+                  <div style={{ padding: '4px 8px', marginBottom: 12, background: 'rgba(99,102,241,0.05)', borderRadius: 10 }}>
+                    <input
+                      type="text" value={loginOtp} onChange={e => setLoginOtp(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleVerifyOtp()}
+                      placeholder="输入验证码" autoFocus maxLength={6}
+                      style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 8, color: 'white', fontSize: 13, fontWeight: 600, padding: '8px 12px', textAlign: 'center', letterSpacing: 3, outline: 'none' }}
+                    />
+                    {loginError && <p style={{ fontSize: 10, color: T.accentRed, marginTop: 4, textAlign: 'center' }}>{loginError}</p>}
+                    <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                      <button onClick={handleCancelLogin} style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, color: T.dark300, fontSize: 11, padding: '6px 0', cursor: 'pointer' }}>取消</button>
+                      <button onClick={handleVerifyOtp} disabled={loginVerifying} style={{ flex: 1, background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', borderRadius: 8, color: 'white', fontSize: 11, fontWeight: 600, padding: '6px 0', cursor: loginVerifying ? 'default' : 'pointer', opacity: loginVerifying ? 0.6 : 1 }}>{loginVerifying ? '验证中...' : '验证'}</button>
+                    </div>
+                  </div>
                 )}
                 <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: 11, fontFamily: 'monospace', color: T.dark300 }}>{fmtAddr(wallet.wallet_address)}</span>
