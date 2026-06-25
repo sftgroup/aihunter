@@ -58,7 +58,7 @@ class LiveTradingRoutes {
       }
       const { getWalletBalances } = this.okx;
       const result = await this.db.query(
-        "SELECT * FROM agentic_wallets WHERE email = $1 AND status = 'active' ORDER BY is_default DESC, created_at DESC",
+        "SELECT * FROM agentic_wallets WHERE email = $1 ORDER BY is_default DESC, created_at DESC",
         [email]);
       const wallets = result.rows;
       if (wallets.length === 0) {
