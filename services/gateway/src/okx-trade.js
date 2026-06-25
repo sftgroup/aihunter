@@ -159,3 +159,7 @@ export async function onchainosWalletAdd(userId) {
 export async function onchainosWalletAddresses(userId) {
   return onchainosForUser(userId, 'wallet addresses');
 }
+
+export async function onchainosWalletSwitch(userId, accountId) {
+  return onchainosForUser(userId, 'wallet switch --id ' + accountId);
+}

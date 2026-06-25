@@ -101,6 +101,8 @@ interface WalletStatus {
   balance?: number;
   authorized?: boolean;
   expires_at?: string;
+  label?: string;
+  is_default?: boolean;
 }
 
 interface LiveConfig {
@@ -208,9 +210,11 @@ function injectAnim() {
 export default function MomentumLivePage() {
   useEffect(() => { injectAnim(); }, []);
 
-  /* ---- wallet login ---- */
-  const [wallet, setWallet] = useState<WalletStatus | null>(null);
+  /* ---- multi-wallet ---- */
+  const [wallets, setWallets] = useState<WalletStatus[]>([]);
+  const [defaultWallet, setDefaultWallet] = useState<WalletStatus | null>(null);
   const [walletLoading, setWalletLoading] = useState(true);
+  const [showAddWallet, setShowAddWallet] = useState(false);
   const [loginStep, setLoginStep] = useState<'idle' | 'email' | 'otp'>('idle');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginOtp, setLoginOtp] = useState('');
@@ -387,27 +391,30 @@ export default function MomentumLivePage() {
         body: JSON.stringify({ userId: USER_ID, code: loginOtp }),
       });
       const d = await res.json();
-      if (d.code === 200) {
+      if (d.code === 200 && d.data) {
         setLoginStep('idle');
         setLoginEmail('');
         setLoginOtp('');
         setLoginError('');
-        // Refresh wallet status
-        const w = await safeGet<WalletStatus>(`${API}/agentic-wallet/status`, 'wallet');
-        if (w) setWallet(w);
+        setShowAddWallet(false);
+        // 添加到列表
+        const newWallet = d.data as WalletStatus;
+        setWallets(prev => [...prev.filter(w => w.wallet_address !== newWallet.wallet_address), newWallet]);
+        if (!defaultWallet) setDefaultWallet(newWallet);
       } else { setLoginError(d.message || '验证失败'); }
     } catch (e: any) { setLoginError(e.message || '网络错误'); }
     finally { setLoginVerifying(false); }
-  }, [loginOtp, USER_ID, safeGet]);
+  }, [loginOtp, USER_ID, defaultWallet]);
 
   const handleCancelLogin = useCallback(() => {
     setLoginStep('idle');
     setLoginEmail('');
     setLoginOtp('');
     setLoginError('');
+    setShowAddWallet(false);
   }, []);
 
-  const handleStart = useCallback(async () => { if (!wallet?.authorized) { setErrors(e => ({ ...e, start: '请先创建并授权 Agentic Wallet' })); return; } setActionLoading(true); const ok = await safePost(`${API}/live-trading/start`, {}, 'start'); if (ok) setIsTrading(true); setActionLoading(false); }, [wallet, safePost]);
+  const handleStart = useCallback(async () => { if (!defaultWallet?.authorized) { setErrors(e => ({ ...e, start: '请先创建并授权 Agentic Wallet' })); return; } setActionLoading(true); const ok = await safePost(`${API}/live-trading/start`, {}, 'start'); if (ok) setIsTrading(true); setActionLoading(false); }, [defaultWallet, safePost]);
   const handleStop = useCallback(async () => { setActionLoading(true); const ok = await safePost(`${API}/live-trading/stop`, {}, 'stop'); if (ok) setIsTrading(false); setActionLoading(false); }, [safePost]);
   const handleRevoke = useCallback(async () => { await safePost(`${API}/agentic-wallet/revoke`, { walletId: wallet?.id }, 'revoke'); setWallet(null); }, [wallet, safePost]);
 
@@ -415,7 +422,7 @@ export default function MomentumLivePage() {
   /*  Render                                                             */
   /* ================================================================== */
   const walletConnected = !!wallet?.wallet_address;
-  const authorized = !!wallet?.authorized;
+  const authorized = !!defaultWallet?.authorized;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -961,4 +968,99 @@ function ParamDiffBadge({ paramKey, oldVal, newVal }: { paramKey: string; oldVal
       <span style={{ color: T.accentGreen, fontWeight: 700 }}>{String(newVal)}{s[paramKey] || ''}</span>
     </span>
   );
-}
+}{/* ---------- Agentic Wallet 卡片 ---------- */}
+            <div style={cardBase}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: '#fff', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Shield size={16} /> Agentic Wallet
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 10px', borderRadius: 8, background: authorized ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', fontSize: 11 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: authorized ? T.accentGreen : T.accentRed }} />
+                    {authorized ? '已授权' : '未授权'}
+                  </span>
+                </div>
+                {wallets.length > 0 && (
+                  <button onClick={() => { setShowAddWallet(true); setLoginStep('email'); }}
+                    style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 8, color: T.accent, fontSize: 11, padding: '5px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                  ><Plus size={12} /> 添加地址</button>
+                )}
+              </div>
+
+              {walletLoading ? (
+                <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                  <Loader2 size={18} color={T.accent} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 8px' }} />
+                  <p style={{ fontSize: 11, color: T.dark400 }}>加载钱包...</p>
+                </div>
+              ) : wallets.length > 0 ? (
+                /* ---- 已有钱包列表 ---- */
+                <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+                  {wallets.map(w => (
+                    <div key={w.wallet_address}
+                      onClick={() => setDefaultWallet(w)}
+                      style={{
+                        cursor: 'pointer',
+                        padding: '10px 12px',
+                        marginBottom: 8,
+                        borderRadius: 10,
+                        background: defaultWallet?.wallet_address === w.wallet_address ? 'rgba(99,102,241,0.1)' : 'rgba(255,255,255,0.02)',
+                        border: defaultWallet?.wallet_address === w.wallet_address ? '1px solid rgba(99,102,241,0.3)' : '1px solid transparent',
+                        transition: 'all 0.2s',
+                      }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: T.dark200, fontFamily: 'monospace' }}>
+                          {w.label || `${w.wallet_address.slice(0,6)}...${w.wallet_address.slice(-4)}`}
+                          {w.is_default && <span style={{ marginLeft: 6, fontSize: 9, color: T.accent, background: 'rgba(99,102,241,0.15)', padding: '1px 6px', borderRadius: 4 }}>默认</span>}
+                        </span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: T.accent }}>
+                          {w.totalUsd != null ? `$${Number(w.totalUsd).toFixed(2)}` : '-'}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: 10, color: T.dark500, marginTop: 2, fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                        {w.wallet_address}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : showAddWallet ? (
+                /* ---- 添加新地址（需要 OTP）---- */
+                <div style={{ textAlign: 'center', paddingTop: 8 }}>
+                  {loginStep === 'email' && (
+                    <div style={{ padding: '0 4px' }}>
+                      <p style={{ fontSize: 12, color: T.dark300, marginBottom: 12 }}>输入邮箱验证身份，新建一个钱包地址</p>
+                      <input type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendOtp()}
+                        placeholder="your@email.com" autoFocus
+                        style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, color: 'white', fontSize: 13, padding: '10px 14px', outline: 'none' }} />
+                      {loginError && <p style={{ fontSize: 11, color: T.accentRed, marginTop: 8 }}>{loginError}</p>}
+                      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                        <button onClick={handleCancelLogin} style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, color: T.dark300, fontSize: 12, padding: '8px 0', cursor: 'pointer' }}>取消</button>
+                        <button onClick={handleSendOtp} disabled={loginSending} style={{ flex: 1, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', borderRadius: 10, color: 'white', fontSize: 12, fontWeight: 600, padding: '8px 0', cursor: loginSending ? 'default' : 'pointer', opacity: loginSending ? 0.6 : 1 }}>{loginSending ? '发送中...' : '发送验证码'}</button>
+                      </div>
+                    </div>
+                  )}
+                  {loginStep === 'otp' && (
+                    <div style={{ padding: '0 4px' }}>
+                      <p style={{ fontSize: 11, color: T.dark400, marginBottom: 12 }}>验证码已发送至 <span style={{ color: T.accent }}>{loginEmail}</span></p>
+                      <input type="text" value={loginOtp} onChange={e => setLoginOtp(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleVerifyOtp()}
+                        placeholder="请输入 6 位验证码" autoFocus maxLength={6}
+                        style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 10, color: 'white', fontSize: 14, fontWeight: 600, padding: '10px 14px', textAlign: 'center', letterSpacing: 4, outline: 'none' }} />
+                      {loginError && <p style={{ fontSize: 11, color: T.accentRed, marginTop: 8 }}>{loginError}</p>}
+                      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                        <button onClick={handleCancelLogin} style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, color: T.dark300, fontSize: 12, padding: '8px 0', cursor: 'pointer' }}>取消</button>
+                        <button onClick={handleVerifyOtp} disabled={loginVerifying} style={{ flex: 1, background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', borderRadius: 10, color: 'white', fontSize: 12, fontWeight: 600, padding: '8px 0', cursor: loginVerifying ? 'default' : 'pointer', opacity: loginVerifying ? 0.6 : 1 }}>{loginVerifying ? '验证中...' : '验证并创建地址'}</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* ---- 无钱包，显示连接按钮 ---- */
+                <div style={{ textAlign: 'center', paddingTop: 16, paddingBottom: 20 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 20, background: 'rgba(99,102,241,0.1)', margin: '0 auto 12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Wallet size={20} color={T.accent} />
+                  </div>
+                  <p style={{ fontSize: 12, color: T.dark300, marginBottom: 4 }}>未连接 Agentic Wallet</p>
+                  <p style={{ fontSize: 10, color: T.dark500, marginBottom: 16 }}>用你的邮箱创建独立 TEE 安全钱包</p>
+                  <button onClick={() => { setShowAddWallet(true); setLoginStep('email'); }}
+                    style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', color: 'white', borderRadius: 10, padding: '10px 28px', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <Wallet size={14} /> 连接钱包</button>
+                </div>
+              )}
+            </div>

@@ -20,6 +20,7 @@ import {
   onchainosLogout,
   onchainosWalletAdd,
   onchainosWalletAddresses,
+  onchainosWalletSwitch,
 } from "./okx-trade.js";
 const { Pool } = pg;
 
@@ -1310,6 +1311,8 @@ app.register(async function (fastify) {
 // ===== 注册实盘交易路由 =====
 import LiveTradingRoutes from "./routes/liveTrading.js";
 new LiveTradingRoutes(app, {
+  db: db,
+  redis: redis,
   okx: {
     onchainosLogin,
     onchainosVerifyOtp,
@@ -1318,6 +1321,7 @@ new LiveTradingRoutes(app, {
     onchainosLogout,
     onchainosWalletAdd,
     onchainosWalletAddresses,
+  onchainosWalletSwitch,
     executeSwap,
   },
 });
