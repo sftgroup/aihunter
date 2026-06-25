@@ -1116,23 +1116,23 @@ export default function MomentumLivePage() {
       {/* Transfer modal */}
       {showTransfer && (
         <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={(e: any) => { if (e.target === e.currentTarget) setShowTransfer(false); }}>
-          <div style={{ background: 'var(--dark200)', border: '1px solid var(--dark300)', borderRadius: 16, padding: 24, width: 400, maxWidth: '90vw' }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>转出资金</div>
+          <div style={{ ...cardBase, padding: 24, width: 400, maxWidth: '90vw', borderColor: 'rgba(99,102,241,0.2)' }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 16 }}>💸 转出资金</div>
             <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>目标地址</label>
-              <input value={transferTarget} onChange={e => setTransferTarget(e.target.value)} placeholder="0x..." style={{ width: '100%', background: 'var(--dark100)', border: '1px solid var(--dark300)', borderRadius: 8, color: '#fff', padding: '8px 12px', fontSize: 13, boxSizing: 'border-box' }} />
+              <label style={{ fontSize: 13, color: T.dark400, display: 'block', marginBottom: 6 }}>目标地址</label>
+              <input value={transferTarget} onChange={e => setTransferTarget(e.target.value)} placeholder="0x..." style={{width:'100%',boxSizing:'border-box',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(99,102,241,0.3)',borderRadius:8,color:'white',fontSize:14,padding:'8px 12px',outline:'none'}} />
             </div>
             <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>金额</label>
-              <input value={transferAmount} onChange={e => setTransferAmount(e.target.value)} placeholder="0.1" style={{ width: '100%', background: 'var(--dark100)', border: '1px solid var(--dark300)', borderRadius: 8, color: '#fff', padding: '8px 12px', fontSize: 13, boxSizing: 'border-box' }} />
+              <label style={{ fontSize: 13, color: T.dark400, display: 'block', marginBottom: 6 }}>金额</label>
+              <input value={transferAmount} onChange={e => setTransferAmount(e.target.value)} placeholder="0.1" style={{width:'100%',boxSizing:'border-box',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(99,102,241,0.3)',borderRadius:8,color:'white',fontSize:14,padding:'8px 12px',outline:'none'}} />
             </div>
             <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>代币合约（可选，留空为主链币）</label>
-              <input value={transferToken} onChange={e => setTransferToken(e.target.value)} placeholder="0x... 合约地址" style={{ width: '100%', background: 'var(--dark100)', border: '1px solid var(--dark300)', borderRadius: 8, color: '#fff', padding: '8px 12px', fontSize: 13, boxSizing: 'border-box' }} />
+              <label style={{ fontSize: 13, color: T.dark400, display: 'block', marginBottom: 6 }}>代币合约（可选，留空为主链币）</label>
+              <input value={transferToken} onChange={e => setTransferToken(e.target.value)} placeholder="0x... 合约地址" style={{width:'100%',boxSizing:'border-box',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(99,102,241,0.3)',borderRadius:8,color:'white',fontSize:14,padding:'8px 12px',outline:'none'}} />
             </div>
             <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>链</label>
-              <select value={transferChain} onChange={e => setTransferChain(e.target.value)} style={{ width: '100%', background: 'var(--dark100)', border: '1px solid var(--dark300)', borderRadius: 8, color: '#fff', padding: '8px 12px', fontSize: 13, boxSizing: 'border-box' }}>
+              <label style={{ fontSize: 13, color: T.dark400, display: 'block', marginBottom: 6 }}>链</label>
+              <select value={transferChain} onChange={e => setTransferChain(e.target.value)} style={{width:'100%',boxSizing:'border-box',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(99,102,241,0.3)',borderRadius:8,color:'white',fontSize:14,padding:'8px 12px',outline:'none'}}>
                 <option value="ethereum" style={{ background: '#1a1a2e', color: '#fff' }}>Ethereum</option>
                 <option value="bsc" style={{ background: '#1a1a2e', color: '#fff' }}>BSC</option>
                 <option value="base" style={{ background: '#1a1a2e', color: '#fff' }}>Base</option>
@@ -1140,10 +1140,10 @@ export default function MomentumLivePage() {
               </select>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={handleTransfer} disabled={transferLoading || !transferTarget || !transferAmount} style={{ flex: 1, background: 'var(--accent-green)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 600, padding: '10px 0', cursor: (transferLoading || !transferTarget || !transferAmount) ? 'default' : 'pointer', opacity: (transferLoading || !transferTarget || !transferAmount) ? 0.5 : 1 }}>
+              <button onClick={handleTransfer} disabled={transferLoading || !transferTarget || !transferAmount} style={{ flex: 1, background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 14, fontWeight: 600, padding: '10px 0', cursor: (transferLoading || !transferTarget || !transferAmount) ? 'default' : 'pointer', opacity: (transferLoading || !transferTarget || !transferAmount) ? 0.5 : 1 }}>
                 {transferLoading ? '发送中...' : '确认转账'}
               </button>
-              <button onClick={() => { setShowTransfer(false); setTransferMsg(''); }} style={{ flex: 1, background: 'var(--dark300)', border: 'none', borderRadius: 8, color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600, padding: '10px 0', cursor: 'pointer' }}>
+              <button onClick={() => { setShowTransfer(false); setTransferMsg(''); }} style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, color: T.dark400, fontSize: 14, fontWeight: 600, padding: '10px 0', cursor: 'pointer' }}>
                 取消
               </button>
             </div>
