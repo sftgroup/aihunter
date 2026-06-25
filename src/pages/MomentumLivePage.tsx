@@ -103,9 +103,17 @@ const btnPrimary: React.CSSProperties = {
 /* ================================================================== */
 const API = '/api';
 const getUserId = () => {
-  if (typeof window === 'undefined') return '';
+  if (typeof window === 'undefined') return 'unknown';
   let id = localStorage.getItem('aihunter_user_id');
-  if (!id) { id = crypto.randomUUID(); localStorage.setItem('aihunter_user_id', id); }
+  if (!id) {
+    // crypto.randomUUID() requires HTTPS/secure context; fallback for HTTP
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      id = crypto.randomUUID();
+    } else {
+      id = 'user-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+    }
+    localStorage.setItem('aihunter_user_id', id);
+  }
   return id;
 };
 const USER_ID = getUserId();
