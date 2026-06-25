@@ -222,6 +222,7 @@ export default function MomentumLivePage() {
   const [loginOtp, setLoginOtp] = useState('');
   const [loginError, setLoginError] = useState('');
   const [loginSending, setLoginSending] = useState(false);
+  const [otpCooldown, setOtpCooldown] = useState(0);
   const [loginVerifying, setLoginVerifying] = useState(false);
   const [lookupWallets, setLookupWallets] = useState<WalletStatus[] | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
@@ -471,7 +472,7 @@ export default function MomentumLivePage() {
       });
       const d = await res.json();
       if (d.code === 200) { setLoginStep('otp'); setLoginError(''); }
-      else { setLoginError(d.message || '发送验证码失败'); }
+      else { setLoginError(d.message || '发送验证码失败'); if (d.message?.includes('frequent')) setOtpCooldown(60); }
     } catch (e: any) { setLoginError(e.message || '网络错误'); }
     finally { setLoginSending(false); }
   }, [loginEmail, USER_ID]);
@@ -505,6 +506,8 @@ export default function MomentumLivePage() {
     setLoginEmail('');
     setLoginOtp('');
     setLoginError('');
+    setLoginVerifying(false);
+    setOtpCooldown(0);
   }, []);
 
   const handleStart = useCallback(async () => { if (!wallet?.authorized) { setErrors(e => ({ ...e, start: '请先创建并授权 Agentic Wallet' })); return; } setActionLoading(true); const ok = await safePost(`${API}/live-trading/start`, {}, 'start'); if (ok) setIsTrading(true); setActionLoading(false); }, [wallet, safePost]);
