@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { createConfig, http, WagmiProvider, useReconnect, useAccount } from 'wagmi';
 import { mainnet, polygon, optimism, arbitrum, bsc, base } from 'wagmi/chains';
-import { injected, coinbaseWallet, walletConnect } from 'wagmi/connectors';
+import { injected, metaMask, coinbaseWallet, walletConnect } from 'wagmi/connectors';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
@@ -22,6 +22,7 @@ const config = createConfig({
   chains: [mainnet, polygon, optimism, arbitrum, bsc, base],
   connectors: [
     injected(),
+    metaMask(),
     coinbaseWallet({ appName: 'AIHunter' }),
     walletConnect({ projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'b405f4f15938582260758473465a651b' }),
   ],
