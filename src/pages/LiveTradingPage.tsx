@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useAccount } from 'wagmi';
 import { Wallet, TrendingUp, Activity, Shield, RefreshCw, Copy, ArrowUp, ArrowDown, ExternalLink, LogOut, Key, Mail } from 'lucide-react';
 import { liveApiV3, walletApiV2 } from '../utils/api';
 
@@ -47,7 +48,8 @@ function WalletPanel() {
   const [step, setStep] = useState<"idle" | "otp" | "connected">("idle");
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
-  const userId = "default";
+  const { address } = useAccount();
+  const userId = address || '';
 
   const loadStatus = useCallback(async () => {
     try {
@@ -91,12 +93,12 @@ function WalletPanel() {
   };
 
   const handleLogout = async () => {
-    try { await walletApiV2.logout(); } catch (_) {}
+    try { await walletApiV2.logout(userId); } catch (_) {}
     setWallet(null); setStep("idle"); setEmail("");
   };
 
   const handleRevoke = async () => {
-    try { await walletApiV2.revoke(); } catch (_) {}
+    try { await walletApiV2.revoke(userId); } catch (_) {}
     loadStatus();
   };
 
@@ -155,6 +157,13 @@ function WalletPanel() {
           </div>
           <button onClick={() => { setStep("idle"); setOtpCode(""); }} style={{ marginTop: 8, background: "none", border: "none", color: T.dark400, fontSize: 11, cursor: "pointer" }}>← 返回</button>
         </div>
+      ) : !userId ? (
+        <div style={{ textAlign: "center", padding: "20px 0" }}>
+          <div style={{ width: 40, height: 40, borderRadius: 20, background: "rgba(99,102,241,0.1)", margin: "0 auto 12px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Wallet size={20} color={T.accent} />
+          </div>
+          <p style={{ fontSize: 12, color: T.dark300, marginBottom: 12 }}>请先连接 MetaMask 钱包</p>
+        </div>
       ) : (
         <div style={{ textAlign: "center", padding: "20px 0" }}>
           <div style={{ width: 40, height: 40, borderRadius: 20, background: "rgba(99,102,241,0.1)", margin: "0 auto 12px", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -176,13 +185,15 @@ function WalletPanel() {
   );
 }
 function StrategyTradingPanel() {
+  const { address } = useAccount();
+  const userId = address || '';
   const [strategies, setStrategies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const res = await liveApiV3.getStatus();
+      const res = await liveApiV3.getStatus(userId);
       if (res && (res as any).code === 200 && (res as any).data) {
         setStrategies(((res as any).data).strategies || []);
       }
@@ -195,7 +206,7 @@ function StrategyTradingPanel() {
   const handleToggle = async (id: string, active: boolean) => {
     setToggling(id);
     try {
-      await liveApiV3.toggleStrategy(id, active);
+      await liveApiV3.toggleStrategy(userId, id, active);
       setStrategies(prev => prev.map((s: any) => (s.strategy_id || s.id) === id ? { ...s, active } : s));
     } catch (e) { console.error(e); }
     setToggling(null);
@@ -248,13 +259,15 @@ function StrategyTradingPanel() {
 }
 
 function RiskPanel() {
+  const { address } = useAccount();
+  const userId = address || '';
   const [risk, setRisk] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await liveApiV3.getStatus();
+        const res = await liveApiV3.getStatus(userId);
         if (res && (res as any).code === 200 && (res as any).data) {
           setRisk(((res as any).data).risk || null);
         }
@@ -303,13 +316,15 @@ function RiskPanel() {
 }
 
 function TradeRecordStream() {
+  const { address } = useAccount();
+  const userId = address || '';
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const timerRef = useRef<ReturnType<typeof setInterval>>();
 
   const load = useCallback(async () => {
     try {
-      const res = await liveApiV3.getRecords({ size: 20 });
+      const res = await liveApiV3.getRecords(userId, { size: 20 });
       if (res && (res as any).code === 200 && (res as any).data) {
         const data = (res as any).data;
         setRecords((data.records || data) as any[]);

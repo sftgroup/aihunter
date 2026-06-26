@@ -456,11 +456,11 @@ export const strategyApiV3 = {
 };
 
 export const liveApiV3 = {
-  getStatus: () => api.get<ApiResponse<unknown>>('/api/v3/live/status'),
-  toggleStrategy: (strategyId: string, active: boolean) =>
-    api.post<ApiResponse<unknown>>('/api/v3/live/toggle', { json: { strategy_id: strategyId, active } }),
-  getRecords: (params?: { strategy_id?: string; page?: number; size?: number }) =>
-    api.get<ApiResponse<unknown>>('/api/v3/live/records', { params }),
+  getStatus: (userId: string) => api.get<ApiResponse<unknown>>('/api/v3/live/status', { params: { userId } }),
+  toggleStrategy: (userId: string, strategyId: string, active: boolean) =>
+    api.post<ApiResponse<unknown>>('/api/v3/live/toggle', { json: { userId, strategy_id: strategyId, active } }),
+  getRecords: (userId: string, params?: { strategy_id?: string; page?: number; size?: number }) =>
+    api.get<ApiResponse<unknown>>('/api/v3/live/records', { params: { ...params, userId } }),
 };
 
 // V2 OKX Agentic Wallet API
@@ -473,12 +473,12 @@ export const walletApiV2 = {
     api.post<ApiResponse<unknown>>( "/api/agentic-wallet/verify", { json: { userId, code, chain } } ),
   getStatus: () =>
     api.get<ApiResponse<unknown>>( "/api/agentic-wallet/status" ),
-  logout: () =>
-    api.post<ApiResponse<unknown>>( "/api/agentic-wallet/logout" ),
-  switch_: (walletAddress: string) =>
-    api.post<ApiResponse<unknown>>( "/api/agentic-wallet/switch", { json: { walletAddress } } ),
-  revoke: () =>
-    api.post<ApiResponse<unknown>>( "/api/agentic-wallet/revoke" ),
+  logout: (userId: string) =>
+    api.post<ApiResponse<unknown>>( "/api/agentic-wallet/logout", { json: { userId } } ),
+  switch_: (userId: string, walletAddress: string) =>
+    api.post<ApiResponse<unknown>>( "/api/agentic-wallet/switch", { json: { userId, walletAddress } } ),
+  revoke: (userId: string) =>
+    api.post<ApiResponse<unknown>>( "/api/agentic-wallet/revoke", { json: { userId } } ),
 };
 
 export const signalApiV3 = {
