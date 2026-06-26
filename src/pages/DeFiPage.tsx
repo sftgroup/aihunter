@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PiggyBank, TrendingUp, TrendingDown, Zap, RefreshCw, Radar, Clock, ListOrdered, ChevronDown, ChevronUp, Download, X, ExternalLink, Activity } from 'lucide-react';
 import { lendingApi, arbitrageApi, strategyApiV3 } from '../utils/api';
 import type { RateSnapshot, ArbOpportunity, ArbConfig, ArbTrade, ArbTradeStats, ArbTradeResult, StrategyInfo } from '../utils/api';

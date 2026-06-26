@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Activity, BrainCircuit } from 'lucide-react';
 import { strategyApiV3, type StrategyInfo } from '../utils/api';
 import StrategyCard from '../components/StrategyCard';
