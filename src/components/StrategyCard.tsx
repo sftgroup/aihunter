@@ -111,9 +111,9 @@ export default function StrategyCard({ strategy, onViewDetail, disabled }: Props
           <div style={{ fontSize: 10, color: '#808080', marginBottom: 2 }}>盈亏</div>
           <div style={{
             fontSize: 16, fontWeight: 700,
-            color: strategy.metrics.today_pnl >= 0 ? '#10b981' : '#ef4444',
+            color: (strategy.metrics.today_pnl ?? strategy.metrics.pnl ?? 0) >= 0 ? '#10b981' : '#ef4444',
           }}>
-            {strategy.metrics.today_pnl >= 0 ? '+' : ''}${strategy.metrics.today_pnl.toFixed(2)}
+            {(strategy.metrics.today_pnl ?? strategy.metrics.pnl ?? 0) >= 0 ? '+' : ''}${(strategy.metrics.today_pnl ?? strategy.metrics.pnl ?? 0).toFixed(2)}
           </div>
         </div>
       </div>
