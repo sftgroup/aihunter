@@ -15,7 +15,7 @@ export default function ConnectModal({
   isOpen: boolean;
   onClose: () => void;
 }) {
-  const { connect, connectors, isPending, error } = useConnect();
+  const { connect, connectors, isPending, isError, error, failureReason } = useConnect();
   const { address, isConnected } = useAccount();
 
   useEffect(() => {
