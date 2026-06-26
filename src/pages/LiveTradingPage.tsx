@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAccount } from 'wagmi';
 import { Wallet, TrendingUp, Activity, Shield, RefreshCw, Copy, ArrowUp, ArrowDown, ExternalLink, LogOut, Key, Mail, Send, X } from 'lucide-react';
 import { liveApiV3, walletApiV2 } from '../utils/api';
@@ -475,7 +476,7 @@ function StrategyTradingPanel() {
                     disabled={toggling === (s.strategy_id || s.id)}
                     style={{ padding: '6px 14px', borderRadius: 8, fontSize: 11, fontWeight: 600, background: isActive ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)', border: isActive ? '1px solid rgba(239,68,68,0.2)' : '1px solid rgba(16,185,129,0.2)', color: isActive ? T.accentRed : T.accentGreen, cursor: toggling === (s.strategy_id || s.id) ? 'not-allowed' : 'pointer' }}
                   >{toggling === (s.strategy_id || s.id) ? '...' : (isActive ? '暂停' : '开启')}</button>
-                  <button style={{ padding: '6px 14px', borderRadius: 8, fontSize: 11, fontWeight: 600, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)', color: T.accent, cursor: 'pointer' }}>配置</button>
+                  <button onClick={() => navigate('/config')} style={{ padding: '6px 14px', borderRadius: 8, fontSize: 11, fontWeight: 600, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)', color: T.accent, cursor: 'pointer' }}>配置</button>
                 </div>
               </div>
             );
