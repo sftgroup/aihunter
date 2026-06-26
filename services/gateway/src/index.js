@@ -1343,6 +1343,19 @@ const autoTrader = new AutoTrader({ db, redis, okxClient: okxTrade, wss: wssServ
 const executionLayer = await initExecutionLayer({ db, redis, okxClient: okxTrade });
 app.decorate('execution', executionLayer);
 app.register(liveTradingV3Routes, { prefix: '/api/v3' });
+
+// ===== V3 学习引擎集成 =====
+import { startLearningListener } from "./learning/Listener.js";
+import learningRoutes from "./routes/learning.js";
+
+const learningLayer = await startLearningListener({
+  redis,
+  db: db,
+  deepseekClient: null,  // 后续配置 DeepSeek API key 后启用
+});
+app.decorate("learning", learningLayer);
+app.register(learningRoutes, { prefix: "/api/v3" });
+
 // ===== 启动 =====
 try {
   await app.listen({ port: PORT, host: '0.0.0.0' });

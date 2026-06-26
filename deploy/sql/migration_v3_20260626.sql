@@ -99,3 +99,19 @@ ON CONFLICT (strategy_id) DO UPDATE SET
     enabled         = EXCLUDED.enabled,
     registration    = EXCLUDED.registration,
     updated_at      = NOW();
+
+-- ============================================================
+-- Phase 3: 学习引擎表
+-- ============================================================
+CREATE TABLE IF NOT EXISTS learning_rules (
+    id SERIAL PRIMARY KEY,
+    strategy_id VARCHAR(64) NOT NULL,
+    rule_type VARCHAR(32) NOT NULL,        -- 'threshold' | 'action' | 'param'
+    rule_key VARCHAR(64) NOT NULL,          -- 'min_score' | 'max_single_amount' | ...
+    rule_value NUMERIC NOT NULL,
+    reason TEXT,
+    confidence NUMERIC DEFAULT 0.5,
+    applied BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_learning_rules_strategy ON learning_rules(strategy_id, rule_type);
