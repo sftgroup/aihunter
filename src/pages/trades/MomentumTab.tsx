@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { TrendingUp, Activity, Zap, ChevronLeft, ChevronRight, Filter, Copy, Check, Wallet, ExternalLink, BarChart3, Power, RefreshCw } from 'lucide-react';
 import { signalsPageApi, api } from "../../utils/api";
 import LearningTab from "./LearningTab";
-import MomentumLivePage from "../MomentumLivePage";
 import { useAccount, useDisconnect, useBalance } from 'wagmi';
 
 const cardBase: React.CSSProperties = {
@@ -153,7 +152,6 @@ export default function MomentumTab() {
       )}
 
       {/* 实盘交易 */}
-      {view === "real" && <MomentumLivePage />}
 
       {/* 自动学习 */}
       {view === 'learn' && <LearningTab />}
