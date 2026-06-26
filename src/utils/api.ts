@@ -463,6 +463,24 @@ export const liveApiV3 = {
     api.get<ApiResponse<unknown>>('/api/v3/live/records', { params }),
 };
 
+// V2 OKX Agentic Wallet API
+export const walletApiV2 = {
+  lookup: (userId: string, email: string) =>
+    api.post<ApiResponse<unknown>>( "/api/agentic-wallet/lookup", { json: { userId, email } } ),
+  login: (userId: string, email: string) =>
+    api.post<ApiResponse<unknown>>( "/api/agentic-wallet/login", { json: { userId, email } } ),
+  verify: (userId: string, code: string, chain?: string) =>
+    api.post<ApiResponse<unknown>>( "/api/agentic-wallet/verify", { json: { userId, code, chain } } ),
+  getStatus: () =>
+    api.get<ApiResponse<unknown>>( "/api/agentic-wallet/status" ),
+  logout: () =>
+    api.post<ApiResponse<unknown>>( "/api/agentic-wallet/logout" ),
+  switch_: (walletAddress: string) =>
+    api.post<ApiResponse<unknown>>( "/api/agentic-wallet/switch", { json: { walletAddress } } ),
+  revoke: () =>
+    api.post<ApiResponse<unknown>>( "/api/agentic-wallet/revoke" ),
+};
+
 export const signalApiV3 = {
   getByStrategy: (strategyId: string) =>
     api.get<ApiResponse<unknown>>('/api/v3/signals/' + strategyId),

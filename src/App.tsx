@@ -90,7 +90,7 @@ function AppContent() {
               <Route path="/defi" element={<DeFiPage />} />
               <Route path="/defi/spread-arb" element={<SpreadArbDetailPage />} />
               <Route path="/live" element={<LiveTradingPage />} />
-              <Route path="/dex" element={<DexPage />} />
+              <Route path="/dex" element={<Navigate to="/trade" replace />} />
               <Route path="/signals" element={<SignalsPage />} />
               <Route path="/trades" element={<TradesPage />} />
               <Route path="/config" element={<ConfigPage />} />

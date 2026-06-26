@@ -41,39 +41,141 @@ function fmtTime(ts: string) {
 }
 
 function WalletPanel() {
-  const { address, isConnected } = useAccount();
+  const [wallet, setWallet] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [email, setEmail] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [step, setStep] = useState<"idle" | "otp" | "connected">("idle");
+  const [sending, setSending] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const userId = "default";
+
+  const loadStatus = useCallback(async () => {
+    try {
+      const res = await walletApiV2.getStatus();
+      if (res && (res as any).code === 200) {
+        const data = (res as any).data;
+        if (data && data.wallet_address) { setWallet(data); setStep("connected"); }
+      }
+    } catch (_) {}
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { loadStatus(); }, [loadStatus]);
+
+  const handleLookupOrLogin = async () => {
+    if (!email.trim()) return;
+    setSending(true);
+    try {
+      const lookupRes = await walletApiV2.lookup(userId, email);
+      if (lookupRes && (lookupRes as any).code === 200 && (lookupRes as any).data?.hasWallets && (lookupRes as any).data?.wallets?.length > 0) {
+        setWallet((lookupRes as any).data.wallets[0]);
+        setStep("connected");
+      } else {
+        const loginRes = await walletApiV2.login(userId, email);
+        if (loginRes && (loginRes as any).code === 200) setStep("otp");
+      }
+    } catch (_) {}
+    setSending(false);
+  };
+
+  const handleVerify = async () => {
+    if (!otpCode.trim()) return;
+    setVerifying(true);
+    try {
+      const res = await walletApiV2.verify(userId, otpCode);
+      if (res && (res as any).code === 200 && (res as any).data) {
+        setWallet((res as any).data); setStep("connected"); setOtpCode("");
+      }
+    } catch (_) {}
+    setVerifying(false);
+  };
+
+  const handleLogout = async () => {
+    try { await walletApiV2.logout(); } catch (_) {}
+    setWallet(null); setStep("idle"); setEmail("");
+  };
+
+  const handleRevoke = async () => {
+    try { await walletApiV2.revoke(); } catch (_) {}
+    loadStatus();
+  };
+
+  const wAddr = wallet?.wallet_address || wallet?.address || "";
 
   return (
     <div style={cardBase}>
-      <h3 style={sectionTitle}><Wallet size={14} color={T.accent} /> 钱包</h3>
-      {isConnected && address ? (
+      <h3 style={sectionTitle}><Wallet size={14} color={T.accent} /> Agentic Wallet</h3>
+      {loading ? (
+        <div style={{ textAlign: "center", padding: "20px 0" }}>
+          <RefreshCw size={14} className="animate-spin" color={T.dark400} />
+        </div>
+      ) : step === "connected" && wallet ? (
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'white' }}>已连接</div>
-              <div style={{ fontSize: 10, color: T.dark400, textTransform: 'uppercase', marginTop: 2 }}>外部钱包</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "white" }}>OKX TEE 钱包</div>
+              <div style={{ fontSize: 10, color: T.dark400, textTransform: "uppercase", marginTop: 2 }}>
+                {wallet.chain || "ETH"} 链 · {wallet.authorized ? "已授权" : "未授权"}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button onClick={handleRevoke} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 600, background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.15)", color: T.accentOrange, cursor: "pointer" }}>撤销</button>
+              <button onClick={handleLogout} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 600, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.15)", color: T.accentRed, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}><LogOut size={11} /> 退出</button>
             </div>
           </div>
-          <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 11, fontFamily: 'monospace', color: T.dark300 }}>{fmtAddr(address)}</span>
-            <button onClick={() => navigator.clipboard.writeText(address)} style={{ background: 'none', border: 'none', color: T.dark400, cursor: 'pointer', padding: 0 }}>
-              <Copy size={13} />
+          <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: "10px 14px", marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 11, fontFamily: "monospace", color: T.dark300 }}>{fmtAddr(wAddr)}</span>
+            <button onClick={() => navigator.clipboard.writeText(wAddr)} style={{ background: "none", border: "none", color: T.dark400, cursor: "pointer", padding: 0 }}><Copy size={13} /></button>
+          </div>
+          {wallet.totalUsd != null && (
+            <div style={{ fontSize: 20, fontWeight: 700, color: "white" }}>${Number(wallet.totalUsd || 0).toFixed(2)}</div>
+          )}
+          {wallet.balances && wallet.balances.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+              {wallet.balances.slice(0, 4).map((b: any, i: number) => (
+                <span key={i} style={{ padding: "2px 8px", borderRadius: 6, fontSize: 10, background: "rgba(255,255,255,0.04)", color: T.dark300, fontFamily: "monospace" }}>{b.symbol || b.asset}: {Number(b.balance || 0).toFixed(4)}</span>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : step === "otp" ? (
+        <div>
+          <div style={{ marginBottom: 12 }}>
+            <Mail size={14} color={T.dark400} style={{ marginBottom: 8 }} />
+            <p style={{ fontSize: 12, color: T.dark300 }}>验证码已发送至 {email}</p>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input placeholder="输入验证码" value={otpCode} onChange={(e) => setOtpCode(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleVerify()}
+              style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.04)", color: "white", fontSize: 13, outline: "none" }} />
+            <button onClick={handleVerify} disabled={verifying}
+              style={{ padding: "8px 16px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.2)", color: T.accent, cursor: verifying ? "not-allowed" : "pointer" }}>
+              <Key size={14} /> {verifying ? "..." : "验证"}
             </button>
           </div>
+          <button onClick={() => { setStep("idle"); setOtpCode(""); }} style={{ marginTop: 8, background: "none", border: "none", color: T.dark400, fontSize: 11, cursor: "pointer" }}>← 返回</button>
         </div>
       ) : (
-        <div style={{ textAlign: 'center', padding: '20px 0' }}>
-          <div style={{ width: 40, height: 40, borderRadius: 20, background: 'rgba(99,102,241,0.1)', margin: '0 auto 12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: "center", padding: "20px 0" }}>
+          <div style={{ width: 40, height: 40, borderRadius: 20, background: "rgba(99,102,241,0.1)", margin: "0 auto 12px", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Wallet size={20} color={T.accent} />
           </div>
-          <p style={{ fontSize: 12, color: T.dark300, marginBottom: 12 }}>请连接外部钱包</p>
-          <wcm-button />
+          <p style={{ fontSize: 12, color: T.dark300, marginBottom: 12 }}>OKX Agentic Wallet</p>
+          <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+            <input placeholder="输入邮箱" value={email} onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleLookupOrLogin()}
+              style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.04)", color: "white", fontSize: 13, outline: "none", width: 200 }} />
+            <button onClick={handleLookupOrLogin} disabled={sending}
+              style={{ padding: "8px 16px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.2)", color: T.accent, cursor: sending ? "not-allowed" : "pointer" }}>
+              <Mail size={14} /> {sending ? "..." : "登录"}
+            </button>
+          </div>
         </div>
       )}
     </div>
   );
 }
-
 function StrategyTradingPanel() {
   const [strategies, setStrategies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

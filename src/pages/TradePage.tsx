@@ -53,8 +53,9 @@ export default function TradePage() {
     })();
   }, []);
 
+  const navigate = useNavigate();
   const handleViewDetail = (route: string) => {
-    window.location.hash = route;
+    navigate(route);
   };
 
   return (

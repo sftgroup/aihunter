@@ -937,8 +937,9 @@ export default function DeFiPage() {
     })();
   }, []);
 
+  const navigate = useNavigate();
   const handleViewDetail = (route: string) => {
-    window.location.hash = route;
+    navigate(route);
   };
 
   return (
