@@ -84,7 +84,8 @@ export class ApiError extends Error {
 // Central fetch wrapper
 // ---------------------------------------------------------------------------
 
-interface RequestOptions extends Omit<RequestInit, 'body'> {
+interface RequestOptions extends Omit<RequestInit, "body"> {
+  body?: unknown;
   /** Query parameters appended to the URL. */
   params?: Record<string, string | number | boolean | undefined>;
   /** JSON-serialisable request body (sets Content-Type: application/json). */
@@ -428,4 +429,49 @@ export const arbitrageApi = {
 
   getTradeStats: (userId: string) =>
     typedRequest<ArbTradeStats>('/arbitrage/trades/stats', { params: { userId } as Record<string,string|number|boolean|undefined> }),
+};
+
+// ===== Phase 4: AIHunter V3 API extensions =====
+
+export interface StrategyInfo {
+  strategy_id: string;
+  category: 'dex' | 'defi';
+  display_name: string;
+  description: string;
+  icon: string;
+  enabled: boolean;
+  auto_trading: boolean;
+  metrics: {
+    today_signals: number;
+    today_trades: number;
+    today_pnl: number;
+  };
+  route: string;
+}
+
+export const strategyApiV3 = {
+  list: (category?: 'dex' | 'defi') =>
+    api.get<ApiResponse<StrategyInfo[]>>('/api/v3/strategies', { params: { category } }),
+  getConfig: (strategyId: string) =>
+    api.get<ApiResponse<Record<string, unknown>>>('/api/v3/strategies/' + strategyId + '/config'),
+};
+
+export const liveApiV3 = {
+  getStatus: () => api.get<ApiResponse<unknown>>('/api/v3/live/status'),
+  toggleStrategy: (strategyId: string, active: boolean) =>
+    api.post<ApiResponse<unknown>>('/api/v3/live/toggle', { json: { strategy_id: strategyId, active } }),
+  getRecords: (params?: { strategy_id?: string; page?: number; size?: number }) =>
+    api.get<ApiResponse<unknown>>('/api/v3/live/records', { params }),
+};
+
+export const signalApiV3 = {
+  getByStrategy: (strategyId: string) =>
+    api.get<ApiResponse<unknown>>('/api/v3/signals/' + strategyId),
+};
+
+export const learningApiV3 = {
+  getReport: (strategyId: string) =>
+    api.get<ApiResponse<unknown>>('/api/v3/learning/' + strategyId),
+  trigger: (strategyId: string) =>
+    api.post<ApiResponse<unknown>>('/api/v3/learning/trigger', { json: { strategy_id: strategyId } }),
 };

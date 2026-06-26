@@ -95,6 +95,7 @@ const USER_ID = getUserId();
 /*  Types                                                              */
 /* ================================================================== */
 interface WalletStatus {
+  user_id?: string;
   id?: number;
   wallet_address?: string;
   chain?: string;

@@ -11,6 +11,10 @@ import ErrorBoundary from './components/ErrorBoundary';
 import SignalsPage from './pages/SignalsPage';
 import DexPage from "./pages/DexPage";
 import DeFiPage from "./pages/DeFiPage";
+import TradePage from './pages/TradePage';
+import MomentumDetailPage from './pages/MomentumDetailPage';
+import SpreadArbDetailPage from './pages/SpreadArbDetailPage';
+import LiveTradingPage from './pages/LiveTradingPage';
 import TradesPage from './pages/TradesPage';
 import MomentumLivePage from './pages/MomentumLivePage';
 import ConfigPage from './pages/ConfigPage';
@@ -80,12 +84,15 @@ function AppContent() {
         <div style={{ padding: 24 }} className="page-enter">
           <ErrorBoundary>
             <Routes>
-              <Route path="/" element={<Navigate to="/dex" replace />} />
-              <Route path="/dex" element={<DexPage />} />
+              <Route path="/" element={<Navigate to="/trade" replace />} />
+              <Route path="/trade" element={<TradePage />} />
+              <Route path="/trade/momentum" element={<MomentumDetailPage />} />
               <Route path="/defi" element={<DeFiPage />} />
+              <Route path="/defi/spread-arb" element={<SpreadArbDetailPage />} />
+              <Route path="/live" element={<LiveTradingPage />} />
+              <Route path="/dex" element={<DexPage />} />
               <Route path="/signals" element={<SignalsPage />} />
               <Route path="/trades" element={<TradesPage />} />
-              <Route path="/live" element={<MomentumLivePage />} />
               <Route path="/config" element={<ConfigPage />} />
               <Route path="/system" element={<SystemPage />} />
             </Routes>

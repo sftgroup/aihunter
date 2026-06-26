@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { PiggyBank, TrendingUp, TrendingDown, Zap, RefreshCw, Radar, Clock, ListOrdered, ChevronDown, ChevronUp, Download, X, ExternalLink, Activity } from 'lucide-react';
-import { lendingApi, arbitrageApi } from '../utils/api';
-import type { RateSnapshot, ArbOpportunity, ArbConfig, ArbTrade, ArbTradeStats, ArbTradeResult } from '../utils/api';
+import { lendingApi, arbitrageApi, strategyApiV3 } from '../utils/api';
+import type { RateSnapshot, ArbOpportunity, ArbConfig, ArbTrade, ArbTradeStats, ArbTradeResult, StrategyInfo } from '../utils/api';
+import StrategyCard from '../components/StrategyCard';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -893,29 +894,82 @@ function LendingRates() {
 //  Main DeFiPage — Multi-tab
 // =========================================================================
 
+const defiFallbackStrategies: StrategyInfo[] = [
+  {
+    strategy_id: 'spread_arb', category: 'defi', display_name: '价差套利',
+    description: '跨 DEX 价差扫描 + 自动执行，支持多链',
+    icon: 'activity', enabled: true, auto_trading: true,
+    metrics: { today_signals: 12, today_trades: 3, today_pnl: 89.40 },
+    route: '/defi/spread-arb',
+  },
+  {
+    strategy_id: 'triangle_arb', category: 'defi', display_name: '三角套利',
+    description: '三角循环套利，同一 DEX 内三币价差异常检测',
+    icon: 'triangle', enabled: false, auto_trading: false,
+    metrics: { today_signals: 0, today_trades: 0, today_pnl: 0 },
+    route: '/defi/triangle-arb',
+  },
+  {
+    strategy_id: 'flash_loan', category: 'defi', display_name: '闪电贷',
+    description: '闪电贷无本金套利，Aave/Uniswap 协议',
+    icon: 'zap', enabled: false, auto_trading: false,
+    metrics: { today_signals: 0, today_trades: 0, today_pnl: 0 },
+    route: '/defi/flash-loan',
+  },
+];
+
 export default function DeFiPage() {
-  const [activeTab, setActiveTab] = useState<'radar' | 'trades' | 'lending'>('radar');
+  const [activeTab, setActiveTab] = useState<'radar' | 'trades' | 'lending'>('lending');
+  const [strategies, setStrategies] = useState<StrategyInfo[]>(defiFallbackStrategies);
+  const [strategiesLoading, setStrategiesLoading] = useState(true);
 
   useEffect(() => { injectAnim(); }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await strategyApiV3.list('defi');
+        if (res && (res as any).code === 200 && (res as any).data) {
+          setStrategies((res as any).data);
+        }
+      } catch (e) { console.error('Failed to load DeFi strategies, using fallback:', e); }
+      setStrategiesLoading(false);
+    })();
+  }, []);
+
+  const handleViewDetail = (route: string) => {
+    window.location.hash = route;
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       {/* Page header */}
       <div>
         <h1 style={{ fontSize: 24, fontWeight: 700, color: 'white' }}>DeFi 套利</h1>
-        <p style={{ fontSize: 14, color: T.dark400, marginTop: 4 }}>跨 DEX 套利雷达 · 闪电贷执行 · 借贷利率监控</p>
+        <p style={{ fontSize: 14, color: T.dark400, marginTop: 4 }}>策略矩阵 · 借贷利率监控</p>
       </div>
 
-      {/* Tab navigation */}
-      <div style={{
-        display: 'flex', gap: 4,
-        background: 'rgba(255,255,255,0.03)',
-        borderRadius: 12, padding: 4,
-        width: 'fit-content',
-      }}>
+      {/* Strategy cards */}
+      {strategiesLoading ? (
+        <div style={{ textAlign: 'center', padding: '20px 0' }}>
+          <div style={{ width: 24, height: 24, borderRadius: '50%', border: '2px solid rgba(99,102,241,0.3)', borderTopColor: T.accent, animation: 'spin 0.8s linear infinite', margin: '0 auto' }} />
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 16 }}>
+          {strategies.map((s) => (
+            <StrategyCard
+              key={s.strategy_id}
+              strategy={s}
+              onViewDetail={handleViewDetail}
+              disabled={!s.enabled}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.03)', borderRadius: 12, padding: 4, width: 'fit-content' }}>
         {[
-          { key: 'radar', label: '套利雷达', icon: Radar },
-          { key: 'trades', label: '套利记录', icon: ListOrdered },
           { key: 'lending', label: '借贷利率', icon: PiggyBank },
         ].map(tab => {
           const Icon = tab.icon;
@@ -933,8 +987,6 @@ export default function DeFiPage() {
       </div>
 
       {/* Tab content */}
-      {activeTab === 'radar' && <ArbitrageRadar />}
-      {activeTab === 'trades' && <ArbitrageTrades />}
       {activeTab === 'lending' && <LendingRates />}
     </div>
   );
