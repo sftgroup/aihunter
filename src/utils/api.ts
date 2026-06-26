@@ -33,8 +33,7 @@ export function getAuthToken(): string | null {
     const stored = localStorage.getItem(AUTH_TOKEN_KEY);
     if (stored) return stored;
   }
-  const envToken = import.meta.env.VITE_AUTH_TOKEN;
-  if (envToken) return envToken;
+  // SECURITY: VITE_AUTH_TOKEN fallback removed — token must be set explicitly via localStorage
   return null;
 }
 

@@ -3,6 +3,8 @@
 // ESM: 从 strategy_registry 查找策略 → 懒加载 Trader → 执行 onSignal
 // ============================================================
 
+const ALLOWED_TRADER_CLASSES = new Set(["BaseAutoTrader", "MomentumTrader", "SpreadArbitrageTrader"]);
+
 class SignalDispatcher {
   constructor({ registry, db, redis, okxClient } = {}) {
     this.registry = registry;
@@ -68,6 +70,10 @@ class SignalDispatcher {
     try {
       // 从 registration 获取 trader_class，构造模块路径
       const traderClass = strategyEntry.trader_class || 'BaseAutoTrader';
+      if (!ALLOWED_TRADER_CLASSES.has(traderClass)) {
+        console.log(`[SignalDispatcher] trader NOT in whitelist: ${traderClass}`);
+        return null;
+      }
       const modulePath = `./traders/${traderClass}.js`;
 
       let TraderModule;

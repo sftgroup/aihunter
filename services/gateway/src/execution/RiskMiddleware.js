@@ -28,7 +28,7 @@ class RiskMiddleware {
       // ② 日亏损检查
       if (config?.daily_max_loss_usdt > 0) {
         const dailyLoss = await this._sumDailyLoss(userId, config.strategy_id);
-        if (dailyLoss >= config.daily_max_loss_usdt) {
+        if (Math.abs(dailyLoss) >= config.daily_max_loss_usdt) {
           console.log(`[RiskMiddleware] daily loss limit hit: ${dailyLoss} >= ${config.daily_max_loss_usdt}`);
           return { ok: false, reason: 'daily_loss_limit' };
         }

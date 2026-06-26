@@ -4,6 +4,13 @@
 // Prefix: /api/v3
 // ============================================================
 
+
+/** 验证 userId 为合法 EVM 地址 */
+function validateUserId(userId) {
+  if (!userId || typeof userId !== "string") return false;
+  return /^0x[a-fA-F0-9]{40}$/.test(userId);
+}
+
 export default async function liveTradingV3Routes(fastify, opts) {
   // ================================================================
   // POST /api/v3/live/toggle — 开启/暂停策略
@@ -11,8 +18,11 @@ export default async function liveTradingV3Routes(fastify, opts) {
   fastify.post('/live/toggle', async (request, reply) => {
     try {
       const { strategy_id, active, userId } = request.body || {};
-      if (!strategy_id || userId === undefined) {
+      if (!strategy_id || !userId) {
         return reply.status(400).send({ code: 400, error: '缺少 strategy_id 或 userId' });
+      }
+      if (!validateUserId(userId)) {
+        return reply.status(400).send({ code: 400, error: '无效的 userId 格式' });
       }
 
       const redis = request.server.redis || (request.server.execution?.dispatcher?.redis);

@@ -88,6 +88,24 @@ class SpreadArbitrageTrader extends BaseAutoTrader {
       const estimatedOutUsdt = parseFloat(tx2?.estimatedOut || 0);
 
       console.log(`[SpreadArbitrageTrader] step2 sell: tx=${txHash2} estimated=${estimatedOutUsdt}`);
+      // Verify step2 actually executed
+      if (!txHash2) {
+        console.error(`[SpreadArbitrageTrader] ATOMICITY BREAK: step1=${txHash1} succeeded but step2 failed. Token=${tokenAddress} on ${chain}. Manual intervention required.`);
+        return {
+          status: 'partial',
+          error_message: 'step2_failed_atomicity_break',
+          tx_hash: txHash1,
+          tx_hash_2: null,
+          amount_in: amount,
+          estimated_out: 0,
+          estimated_profit: -amount,
+          detail: {
+            chain, token_address: tokenAddress, ask_dex: askDex, bid_dex: bidDex,
+            step1: tx1, step2: null,
+            warning: 'ATOMICITY_BREAK: buy succeeded, sell failed. Tokens stuck in intermediate asset.'
+          }
+        };
+      }
 
       const estimatedProfit = estimatedOutUsdt - amount;
 
