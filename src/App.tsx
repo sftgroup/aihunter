@@ -8,6 +8,7 @@ import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import ConnectModal from './components/ConnectModal';
 import ErrorBoundary from './components/ErrorBoundary';
+import DexPage from './pages/DexPage';
 import DeFiPage from "./pages/DeFiPage";
 import TradePage from './pages/TradePage';
 import MomentumDetailPage from './pages/MomentumDetailPage';
@@ -86,6 +87,7 @@ function AppContent() {
               <Route path="/defi" element={<DeFiPage />} />
               <Route path="/defi/spread-arb" element={<SpreadArbDetailPage />} />
               <Route path="/live" element={<LiveTradingPage />} />
+              <Route path="/dex" element={<DexPage />} />
               <Route path="/config" element={<ConfigPage />} />
               <Route path="/system" element={<SystemPage />} />
             </Routes>
