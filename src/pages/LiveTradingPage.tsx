@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAccount } from 'wagmi';
 import { Wallet, TrendingUp, Activity, Shield, RefreshCw, Copy, ArrowUp, ArrowDown, ExternalLink } from 'lucide-react';
 import { liveApiV3 } from '../utils/api';
 
