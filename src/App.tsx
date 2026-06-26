@@ -12,7 +12,7 @@ import DexPage from './pages/DexPage';
 import DeFiPage from "./pages/DeFiPage";
 import MomentumDetailPage from './pages/MomentumDetailPage';
 import SpreadArbDetailPage from './pages/SpreadArbDetailPage';
-import MomentumLivePage from "./pages/MomentumLivePage";
+import LiveTradingPage from "./pages/LiveTradingPage";
 import ConfigPage from './pages/ConfigPage';
 import SystemPage from './pages/SystemPage';
 
@@ -84,7 +84,7 @@ function AppContent() {
               <Route path="/dex/momentum" element={<MomentumDetailPage />} />
               <Route path="/defi" element={<DeFiPage />} />
               <Route path="/defi/spread-arb" element={<SpreadArbDetailPage />} />
-              <Route path="/live" element={<MomentumLivePage />} />
+              <Route path="/live" element={<LiveTradingPage />} />
               <Route path="/dex" element={<DexPage />} />
               <Route path="/config" element={<ConfigPage />} />
               <Route path="/system" element={<SystemPage />} />

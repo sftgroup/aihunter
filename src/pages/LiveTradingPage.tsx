@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAccount } from 'wagmi';
-import { Wallet, TrendingUp, Activity, Shield, RefreshCw, Copy, ArrowUp, ArrowDown, ExternalLink, LogOut, Key, Mail } from 'lucide-react';
+import { Wallet, TrendingUp, Activity, Shield, RefreshCw, Copy, ArrowUp, ArrowDown, ExternalLink, LogOut, Key, Mail, Send, X } from 'lucide-react';
 import { liveApiV3, walletApiV2 } from '../utils/api';
 
 const T = {
@@ -48,6 +48,13 @@ function WalletPanel() {
   const [step, setStep] = useState<"idle" | "otp" | "connected">("idle");
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [showTransfer, setShowTransfer] = useState(false);
+  const [transferTarget, setTransferTarget] = useState('');
+  const [transferAmount, setTransferAmount] = useState('');
+  const [transferChain, setTransferChain] = useState('ethereum');
+  const [transferContract, setTransferContract] = useState('');
+  const [transferLoading, setTransferLoading] = useState(false);
+  const [transferMsg, setTransferMsg] = useState('');
   const { address } = useAccount();
   const userId = address || '';
 
@@ -102,6 +109,27 @@ function WalletPanel() {
     loadStatus();
   };
 
+  const handleTransfer = async () => {
+    if (!transferTarget.trim() || !transferAmount.trim()) return;
+    setTransferLoading(true);
+    setTransferMsg('');
+    try {
+      const res = await walletApiV2.send(userId, transferTarget.trim(), transferChain, Number(transferAmount), transferContract.trim() || undefined);
+      if (res && (res as any).code === 200) {
+        setTransferMsg('转账已提交');
+        setShowTransfer(false);
+        setTransferTarget('');
+        setTransferAmount('');
+        setTransferContract('');
+      } else {
+        setTransferMsg((res as any)?.message || '转账失败');
+      }
+    } catch (e: any) {
+      setTransferMsg(e?.message || '网络错误');
+    }
+    setTransferLoading(false);
+  };
+
   const wAddr = wallet?.wallet_address || wallet?.address || "";
 
   return (
@@ -128,6 +156,7 @@ function WalletPanel() {
           <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: "10px 14px", marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ fontSize: 11, fontFamily: "monospace", color: T.dark300 }}>{fmtAddr(wAddr)}</span>
             <button onClick={() => navigator.clipboard.writeText(wAddr)} style={{ background: "none", border: "none", color: T.dark400, cursor: "pointer", padding: 0 }}><Copy size={13} /></button>
+            <button onClick={() => setShowTransfer(true)} style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 8, color: T.accentGreen, fontSize: 11, fontWeight: 600, padding: '4px 10px', cursor: 'pointer', marginLeft: 'auto' }}><div style={{display:'flex',alignItems:'center',gap:4}}><Send size={12} /> 转出</div></button>
           </div>
           {wallet.totalUsd != null && (
             <div style={{ fontSize: 20, fontWeight: 700, color: "white" }}>${Number(wallet.totalUsd || 0).toFixed(2)}</div>
@@ -180,6 +209,63 @@ function WalletPanel() {
             </button>
           </div>
         </div>
+      )}
+      {showTransfer && (
+        <>
+          <div onClick={() => { setShowTransfer(false); setTransferMsg(''); }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 999 }} />
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 1000, width: 400, background: 'linear-gradient(135deg, rgba(17,17,17,0.98) 0%, rgba(26,26,26,0.98) 100%)', backdropFilter: 'blur(32px)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 20, padding: 24, boxShadow: '0 24px 64px rgba(0,0,0,0.5)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(16,185,129,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Send size={18} color={T.accentGreen} /></div>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: 'white' }}>转出资金</div>
+                  <div style={{ fontSize: 11, color: T.dark400 }}>从 OKX TEE 钱包转出</div>
+                </div>
+              </div>
+              <button onClick={() => { setShowTransfer(false); setTransferMsg(''); }} style={{ background: 'none', border: 'none', color: T.dark400, cursor: 'pointer' }}><X size={18} /></button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ fontSize: 11, color: T.dark400, display: 'block', marginBottom: 6 }}>目标地址</label>
+                <input placeholder="0x..." value={transferTarget} onChange={(e) => setTransferTarget(e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: 'white', fontSize: 13, outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: 11, color: T.dark400, display: 'block', marginBottom: 6 }}>金额</label>
+                  <input placeholder="0.00" value={transferAmount} onChange={(e) => setTransferAmount(e.target.value)}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: 'white', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: 11, color: T.dark400, display: 'block', marginBottom: 6 }}>链</label>
+                  <select value={transferChain} onChange={(e) => setTransferChain(e.target.value)}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: 'white', fontSize: 13, outline: 'none', boxSizing: 'border-box', cursor: 'pointer' }}>
+                    <option value="ethereum" style={{background:'#1a1a1a'}}>ETH</option>
+                    <option value="base" style={{background:'#1a1a1a'}}>BASE</option>
+                    <option value="bsc" style={{background:'#1a1a1a'}}>BSC</option>
+                    <option value="sol" style={{background:'#1a1a1a'}}>SOL</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: 11, color: T.dark400, display: 'block', marginBottom: 6 }}>代币合约（可选，不填为原生代币）</label>
+                <input placeholder="0x... 或留空" value={transferContract} onChange={(e) => setTransferContract(e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: 'white', fontSize: 13, outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box' }} />
+              </div>
+              {transferMsg && (
+                <div style={{ padding: '8px 12px', borderRadius: 8, fontSize: 12, background: transferMsg === '转账已提交' ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', color: transferMsg === '转账已提交' ? T.accentGreen : T.accentRed }}>{transferMsg}</div>
+              )}
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
+                <button onClick={() => { setShowTransfer(false); setTransferMsg(''); }}
+                  style={{ padding: '8px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: T.dark300, cursor: 'pointer' }}>取消</button>
+                <button onClick={handleTransfer} disabled={transferLoading || !transferTarget.trim() || !transferAmount.trim()}
+                  style={{ padding: '8px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600, background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.2)', color: T.accentGreen, cursor: (transferLoading || !transferTarget.trim() || !transferAmount.trim()) ? 'not-allowed' : 'pointer', opacity: (transferLoading || !transferTarget.trim() || !transferAmount.trim()) ? 0.5 : 1 }}>
+                  {transferLoading ? '提交中...' : '确认转出'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
