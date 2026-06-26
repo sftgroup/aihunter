@@ -479,6 +479,8 @@ export const walletApiV2 = {
     api.post<ApiResponse<unknown>>( "/api/agentic-wallet/switch", { json: { userId, walletAddress } } ),
   revoke: (userId: string) =>
     api.post<ApiResponse<unknown>>( "/api/agentic-wallet/revoke", { json: { userId } } ),
+  send: (userId: string, recipient: string, chain: string, amount: number, tokenContract?: string) =>
+    api.post<ApiResponse<unknown>>( "/api/agentic-wallet/send", { json: { userId, recipient, chain, amount, tokenContract } } ),
 };
 
 export const signalApiV3 = {
