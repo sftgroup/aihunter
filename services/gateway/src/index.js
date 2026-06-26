@@ -83,9 +83,9 @@ async function reloadOkxConfig() {
 async function broadcastOkxConfig() {
   const cfg = await reloadOkxConfig();
   if (cfg.configured) {
-    await redis.set('okx:api_key', cfg.apiKey);
-    await redis.set('okx:secret_key', cfg.secretKey);
-    await redis.set('okx:passphrase', cfg.passphrase);
+    await redis.set('okx:api_key', cfg.apiKey, 'EX', 3600);
+    await redis.set('okx:secret_key', cfg.secretKey, 'EX', 3600);
+    await redis.set('okx:passphrase', cfg.passphrase, 'EX', 3600);
     await redis.publish('config:update', JSON.stringify({ type: 'okx', data: cfg }));
   }
   // 同步到 okx-trade.js 模块

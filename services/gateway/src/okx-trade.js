@@ -3,31 +3,6 @@
 // 每个用户独立 onchainos session，通过 HOME 环境变量隔离
 import crypto from 'crypto';
 import { execSync } from 'child_process';
-// ---- Redis secret encryption helpers ----
-const REDIS_SECRET_KEY = process.env.REDIS_SECRET_KEY || 'aihunter-redis-enc-key-v1';
-const ENC_ALGO = 'aes-256-gcm';
-function encryptForRedis(plaintext) {
-  const key = crypto.scryptSync(REDIS_SECRET_KEY, 'salt', 32);
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv(ENC_ALGO, key, iv);
-  const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
-  const tag = cipher.getAuthTag();
-  return iv.toString('hex') + ':' + tag.toString('hex') + ':' + encrypted.toString('hex');
-}
-function decryptFromRedis(ciphertext) {
-  const parts = ciphertext.split(':');
-  if (parts.length !== 3) return ciphertext;
-  try {
-    const key = crypto.scryptSync(REDIS_SECRET_KEY, 'salt', 32);
-    const iv = Buffer.from(parts[0], 'hex');
-    const tag = Buffer.from(parts[1], 'hex');
-    const encrypted = Buffer.from(parts[2], 'hex');
-    const decipher = crypto.createDecipheriv(ENC_ALGO, key, iv);
-    decipher.setAuthTag(tag);
-    return decipher.update(encrypted) + decipher.final('utf8');
-  } catch (e) { return ciphertext; }
-}
-
 import fs from 'fs';
 import path from 'path';
 
