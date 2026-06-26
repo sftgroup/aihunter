@@ -66,7 +66,7 @@ export default function MomentumDetailPage() {
       try {
         const res = await signalApiV3.getByStrategy('momentum');
         if (res && (res as any).code === 200 && (res as any).data) {
-          setSignals((res as any).data);
+          setSignals((res as any).data?.signals || (Array.isArray((res as any).data) ? (res as any).data : []));
         }
       } catch (e) { console.error(e); }
       setLoadingSignals(false);
