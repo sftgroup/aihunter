@@ -390,6 +390,11 @@ class LiveTradingRoutes {
 
       await this.db.query(`UPDATE live_trading_configs SET is_active=true,updated_at=NOW() WHERE user_id=$1`, [userId]);
       await this.redis.set(`live:trading:active:${userId}`, '1');
+      // 同步写入 execution 层需要的 trade:active hash（按策略分桶）
+      const strategies = await this.db.query(`SELECT DISTINCT strategy FROM live_trading_configs WHERE user_id=$1`, [userId]);
+      for (const row of strategies.rows) {
+        await this.redis.hset(`trade:active:${row.strategy}`, userId, '1');
+      }
       await this.redis.publish('live:trading:control', JSON.stringify({ userId, action: 'start' }));
       return reply.send({ code: 200, message: '实盘交易已开启' });
     } catch (error) {
@@ -405,6 +410,10 @@ class LiveTradingRoutes {
 
       await this.db.query(`UPDATE live_trading_configs SET is_active=false,updated_at=NOW() WHERE user_id=$1`, [userId]);
       await this.redis.set(`live:trading:active:${userId}`, '0');
+      const strategies = await this.db.query(`SELECT DISTINCT strategy FROM live_trading_configs WHERE user_id=$1`, [userId]);
+      for (const row of strategies.rows) {
+        await this.redis.hdel(`trade:active:${row.strategy}`, userId);
+      }
       await this.redis.publish('live:trading:control', JSON.stringify({ userId, action: 'stop' }));
       return reply.send({ code: 200, message: '实盘交易已暂停' });
     } catch (error) {
