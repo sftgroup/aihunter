@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Wallet, TrendingUp, Activity, Shield, RefreshCw, Copy, ArrowUp, ArrowDown, ExternalLink } from 'lucide-react';
-import { liveApiV3 } from '../utils/api';
+import { Wallet, TrendingUp, Activity, Shield, RefreshCw, Copy, ArrowUp, ArrowDown, ExternalLink, LogOut, Key, Mail } from 'lucide-react';
+import { liveApiV3, walletApiV2 } from '../utils/api';
 
 const T = {
   accent: '#6366f1', accentGreen: '#10b981', accentRed: '#ef4444',
