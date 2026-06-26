@@ -931,7 +931,14 @@ export default function DeFiPage() {
       try {
         const res = await strategyApiV3.list('defi');
         if (res && (res as any).code === 200 && (res as any).data) {
-          setStrategies((res as any).data);
+          const apiData = (res as any).data || [];
+          setStrategies(apiData.map((s: any) => ({
+            ...s,
+            route: s.route || (
+              s.strategy_id === 'lending_arbitrage' ? '/defi/spread-arb' :
+              '/defi/spread-arb'
+            ),
+          })));
         }
       } catch (e) { console.error('Failed to load DeFi strategies, using fallback:', e); }
       setStrategiesLoading(false);

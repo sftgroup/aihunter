@@ -17,7 +17,7 @@ export default async function strategyRoutes(fastify, opts) {
   fastify.get('/strategies', async (request, reply) => {
     try {
       const { category } = request.query;
-      let query = 'SELECT sr.*, sc.config FROM strategy_registry sr LEFT JOIN strategy_configs sc ON sr.strategy_id = sc.strategy_id';
+      let query = 'SELECT sr.* FROM strategy_registry sr';
       const params = [];
       if (category) {
         params.push(category);
@@ -51,6 +51,7 @@ export default async function strategyRoutes(fastify, opts) {
         }
 
         return {
+          route: row.category === 'dex' ? '/dex/momentum' : '/defi/spread-arb',
           strategy_id: row.strategy_id,
           category: row.category,
           display_name: row.display_name,
