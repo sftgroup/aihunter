@@ -104,13 +104,8 @@ export async function request<T = unknown>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  // --- Token check (P0 fix — no silent 401s) ---
+  // Token: if present, include in Authorization header; public routes work without it
   const token = getAuthToken();
-  if (!token) {
-    throw new AuthError(
-      'No authentication token found. Please configure AUTH_TOKEN.',
-    );
-  }
 
   // Build URL with optional query params
   let url = `${path}`;
@@ -125,10 +120,11 @@ export async function request<T = unknown>(
     if (qs) url += `?${qs}`;
   }
 
-  // Build headers
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${token}`,
-  };
+  // Build headers — include Authorization only when token exists
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
 
   // Forward custom headers from the caller
   if (options.headers) {
@@ -283,8 +279,12 @@ export const signalsApi = {
 };
 
 export const signalsPageApi = {
-  getPage: (page: number, size: number, chain?: string) =>
-    typedRequest<any[]>(`/signals/page?page=${page}&size=${size}${chain ? `&chain=${chain}` : ''}`),
+  getPage: async (page: number, size: number, chain?: string) => {
+    const url = `${API_BASE}/signals/page?page=${page}&size=${size}${chain ? `&chain=${chain}` : ''}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  },
 };
 
 // ===== 学习系统 =====
@@ -303,7 +303,12 @@ export const strategyApi = {
 
 // ===== 系统 =====
 export const systemApi = {
-  getStatus: () => typedRequest<SystemStatus>('/system/status'),
+  getStatus: async () => {
+    const url = `${API_BASE}/system/status`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  },
 };
 
 // ===== 借贷 =====
@@ -456,11 +461,24 @@ export const strategyApiV3 = {
 };
 
 export const liveApiV3 = {
-  getStatus: (userId: string) => api.get<ApiResponse<unknown>>('/api/v3/live/status', { params: { userId } }),
+  getStatus: async (userId: string) => {
+    const url = `${API_BASE}/v3/live/status?userId=${encodeURIComponent(userId)}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  },
   toggleStrategy: (userId: string, strategyId: string, active: boolean, wallet_address?: string) =>
     api.post<ApiResponse<unknown>>('/api/v3/live/toggle', { json: { userId, strategy_id: strategyId, active } }),
-  getRecords: (userId: string, params?: { strategy_id?: string; page?: number; size?: number }) =>
-    api.get<ApiResponse<unknown>>('/api/v3/live/records', { params: { ...params, userId } }),
+  getRecords: async (userId: string, params?: { strategy_id?: string; page?: number; size?: number }) => {
+    const qs = new URLSearchParams({ userId });
+    if (params?.strategy_id) qs.set('strategy_id', params.strategy_id);
+    if (params?.page) qs.set('page', String(params.page));
+    if (params?.size) qs.set('size', String(params.size));
+    const url = `${API_BASE}/v3/live/records?${qs.toString()}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  },
 };
 
 // V2 OKX Agentic Wallet API
@@ -471,8 +489,12 @@ export const walletApiV2 = {
     api.post<ApiResponse<unknown>>( "/api/agentic-wallet/login", { json: { userId, email } } ),
   verify: (userId: string, code: string, chain?: string) =>
     api.post<ApiResponse<unknown>>( "/api/agentic-wallet/verify", { json: { userId, code, chain } } ),
-  getStatus: (userId: string) =>
-    api.get<ApiResponse<unknown>>( `/api/agentic-wallet/status?userId=${encodeURIComponent(userId)}` ),
+  getStatus: async (userId: string) => {
+    const url = `${API_BASE}/agentic-wallet/status?userId=${encodeURIComponent(userId)}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  },
   logout: (userId: string) =>
     api.post<ApiResponse<unknown>>( "/api/agentic-wallet/logout", { json: { userId } } ),
   switch_: (userId: string, walletAddress: string) =>

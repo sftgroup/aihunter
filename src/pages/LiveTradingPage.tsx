@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+// import { useNavigate } from 'react-router-dom';
 import { useAccount } from 'wagmi';
-import { Wallet, TrendingUp, Activity, Shield, RefreshCw, Copy, ArrowUp, ArrowDown, ExternalLink, LogOut, Key, Mail, Send, X } from 'lucide-react';
+import { Wallet, TrendingUp, Activity, Shield, RefreshCw, Copy, ArrowUp, ArrowDown, ExternalLink, LogOut, Key, Mail, Send, X, Clock } from 'lucide-react';
 import { liveApiV3, walletApiV2 } from '../utils/api';
 
 const T = {
@@ -51,6 +51,8 @@ function WalletPanel() {
   const [loginError, setLoginError] = useState('');
   const [loginSending, setLoginSending] = useState(false);
   const [loginVerifying, setLoginVerifying] = useState(false);
+  const [otpCooldown, setOtpCooldown] = useState(0);
+  const otpTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [showTransfer, setShowTransfer] = useState(false);
   const [transferTarget, setTransferTarget] = useState('');
   const [transferAmount, setTransferAmount] = useState('');
@@ -60,6 +62,7 @@ function WalletPanel() {
   const [transferMsg, setTransferMsg] = useState('');
   const { address } = useAccount();
   const userId = address || '';
+  const prevWalletRef = useRef<any>(null);
 
   const loadStatus = useCallback(async () => {
     if (!userId) { setLoading(false); return; }
@@ -69,9 +72,12 @@ function WalletPanel() {
         const data = (res as any).data;
         if (data && data.wallet_address) {
           setWallet(data);
+          prevWalletRef.current = data;
           if (data.wallets?.length) setWallets(data.wallets);
         } else {
-          setWallet(null); setWallets([]);
+          if (!prevWalletRef.current) {
+            setWallet(null); setWallets([]);
+          }
         }
       }
     } catch (_) {}
@@ -84,6 +90,17 @@ function WalletPanel() {
     try { await walletApiV2.switch_(userId, addr); loadStatus(); } catch (_) {}
   };
 
+  const startOtpCooldown = (seconds: number) => {
+    setOtpCooldown(seconds);
+    if (otpTimerRef.current) clearInterval(otpTimerRef.current);
+    otpTimerRef.current = setInterval(() => {
+      setOtpCooldown(prev => {
+        if (prev <= 1) { if (otpTimerRef.current) clearInterval(otpTimerRef.current); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
   const handleLoginEmail = async () => {
     if (!loginEmail.trim()) return;
     setLoginError('');
@@ -93,9 +110,17 @@ function WalletPanel() {
       if (res && (res as any).code === 200) {
         setLoginStep('otp');
       } else {
-        setLoginError((res as any)?.message || '发送失败');
+        const msg = (res as any)?.message || (res as any)?.error || '发送失败';
+        setLoginError(msg);
+        const m = msg.match(/try again in (\d+)s/i) || msg.match(/(\d+).*秒/);
+        if (m) startOtpCooldown(parseInt(m[1]));
+        else if (/frequent|too many|rate limit/i.test(msg)) startOtpCooldown(60);
       }
-    } catch (e: any) { setLoginError(e?.message || '网络错误'); }
+    } catch (e: any) {
+      const msg = e?.message || '网络错误';
+      setLoginError(msg);
+      if (/frequent|too many|rate limit/i.test(msg)) startOtpCooldown(60);
+    }
     setLoginSending(false);
   };
 
@@ -109,7 +134,7 @@ function WalletPanel() {
         setLoginStep('idle');
         setLoginEmail('');
         setLoginOtp('');
-        loadStatus();
+        await loadStatus();
       } else {
         setLoginError((res as any)?.message || '验证失败');
       }
@@ -117,9 +142,12 @@ function WalletPanel() {
     setLoginVerifying(false);
   };
 
+  // cleanup cooldown timer on unmount
+  useEffect(() => { return () => { if (otpTimerRef.current) clearInterval(otpTimerRef.current); }; }, []);
+
   const handleLogout = async () => {
     try { await walletApiV2.logout(userId); } catch (_) {}
-    setWallet(null); setWallets([]);
+    setWallet(null); setWallets([]); prevWalletRef.current = null;
   };
 
   const handleRevoke = async () => {
@@ -171,8 +199,7 @@ function WalletPanel() {
         <>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'white' }}>OKX TEE 钱包</div>
-              <div style={{ fontSize: 10, color: T.dark400, textTransform: 'uppercase', marginTop: 2 }}>{wallet.chain || 'ETH'}</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'white' }}>TEE 安全钱包</div>
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
               <button onClick={handleRevoke} style={{ padding: '4px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: T.dark300, fontSize: 11, cursor: 'pointer' }}>撤销</button>
@@ -180,32 +207,22 @@ function WalletPanel() {
             </div>
           </div>
 
-          {/* Multi-address list */}
-          {hasWallets && (
-            <div style={{ marginBottom: 12, background: 'rgba(255,255,255,0.02)', borderRadius: 10, padding: '6px 8px' }}>
-              <div style={{ fontSize: 10, color: T.dark400, marginBottom: 6 }}>钱包地址列表</div>
-              {wallets.map((w: any, i: number) => (
-                <div
-                  key={w.wallet_address || i}
-                  onClick={() => w.wallet_address !== wallet.wallet_address && handleSwitchWallet(w.wallet_address)}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '4px 8px', borderRadius: 6,
-                    cursor: w.wallet_address === wallet.wallet_address ? 'default' : 'pointer',
-                    background: w.wallet_address === wallet.wallet_address ? 'rgba(99,102,241,0.1)' : 'transparent',
-                    marginBottom: 2,
-                  }}
-                >
-                  <span style={{ fontSize: 10, fontFamily: 'monospace', color: w.wallet_address === wallet.wallet_address ? T.accent : T.dark300 }}>
-                    {w.label || fmtAddr(w.wallet_address)}
-                  </span>
-                  <span style={{ fontSize: 10, fontFamily: 'monospace', color: T.dark300 }}>
-                    ${Number(w.totalUsd ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-              ))}
+          {/* Sub-wallet count hint */}
+          {wallets.length > 1 && (
+            <div style={{ fontSize: 10, color: T.dark400, marginBottom: 10, padding: '0 4px' }}>
+              {wallets.length} 个子钱包地址（可在策略配置中分配）
             </div>
           )}
+
+          {/* #6: Standalone transfer button */}
+          <button
+            onClick={() => setShowTransfer(true)}
+            style={{
+              width: '100%', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)',
+              borderRadius: 8, color: T.accentGreen, fontSize: 11, fontWeight: 600, padding: '8px 0', cursor: 'pointer', marginBottom: 10,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            }}
+          ><Send size={12} /> 转出资金</button>
 
           {/* Add new address */}
           <button
@@ -228,7 +245,12 @@ function WalletPanel() {
               {loginError && <p style={{ fontSize: 10, color: T.accentRed, marginTop: 4, textAlign: 'center' }}>{loginError}</p>}
               <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                 <button onClick={() => { setLoginStep('idle'); setLoginError(''); }} style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, color: T.dark300, fontSize: 11, padding: '6px 0', cursor: 'pointer' }}>取消</button>
-                <button onClick={handleLoginEmail} disabled={loginSending} style={{ flex: 1, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', borderRadius: 8, color: 'white', fontSize: 11, fontWeight: 600, padding: '6px 0', cursor: loginSending ? 'default' : 'pointer', opacity: loginSending ? 0.6 : 1 }}>{loginSending ? '发送中...' : '发送验证码'}</button>
+                {otpCooldown > 0 && (
+                  <p style={{ fontSize: 9, color: T.accentOrange, marginTop: 2, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                    <Clock size={10} /> 冷却 {otpCooldown} 秒后可重试
+                  </p>
+                )}
+                <button onClick={handleLoginEmail} disabled={loginSending || otpCooldown > 0} style={{ flex: 1, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', borderRadius: 8, color: 'white', fontSize: 11, fontWeight: 600, padding: '6px 0', cursor: (loginSending || otpCooldown > 0) ? 'not-allowed' : 'pointer', opacity: (loginSending || otpCooldown > 0) ? 0.6 : 1 }}>{loginSending ? '发送中...' : (otpCooldown > 0 ? `${otpCooldown}s` : '发送验证码')}</button>
               </div>
             </div>
           )}
@@ -248,26 +270,25 @@ function WalletPanel() {
             </div>
           )}
 
-          {/* Address + copy + transfer */}
-          <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 11, fontFamily: 'monospace', color: T.dark300 }}>{fmtAddr(wallet.wallet_address)}</span>
-            <button onClick={() => navigator.clipboard.writeText(wallet.wallet_address)} style={{ background: 'none', border: 'none', color: T.dark400, cursor: 'pointer', padding: 0 }}>
-              <Copy size={13} />
+          {/* Address + copy button */}
+          <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '10px 14px', marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 12, fontFamily: 'monospace', color: T.dark200 }}>{fmtAddr(wallet.wallet_address)}</span>
+            <button onClick={() => navigator.clipboard.writeText(wallet.wallet_address)} style={{ background: 'none', border: 'none', color: T.accent, cursor: 'pointer', padding: '4px 8px', borderRadius: 6 }}>
+              <Copy size={14} />
             </button>
-            <button onClick={() => setShowTransfer(true)} style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid var(--accent-green)', borderRadius: 8, color: 'var(--accent-green)', fontSize: 11, fontWeight: 600, padding: '4px 10px', cursor: 'pointer', marginLeft: 8 }}>💸 转出</button>
           </div>
 
           {/* Balance + auth status */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ fontSize: 10, color: T.dark400, textTransform: 'uppercase' }}>余额</div>
+              <div style={{ fontSize: 10, color: T.dark400, textTransform: 'uppercase' }}>估计总余额</div>
               <div style={{ fontSize: 22, fontWeight: 700, color: 'white', fontFamily: 'monospace' }}>
                 ${Number(wallet.totalUsd ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 8, background: authorized ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)' }}>
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: authorized ? T.accentGreen : T.accentRed, animation: authorized ? 'pulseLED 2s infinite' : 'none' }} />
-              <span style={{ fontSize: 12, fontWeight: 600, color: authorized ? T.accentGreen : T.accentRed }}>{authorized ? '已授权' : '未授权'}</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: authorized ? T.accentGreen : T.accentRed }}>{authorized ? 'SessionKey 有效' : 'SessionKey 无效'}</span>
             </div>
           </div>
           {authorized && wallet.expires_at && (
@@ -276,12 +297,16 @@ function WalletPanel() {
 
           {/* token balances */}
           {wallet.balances && wallet.balances.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
-              {wallet.balances.slice(0, 4).map((b: any, i: number) => (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10, marginBottom: 12 }}>
+              {wallet.balances.map((b: any, i: number) => (
                 <span key={i} style={{ padding: '2px 8px', borderRadius: 6, fontSize: 10, background: 'rgba(255,255,255,0.04)', color: T.dark300, fontFamily: 'monospace' }}>{b.symbol || b.asset}: {Number(b.balance || 0).toFixed(4)}</span>
               ))}
             </div>
           )}
+          {/* Gas fee tip */}
+          <div style={{ fontSize: 10, color: T.dark500, padding: '4px 8px', background: 'rgba(245,158,11,0.06)', borderRadius: 6, marginBottom: 12 }}>
+            💡 子钱包需持有各链原生代币（ETH/BNB/SOL）才能支付 Gas 费进行交易
+          </div>
         </>
       ) : (
         <div style={{ textAlign: 'center', paddingTop: 16, paddingBottom: 20 }}>
@@ -315,7 +340,12 @@ function WalletPanel() {
               {loginError && <p style={{ fontSize: 10, color: T.accentRed, marginTop: 4, textAlign: 'center' }}>{loginError}</p>}
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={() => { setLoginStep('idle'); setLoginError(''); }} style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, color: T.dark300, fontSize: 12, padding: '8px 0', cursor: 'pointer' }}>取消</button>
-                <button onClick={handleLoginEmail} disabled={loginSending} style={{ flex: 1, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', borderRadius: 8, color: 'white', fontSize: 12, fontWeight: 600, padding: '8px 0', cursor: loginSending ? 'default' : 'pointer', opacity: loginSending ? 0.6 : 1 }}>{loginSending ? '发送中...' : '登录 / 创建'}</button>
+                {otpCooldown > 0 && (
+                  <p style={{ fontSize: 9, color: T.accentOrange, marginTop: 2, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                    <Clock size={10} /> 冷却 {otpCooldown} 秒后可重试
+                  </p>
+                )}
+                <button onClick={handleLoginEmail} disabled={loginSending || otpCooldown > 0} style={{ flex: 1, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', borderRadius: 8, color: 'white', fontSize: 12, fontWeight: 600, padding: '8px 0', cursor: (loginSending || otpCooldown > 0) ? 'not-allowed' : 'pointer', opacity: (loginSending || otpCooldown > 0) ? 0.6 : 1 }}>{loginSending ? '发送中...' : (otpCooldown > 0 ? `${otpCooldown}s` : '登录 / 创建')}</button>
               </div>
             </div>
           )}
@@ -353,8 +383,21 @@ function WalletPanel() {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
-                <label style={{ fontSize: 11, color: T.dark400, display: 'block', marginBottom: 6 }}>目标地址</label>
-                <input placeholder="0x..." value={transferTarget} onChange={(e) => setTransferTarget(e.target.value)}
+                <label style={{ fontSize: 11, color: T.dark400, display: 'block', marginBottom: 6 }}>目标地址（可从子钱包中选择）</label>
+                {wallets.length > 0 && (
+                  <select
+                    onChange={(e) => { const v = e.target.value; if (v) setTransferTarget(v); }}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: 'white', fontSize: 13, outline: 'none', cursor: 'pointer', marginBottom: 6, boxSizing: 'border-box' }}
+                  >
+                    <option value="" style={{background:'#1a1a1a'}}>— 选择子钱包地址 —</option>
+                    {wallets.map((w: any, i: number) => (
+                      <option key={i} value={w.wallet_address} style={{background:'#1a1a1a'}}>
+                        {w.label || fmtAddr(w.wallet_address)} — ${Number(w.totalUsd ?? 0).toFixed(2)}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <input placeholder="或手动输入 0x..." value={transferTarget} onChange={(e) => setTransferTarget(e.target.value)}
                   style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: 'white', fontSize: 13, outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box' }} />
               </div>
               <div style={{ display: 'flex', gap: 12 }}>
@@ -374,7 +417,20 @@ function WalletPanel() {
                   </select>
                 </div>
               </div>
-              <div>
+              {/* #7: Token balance reference — click to fill contract */}
+              {wallet?.balances && wallet.balances.length > 0 && (
+                <div style={{ padding: '8px 10px', borderRadius: 10, background: 'rgba(255,255,255,0.03)' }}>
+                  <div style={{ fontSize: 10, color: T.dark400, marginBottom: 6 }}>当前代币余额（点击填入合约）</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {wallet.balances.map((b: any, i: number) => (
+                      <span key={i} onClick={() => { if (b.contract && b.symbol && !['ETH','BNB','SOL'].includes(b.symbol)) setTransferContract(b.contract); }} style={{ padding: '3px 8px', borderRadius: 6, fontSize: 10, background: b.contract && transferContract === b.contract ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.04)', color: T.dark300, fontFamily: 'monospace', cursor: b.contract ? 'pointer' : 'default' }}>
+                        {b.symbol || b.asset}: {Number(b.balance || 0).toFixed(4)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div style={{ marginTop: 12 }}>
                 <label style={{ fontSize: 11, color: T.dark400, display: 'block', marginBottom: 6 }}>代币合约（可选，不填为原生代币）</label>
                 <input placeholder="0x... 或留空" value={transferContract} onChange={(e) => setTransferContract(e.target.value)}
                   style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: 'white', fontSize: 13, outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box' }} />
@@ -407,6 +463,7 @@ function StrategyTradingPanel() {
   const [toggling, setToggling] = useState<string | null>(null);
   const [strategyWallets, setStrategyWallets] = useState<Record<string, string>>({});
   const [availableWallets, setAvailableWallets] = useState<any[]>([]);
+  const [showWalletPicker, setShowWalletPicker] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -416,9 +473,9 @@ function StrategyTradingPanel() {
       }
     } catch (e) { console.error(e); }
     setLoading(false);
-  }, []);
+  }, [userId]);
 
-    const loadWallets = async () => {
+  const loadWallets = useCallback(async () => {
     if (!userId) return;
     try {
       const res = await walletApiV2.getStatus(userId);
@@ -428,9 +485,9 @@ function StrategyTradingPanel() {
         else if (data?.wallet_address) setAvailableWallets([data]);
       }
     } catch (_) {}
-  };
+  }, [userId]);
 
-  useEffect(() => { load(); loadWallets(); }, [load]);
+  useEffect(() => { load(); loadWallets(); }, [load, loadWallets]);
 
   const handleToggle = async (id: string, active: boolean) => {
     setToggling(id);
@@ -453,7 +510,8 @@ function StrategyTradingPanel() {
           {strategies.map((s: any) => {
             const isActive = s.active || s.enabled;
             return (
-              <div key={s.strategy_id || s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: 12, background: 'rgba(255,255,255,0.02)', border: isActive ? '1px solid rgba(16,185,129,0.15)' : '1px solid rgba(255,255,255,0.04)' }}>
+              <React.Fragment key={s.strategy_id || s.id}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: 12, background: 'rgba(255,255,255,0.02)', border: isActive ? '1px solid rgba(16,185,129,0.15)' : '1px solid rgba(255,255,255,0.04)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
                   <div style={{ width: 32, height: 32, borderRadius: 8, background: isActive ? 'rgba(16,185,129,0.1)' : 'rgba(128,128,128,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <TrendingUp size={16} color={isActive ? T.accentGreen : T.dark400} />
@@ -476,9 +534,34 @@ function StrategyTradingPanel() {
                     disabled={toggling === (s.strategy_id || s.id)}
                     style={{ padding: '6px 14px', borderRadius: 8, fontSize: 11, fontWeight: 600, background: isActive ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)', border: isActive ? '1px solid rgba(239,68,68,0.2)' : '1px solid rgba(16,185,129,0.2)', color: isActive ? T.accentRed : T.accentGreen, cursor: toggling === (s.strategy_id || s.id) ? 'not-allowed' : 'pointer' }}
                   >{toggling === (s.strategy_id || s.id) ? '...' : (isActive ? '暂停' : '开启')}</button>
-                  <button onClick={() => navigate('/config')} style={{ padding: '6px 14px', borderRadius: 8, fontSize: 11, fontWeight: 600, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)', color: T.accent, cursor: 'pointer' }}>配置</button>
+                  <button onClick={() => setShowWalletPicker(prev => prev === (s.strategy_id || s.id) ? null : (s.strategy_id || s.id))} style={{ padding: '6px 14px', borderRadius: 8, fontSize: 11, fontWeight: 600, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)', color: T.accent, cursor: 'pointer' }}>⚙️ 配置钱包</button>
                 </div>
               </div>
+              {/* Wallet picker: outside flex card to prevent layout deformation */}
+              {showWalletPicker === (s.strategy_id || s.id) && (
+                <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 10, background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.12)' }}>
+                  <div style={{ fontSize: 10, color: T.dark400, marginBottom: 6 }}>选择执行钱包</div>
+                  {availableWallets.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      {availableWallets.map((w: any) => (
+                        <div key={w.wallet_address} onClick={() => { setStrategyWallets(prev => ({ ...prev, [s.strategy_id || s.id as string]: w.wallet_address })); setShowWalletPicker(null); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 8px', borderRadius: 6, cursor: 'pointer', background: strategyWallets[s.strategy_id || s.id as string] === w.wallet_address ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.03)' }}>
+                          <span style={{ fontSize: 10, fontFamily: 'monospace', color: strategyWallets[s.strategy_id || s.id as string] === w.wallet_address ? T.accent : T.dark300 }}>{w.label || (w.wallet_address ? w.wallet_address.slice(0,6)+'...'+w.wallet_address.slice(-4) : '-')}</span>
+                          <span style={{ fontSize: 10, color: T.dark400 }}>${Number(w.totalUsd ?? 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ fontSize: 10, color: T.dark500, textAlign: 'center', padding: '4px 0' }}>暂无可用钱包，请先在 Agentic Wallet 面板连接</p>
+                  )}
+                  {strategyWallets[s.strategy_id || s.id as string] && (
+                    <div style={{ marginTop: 8, padding: '4px 8px', borderRadius: 6, background: 'rgba(16,185,129,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: 10, color: T.accentGreen }}>✅ 已绑定: {strategyWallets[s.strategy_id || s.id as string]!.slice(0,6)}...{strategyWallets[s.strategy_id || s.id as string]!.slice(-4)}</span>
+                      <button onClick={() => { const newSw = { ...strategyWallets }; delete newSw[s.strategy_id || s.id as string]; setStrategyWallets(newSw); }} style={{ background: 'none', border: 'none', color: T.accentRed, fontSize: 10, cursor: 'pointer' }}>解除</button>
+                    </div>
+                  )}
+                </div>
+              )}
+              </React.Fragment>
             );
           })}
         </div>
@@ -503,7 +586,7 @@ function RiskPanel() {
       } catch (e) { console.error(e); }
       setLoading(false);
     })();
-  }, []);
+  }, [userId]);
 
   const todayLoss = risk?.today_loss ?? 0;
   const dailyMaxLoss = risk?.daily_max_loss ?? 1000;

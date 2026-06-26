@@ -157,7 +157,8 @@ app.addHook('preHandler', async (request, reply) => {
 
   const publicRoutes = [
     '/health', '/api/rank/ping', '/api/prize/ping', '/api/system/status',
-    '/api/signals/recent',
+    '/api/signals/recent', '/api/signals/page',
+    '/api/v3/live/status', '/api/v3/live/records',
     '/api/agentic-wallet/login', '/api/agentic-wallet/verify', '/api/agentic-wallet/status',
     '/api/agentic-wallet/switch',
   ];
