@@ -2,7 +2,7 @@
 ARBITRAGE 策略 - 完整跨池DEX套利引擎
 V3+V2+Chainlink 混合价格源 | 多跳路由 | Gas利润计算
 """
-import json, asyncio, time, math
+import json, asyncio, time, math, uuid
 from datetime import datetime
 from typing import Optional
 
@@ -288,9 +288,36 @@ class ArbitrageEngine:
                     profit = o['profit_est_usd']
                     print(f"  💰 [{chain}] {o['pair']} 偏差{dev}% 预估利润${profit}")
                     if profit > 5:  # 利润>$5才发信号
-                        await self.redis.publish('trade:signals', json.dumps({
-                            'type': 'ARBITRAGE', 'data': o
-                        }))
-                        print(f"  📡 [{chain}] 套利信号发布!")
+                        o_signal = o
+                        signal_v3 = {
+                            "signal_id": str(uuid.uuid4()),
+                            "type": "SPREAD_ARBITRAGE",
+                            "strategy_id": "spread_arbitrage",
+                            "version": "3.0",
+                            "timestamp": int(time.time() * 1000),
+                            "ttl_seconds": 60,
+                            "chain": chain,
+                            "action": "ARBITRAGE",
+                            "token_address": o_signal.get("pair", ""),
+                            "token_symbol": o_signal.get("pair", ""),
+                            "score": min(100, int(o_signal.get("deviation_pct", 0) * 25)),
+                            "confidence": min(1.0, o_signal.get("deviation_pct", 0) * 0.1),
+                            "execution_params": {
+                                "buy_dex": o_signal.get("source", ""),
+                                "sell_dex": o_signal.get("ref_source", ""),
+                                "buy_price": o_signal.get("price_ref", 0),
+                                "sell_price": o_signal.get("price_dex", 0),
+                                "estimated_profit_usdt": o_signal.get("profit_est_usd", 0),
+                                "token_pair": o_signal.get("pair", ""),
+                                "spread_pct": o_signal.get("deviation_pct", 0),
+                            },
+                            "risk_tags": [],
+                            "risk_score": 100 - min(100, int(o_signal.get("deviation_pct", 0) * 25)),
+                            "source": "worker",
+                        }
+                        await self.redis.publish("trade:signals:spread_arbitrage", json.dumps(signal_v3))
+                        await self.redis.zadd("signals:spread_arbitrage:recent", {json.dumps(signal_v3): int(time.time() * 1000)})
+                        await self.redis.zremrangebyrank("signals:spread_arbitrage:recent", 0, -201)
+                        print(f"  📡 [{chain}] 套利信号发布V3!")
             except Exception as e:
                 print(f"  ⚠️ [{chain}] 异常: {e}")

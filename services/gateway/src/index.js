@@ -24,6 +24,7 @@ import {
 } from "./okx-trade.js";
 const { Pool } = pg;
 
+import { initExecutionLayer } from './execution/index.js';
 const PORT = parseInt(process.env.PORT || '3100');
 const REDIS_URL = process.env.REDIS_URL;
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -1310,7 +1311,10 @@ app.register(async function (fastify) {
 import ArbitrageRoutes from "./routes/arbitrage.js";
 
 // ===== 注册实盘交易路由 =====
+import strategyRoutes from './routes/strategies.js';
+import signalRoutes from './routes/signals.js';
 import LiveTradingRoutes from "./routes/liveTrading.js";
+import liveTradingV3Routes from './routes/liveTradingV3.js';
 new LiveTradingRoutes(app, {
   okx: {
     onchainosLogin,
@@ -1331,9 +1335,14 @@ const okxTrade = {
   onchainosWalletAddresses,
 };
 new ArbitrageRoutes(app, { pool: db }, redis);
+app.register(strategyRoutes, { prefix: '/api/v3' });
+app.register(signalRoutes, { prefix: '/api/v3' });
 const wssServer = app.websocketServer || null;
 const autoTrader = new AutoTrader({ db, redis, okxClient: okxTrade, wss: wssServer });
 
+const executionLayer = await initExecutionLayer({ db, redis, okxClient: okxTrade });
+app.decorate('execution', executionLayer);
+app.register(liveTradingV3Routes, { prefix: '/api/v3' });
 // ===== 启动 =====
 try {
   await app.listen({ port: PORT, host: '0.0.0.0' });

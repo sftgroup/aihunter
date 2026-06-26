@@ -3,7 +3,7 @@ from src.okx_client import configure as okx_configure, get_hot_tokens, get_price
 MATURE_MEME - 成熟土狗「震荡→突破」捕捉引擎
 核心逻辑：识别横盘震荡结束 + 放量突破上涨
 """
-import json, asyncio, time, math
+import json, asyncio, time, math, uuid
 from datetime import datetime, timedelta
 import httpx
 
@@ -870,9 +870,36 @@ class MatureMemeEngine:
                 if result and result.get('action') == 'buy':
                     buy_signals.append(result)
 
-                    # 发布到 trade:signals channel
+                    # 发布 V3 统一格式信号
                     try:
-                        await self.redis.publish("trade:signals", json.dumps({"type": "MATURE_MEME", "data": result}))
+                        signal_data = result
+                        signal_v3 = {
+                            "signal_id": str(uuid.uuid4()),
+                            "type": "MATURE_MEME",
+                            "strategy_id": "momentum",
+                            "version": "3.0",
+                            "timestamp": int(time.time() * 1000),
+                            "ttl_seconds": 120,
+                            "chain": signal_data["chain"],
+                            "action": signal_data.get("action", "buy"),
+                            "token_address": signal_data["contract"],
+                            "token_symbol": signal_data.get("symbol", ""),
+                            "score": signal_data["score"],
+                            "confidence": signal_data.get("confidence", 0.0),
+                            "execution_params": {
+                                "entry_price_usd": signal_data.get("current_price"),
+                                "liquidity_usd": signal_data.get("pool_liquidity_usd"),
+                                "range_pct": signal_data.get("range_pct"),
+                                "signals": signal_data.get("signals", []),
+                            },
+                            "risk_tags": signal_data.get("safety_tags", []),
+                            "risk_score": signal_data.get("risk_score", 0),
+                            "source": "worker",
+                        }
+                        # 双写: PUBLISH + ZSET
+                        await self.redis.publish("trade:signals:momentum", json.dumps(signal_v3))
+                        await self.redis.zadd("signals:momentum:recent", {json.dumps(signal_v3): int(time.time() * 1000)})
+                        await self.redis.zremrangebyrank("signals:momentum:recent", 0, -201)
                     except Exception:
                         pass
 
