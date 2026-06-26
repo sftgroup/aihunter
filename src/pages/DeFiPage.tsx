@@ -897,7 +897,7 @@ function LendingRates() {
 
 const defiFallbackStrategies: StrategyInfo[] = [
   {
-    strategy_id: 'spread_arb', category: 'defi', display_name: '价差套利',
+    strategy_id: 'spread_arbitrage', category: 'defi', display_name: '价差套利',
     description: '跨 DEX 价差扫描 + 自动执行，支持多链',
     icon: 'activity', enabled: true, auto_trading: true,
     metrics: { today_signals: 12, today_trades: 3, today_pnl: 89.40 },

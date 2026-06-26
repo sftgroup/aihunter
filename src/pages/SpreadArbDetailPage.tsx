@@ -51,9 +51,9 @@ export default function SpreadArbDetailPage() {
     (async () => {
       setLoadingOpps(true);
       try {
-        const res = await signalApiV3.getByStrategy('spread_arb');
+        const res = await signalApiV3.getByStrategy('spread_arbitrage');
         if (res && (res as any).code === 200 && (res as any).data) {
-          setOpportunities((res as any).data);
+          setOpportunities((res as any).data?.signals || (Array.isArray((res as any).data) ? (res as any).data : []));
         }
       } catch (e) { console.error(e); }
       setLoadingOpps(false);
@@ -64,7 +64,7 @@ export default function SpreadArbDetailPage() {
     (async () => {
       setLoadingReport(true);
       try {
-        const res = await learningApiV3.getReport('spread_arb');
+        const res = await learningApiV3.getReport('spread_arbitrage');
         if (res && (res as any).code === 200 && (res as any).data) {
           setLearningReport((res as any).data);
         }
@@ -76,9 +76,9 @@ export default function SpreadArbDetailPage() {
   const handleTrigger = async () => {
     setTriggering(true);
     try {
-      await learningApiV3.trigger('spread_arb');
+      await learningApiV3.trigger('spread_arbitrage');
       setTimeout(async () => {
-        const res = await learningApiV3.getReport('spread_arb');
+        const res = await learningApiV3.getReport('spread_arbitrage');
         if (res && (res as any).code === 200 && (res as any).data) {
           setLearningReport((res as any).data);
         }
