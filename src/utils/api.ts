@@ -471,8 +471,8 @@ export const walletApiV2 = {
     api.post<ApiResponse<unknown>>( "/api/agentic-wallet/login", { json: { userId, email } } ),
   verify: (userId: string, code: string, chain?: string) =>
     api.post<ApiResponse<unknown>>( "/api/agentic-wallet/verify", { json: { userId, code, chain } } ),
-  getStatus: () =>
-    api.get<ApiResponse<unknown>>( "/api/agentic-wallet/status" ),
+  getStatus: (userId: string) =>
+    api.get<ApiResponse<unknown>>( `/api/agentic-wallet/status?userId=${encodeURIComponent(userId)}` ),
   logout: (userId: string) =>
     api.post<ApiResponse<unknown>>( "/api/agentic-wallet/logout", { json: { userId } } ),
   switch_: (userId: string, walletAddress: string) =>

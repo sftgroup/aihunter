@@ -42,12 +42,14 @@ function fmtTime(ts: string) {
 
 function WalletPanel() {
   const [wallet, setWallet] = useState<any>(null);
+  const [wallets, setWallets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [email, setEmail] = useState("");
-  const [otpCode, setOtpCode] = useState("");
-  const [step, setStep] = useState<"idle" | "otp" | "connected">("idle");
-  const [sending, setSending] = useState(false);
-  const [verifying, setVerifying] = useState(false);
+  const [loginStep, setLoginStep] = useState<'idle'|'email'|'otp'>('idle');
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginOtp, setLoginOtp] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [loginSending, setLoginSending] = useState(false);
+  const [loginVerifying, setLoginVerifying] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
   const [transferTarget, setTransferTarget] = useState('');
   const [transferAmount, setTransferAmount] = useState('');
@@ -59,49 +61,64 @@ function WalletPanel() {
   const userId = address || '';
 
   const loadStatus = useCallback(async () => {
+    if (!userId) { setLoading(false); return; }
     try {
-      const res = await walletApiV2.getStatus();
+      const res = await walletApiV2.getStatus(userId);
       if (res && (res as any).code === 200) {
         const data = (res as any).data;
-        if (data && data.wallet_address) { setWallet(data); setStep("connected"); }
+        if (data && data.wallet_address) {
+          setWallet(data);
+          if (data.wallets?.length) setWallets(data.wallets);
+        } else {
+          setWallet(null); setWallets([]);
+        }
       }
     } catch (_) {}
     setLoading(false);
-  }, []);
+  }, [userId]);
 
   useEffect(() => { loadStatus(); }, [loadStatus]);
 
-  const handleLookupOrLogin = async () => {
-    if (!email.trim()) return;
-    setSending(true);
-    try {
-      const lookupRes = await walletApiV2.lookup(userId, email);
-      if (lookupRes && (lookupRes as any).code === 200 && (lookupRes as any).data?.hasWallets && (lookupRes as any).data?.wallets?.length > 0) {
-        setWallet((lookupRes as any).data.wallets[0]);
-        setStep("connected");
-      } else {
-        const loginRes = await walletApiV2.login(userId, email);
-        if (loginRes && (loginRes as any).code === 200) setStep("otp");
-      }
-    } catch (_) {}
-    setSending(false);
+  const handleSwitchWallet = async (addr: string) => {
+    try { await walletApiV2.switch_(userId, addr); loadStatus(); } catch (_) {}
   };
 
-  const handleVerify = async () => {
-    if (!otpCode.trim()) return;
-    setVerifying(true);
+  const handleLoginEmail = async () => {
+    if (!loginEmail.trim()) return;
+    setLoginError('');
+    setLoginSending(true);
     try {
-      const res = await walletApiV2.verify(userId, otpCode);
-      if (res && (res as any).code === 200 && (res as any).data) {
-        setWallet((res as any).data); setStep("connected"); setOtpCode("");
+      const res = await walletApiV2.login(userId, loginEmail);
+      if (res && (res as any).code === 200) {
+        setLoginStep('otp');
+      } else {
+        setLoginError((res as any)?.message || '发送失败');
       }
-    } catch (_) {}
-    setVerifying(false);
+    } catch (e: any) { setLoginError(e?.message || '网络错误'); }
+    setLoginSending(false);
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!loginOtp.trim()) return;
+    setLoginVerifying(true);
+    setLoginError('');
+    try {
+      const res = await walletApiV2.verify(userId, loginOtp);
+      if (res && (res as any).code === 200) {
+        setLoginStep('idle');
+        setLoginEmail('');
+        setLoginOtp('');
+        loadStatus();
+      } else {
+        setLoginError((res as any)?.message || '验证失败');
+      }
+    } catch (e: any) { setLoginError(e?.message || '网络错误'); }
+    setLoginVerifying(false);
   };
 
   const handleLogout = async () => {
     try { await walletApiV2.logout(userId); } catch (_) {}
-    setWallet(null); setStep("idle"); setEmail("");
+    setWallet(null); setWallets([]);
   };
 
   const handleRevoke = async () => {
@@ -130,84 +147,193 @@ function WalletPanel() {
     setTransferLoading(false);
   };
 
-  const wAddr = wallet?.wallet_address || wallet?.address || "";
+  const authorized = wallet?.authorized ?? false;
+  const hasWallets = wallets.length > 0;
+  const fmtAddr = (a: string) => a ? `${a.slice(0,6)}...${a.slice(-4)}` : '';
 
   return (
     <div style={cardBase}>
       <h3 style={sectionTitle}><Wallet size={14} color={T.accent} /> Agentic Wallet</h3>
-      {loading ? (
-        <div style={{ textAlign: "center", padding: "20px 0" }}>
-          <RefreshCw size={14} className="animate-spin" color={T.dark400} />
+      {!userId ? (
+        <div style={{ textAlign: 'center', padding: '20px 0' }}>
+          <div style={{ width: 40, height: 40, borderRadius: 20, background: 'rgba(99,102,241,0.1)', margin: '0 auto 12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Wallet size={20} color={T.accent} />
+          </div>
+          <p style={{ fontSize: 12, color: T.dark300 }}>请先连接 MetaMask 钱包</p>
         </div>
-      ) : step === "connected" && wallet ? (
-        <div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+      ) : loading ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '16px 0' }}>
+          <RefreshCw size={14} className="animate-spin" color={T.dark400} />
+          <span style={{ fontSize: 12, color: T.dark400 }}>加载钱包状态...</span>
+        </div>
+      ) : wallet ? (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "white" }}>OKX TEE 钱包</div>
-              <div style={{ fontSize: 10, color: T.dark400, textTransform: "uppercase", marginTop: 2 }}>
-                {wallet.chain || "ETH"} 链 · {wallet.authorized ? "已授权" : "未授权"}
-              </div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'white' }}>OKX TEE 钱包</div>
+              <div style={{ fontSize: 10, color: T.dark400, textTransform: 'uppercase', marginTop: 2 }}>{wallet.chain || 'ETH'}</div>
             </div>
-            <div style={{ display: "flex", gap: 6 }}>
-              <button onClick={handleRevoke} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 600, background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.15)", color: T.accentOrange, cursor: "pointer" }}>撤销</button>
-              <button onClick={handleLogout} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 600, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.15)", color: T.accentRed, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}><LogOut size={11} /> 退出</button>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={handleRevoke} style={{ padding: '4px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: T.dark300, fontSize: 11, cursor: 'pointer' }}>撤销</button>
+              <button onClick={handleLogout} style={{ padding: '4px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: T.dark300, fontSize: 11, cursor: 'pointer' }}>断开</button>
             </div>
           </div>
-          <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: "10px 14px", marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 11, fontFamily: "monospace", color: T.dark300 }}>{fmtAddr(wAddr)}</span>
-            <button onClick={() => navigator.clipboard.writeText(wAddr)} style={{ background: "none", border: "none", color: T.dark400, cursor: "pointer", padding: 0 }}><Copy size={13} /></button>
-            <button onClick={() => setShowTransfer(true)} style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 8, color: T.accentGreen, fontSize: 11, fontWeight: 600, padding: '4px 10px', cursor: 'pointer', marginLeft: 'auto' }}><div style={{display:'flex',alignItems:'center',gap:4}}><Send size={12} /> 转出</div></button>
-          </div>
-          {wallet.totalUsd != null && (
-            <div style={{ fontSize: 20, fontWeight: 700, color: "white" }}>${Number(wallet.totalUsd || 0).toFixed(2)}</div>
-          )}
-          {wallet.balances && wallet.balances.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
-              {wallet.balances.slice(0, 4).map((b: any, i: number) => (
-                <span key={i} style={{ padding: "2px 8px", borderRadius: 6, fontSize: 10, background: "rgba(255,255,255,0.04)", color: T.dark300, fontFamily: "monospace" }}>{b.symbol || b.asset}: {Number(b.balance || 0).toFixed(4)}</span>
+
+          {/* Multi-address list */}
+          {hasWallets && (
+            <div style={{ marginBottom: 12, background: 'rgba(255,255,255,0.02)', borderRadius: 10, padding: '6px 8px' }}>
+              <div style={{ fontSize: 10, color: T.dark400, marginBottom: 6 }}>钱包地址列表</div>
+              {wallets.map((w: any, i: number) => (
+                <div
+                  key={w.wallet_address || i}
+                  onClick={() => w.wallet_address !== wallet.wallet_address && handleSwitchWallet(w.wallet_address)}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '4px 8px', borderRadius: 6,
+                    cursor: w.wallet_address === wallet.wallet_address ? 'default' : 'pointer',
+                    background: w.wallet_address === wallet.wallet_address ? 'rgba(99,102,241,0.1)' : 'transparent',
+                    marginBottom: 2,
+                  }}
+                >
+                  <span style={{ fontSize: 10, fontFamily: 'monospace', color: w.wallet_address === wallet.wallet_address ? T.accent : T.dark300 }}>
+                    {w.label || fmtAddr(w.wallet_address)}
+                  </span>
+                  <span style={{ fontSize: 10, fontFamily: 'monospace', color: T.dark300 }}>
+                    ${Number(w.totalUsd ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
               ))}
             </div>
           )}
-        </div>
-      ) : step === "otp" ? (
-        <div>
-          <div style={{ marginBottom: 12 }}>
-            <Mail size={14} color={T.dark400} style={{ marginBottom: 8 }} />
-            <p style={{ fontSize: 12, color: T.dark300 }}>验证码已发送至 {email}</p>
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <input placeholder="输入验证码" value={otpCode} onChange={(e) => setOtpCode(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleVerify()}
-              style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.04)", color: "white", fontSize: 13, outline: "none" }} />
-            <button onClick={handleVerify} disabled={verifying}
-              style={{ padding: "8px 16px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.2)", color: T.accent, cursor: verifying ? "not-allowed" : "pointer" }}>
-              <Key size={14} /> {verifying ? "..." : "验证"}
+
+          {/* Add new address */}
+          <button
+            onClick={() => { setLoginEmail(wallet.email || ''); setLoginStep('email'); setLoginError(''); }}
+            style={{
+              width: '100%', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)',
+              borderRadius: 8, color: T.accent, fontSize: 10, padding: '6px 0', cursor: 'pointer', marginBottom: 12,
+            }}
+          >+ 添加新地址</button>
+
+          {/* Inline email/OTP flow */}
+          {loginStep === 'email' && (
+            <div style={{ padding: '4px 8px', marginBottom: 12, background: 'rgba(99,102,241,0.05)', borderRadius: 10 }}>
+              <input
+                type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleLoginEmail()}
+                placeholder="输入邮箱创建新地址" autoFocus
+                style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 8, color: 'white', fontSize: 13, padding: '8px 12px', outline: 'none' }}
+              />
+              {loginError && <p style={{ fontSize: 10, color: T.accentRed, marginTop: 4, textAlign: 'center' }}>{loginError}</p>}
+              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                <button onClick={() => { setLoginStep('idle'); setLoginError(''); }} style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, color: T.dark300, fontSize: 11, padding: '6px 0', cursor: 'pointer' }}>取消</button>
+                <button onClick={handleLoginEmail} disabled={loginSending} style={{ flex: 1, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', borderRadius: 8, color: 'white', fontSize: 11, fontWeight: 600, padding: '6px 0', cursor: loginSending ? 'default' : 'pointer', opacity: loginSending ? 0.6 : 1 }}>{loginSending ? '发送中...' : '发送验证码'}</button>
+              </div>
+            </div>
+          )}
+          {loginStep === 'otp' && (
+            <div style={{ padding: '4px 8px', marginBottom: 12, background: 'rgba(99,102,241,0.05)', borderRadius: 10 }}>
+              <input
+                type="text" value={loginOtp} onChange={e => setLoginOtp(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleVerifyOtp()}
+                placeholder="输入验证码" autoFocus maxLength={6}
+                style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 8, color: 'white', fontSize: 13, fontWeight: 600, padding: '8px 12px', textAlign: 'center', letterSpacing: 3, outline: 'none' }}
+              />
+              {loginError && <p style={{ fontSize: 10, color: T.accentRed, marginTop: 4, textAlign: 'center' }}>{loginError}</p>}
+              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                <button onClick={() => { setLoginStep('idle'); setLoginError(''); }} style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, color: T.dark300, fontSize: 11, padding: '6px 0', cursor: 'pointer' }}>取消</button>
+                <button onClick={handleVerifyOtp} disabled={loginVerifying} style={{ flex: 1, background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', borderRadius: 8, color: 'white', fontSize: 11, fontWeight: 600, padding: '6px 0', cursor: loginVerifying ? 'default' : 'pointer', opacity: loginVerifying ? 0.6 : 1 }}>{loginVerifying ? '验证中...' : '验证'}</button>
+              </div>
+            </div>
+          )}
+
+          {/* Address + copy + transfer */}
+          <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 11, fontFamily: 'monospace', color: T.dark300 }}>{fmtAddr(wallet.wallet_address)}</span>
+            <button onClick={() => navigator.clipboard.writeText(wallet.wallet_address)} style={{ background: 'none', border: 'none', color: T.dark400, cursor: 'pointer', padding: 0 }}>
+              <Copy size={13} />
             </button>
+            <button onClick={() => setShowTransfer(true)} style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid var(--accent-green)', borderRadius: 8, color: 'var(--accent-green)', fontSize: 11, fontWeight: 600, padding: '4px 10px', cursor: 'pointer', marginLeft: 8 }}>💸 转出</button>
           </div>
-          <button onClick={() => { setStep("idle"); setOtpCode(""); }} style={{ marginTop: 8, background: "none", border: "none", color: T.dark400, fontSize: 11, cursor: "pointer" }}>← 返回</button>
-        </div>
-      ) : !userId ? (
-        <div style={{ textAlign: "center", padding: "20px 0" }}>
-          <div style={{ width: 40, height: 40, borderRadius: 20, background: "rgba(99,102,241,0.1)", margin: "0 auto 12px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Wallet size={20} color={T.accent} />
+
+          {/* Balance + auth status */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontSize: 10, color: T.dark400, textTransform: 'uppercase' }}>余额</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: 'white', fontFamily: 'monospace' }}>
+                ${Number(wallet.totalUsd ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 8, background: authorized ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)' }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: authorized ? T.accentGreen : T.accentRed, animation: authorized ? 'pulseLED 2s infinite' : 'none' }} />
+              <span style={{ fontSize: 12, fontWeight: 600, color: authorized ? T.accentGreen : T.accentRed }}>{authorized ? '已授权' : '未授权'}</span>
+            </div>
           </div>
-          <p style={{ fontSize: 12, color: T.dark300, marginBottom: 12 }}>请先连接 MetaMask 钱包</p>
-        </div>
+          {authorized && wallet.expires_at && (
+            <div style={{ fontSize: 10, color: T.dark400, marginTop: 8 }}>有效期至 {String(wallet.expires_at).slice(0, 10)}</div>
+          )}
+
+          {/* token balances */}
+          {wallet.balances && wallet.balances.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+              {wallet.balances.slice(0, 4).map((b: any, i: number) => (
+                <span key={i} style={{ padding: '2px 8px', borderRadius: 6, fontSize: 10, background: 'rgba(255,255,255,0.04)', color: T.dark300, fontFamily: 'monospace' }}>{b.symbol || b.asset}: {Number(b.balance || 0).toFixed(4)}</span>
+              ))}
+            </div>
+          )}
+        </>
       ) : (
-        <div style={{ textAlign: "center", padding: "20px 0" }}>
-          <div style={{ width: 40, height: 40, borderRadius: 20, background: "rgba(99,102,241,0.1)", margin: "0 auto 12px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Wallet size={20} color={T.accent} />
-          </div>
-          <p style={{ fontSize: 12, color: T.dark300, marginBottom: 12 }}>OKX Agentic Wallet</p>
-          <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
-            <input placeholder="输入邮箱" value={email} onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleLookupOrLogin()}
-              style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.04)", color: "white", fontSize: 13, outline: "none", width: 200 }} />
-            <button onClick={handleLookupOrLogin} disabled={sending}
-              style={{ padding: "8px 16px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.2)", color: T.accent, cursor: sending ? "not-allowed" : "pointer" }}>
-              <Mail size={14} /> {sending ? "..." : "登录"}
-            </button>
-          </div>
+        <div style={{ textAlign: 'center', paddingTop: 16, paddingBottom: 20 }}>
+          {loginStep === 'idle' && (
+            <div>
+              <div style={{ width: 40, height: 40, borderRadius: 20, background: 'rgba(99,102,241,0.1)', margin: '0 auto 12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Wallet size={20} color={T.accent} />
+              </div>
+              <p style={{ fontSize: 12, color: T.dark300, marginBottom: 4 }}>未连接 Agentic Wallet</p>
+              <p style={{ fontSize: 10, color: T.dark500, marginBottom: 16 }}>用你的邮箱创建独立 TEE 安全钱包</p>
+              <button
+                onClick={() => setLoginStep('email')}
+                style={{
+                  background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                  border: 'none', color: 'white', borderRadius: 10,
+                  padding: '10px 28px', fontSize: 13, fontWeight: 600,
+                  cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8,
+                }}
+              ><Wallet size={14} /> 连接钱包</button>
+            </div>
+          )}
+          {loginStep === 'email' && (
+            <div style={{ padding: '0 4px' }}>
+              <p style={{ fontSize: 12, color: T.dark300, marginBottom: 12 }}>输入邮箱查找或创建钱包</p>
+              <input
+                type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleLoginEmail()}
+                placeholder="your@email.com" autoFocus
+                style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 8, color: 'white', fontSize: 13, padding: '8px 12px', outline: 'none', marginBottom: 12 }}
+              />
+              {loginError && <p style={{ fontSize: 10, color: T.accentRed, marginTop: 4, textAlign: 'center' }}>{loginError}</p>}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => { setLoginStep('idle'); setLoginError(''); }} style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, color: T.dark300, fontSize: 12, padding: '8px 0', cursor: 'pointer' }}>取消</button>
+                <button onClick={handleLoginEmail} disabled={loginSending} style={{ flex: 1, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', borderRadius: 8, color: 'white', fontSize: 12, fontWeight: 600, padding: '8px 0', cursor: loginSending ? 'default' : 'pointer', opacity: loginSending ? 0.6 : 1 }}>{loginSending ? '发送中...' : '登录 / 创建'}</button>
+              </div>
+            </div>
+          )}
+          {loginStep === 'otp' && (
+            <div style={{ padding: '0 4px' }}>
+              <p style={{ fontSize: 12, color: T.dark300, marginBottom: 12 }}>验证码已发送至 {loginEmail}</p>
+              <input
+                type="text" value={loginOtp} onChange={e => setLoginOtp(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleVerifyOtp()}
+                placeholder="输入验证码" autoFocus maxLength={6}
+                style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 8, color: 'white', fontSize: 13, fontWeight: 600, padding: '8px 12px', textAlign: 'center', letterSpacing: 3, outline: 'none', marginBottom: 12 }}
+              />
+              {loginError && <p style={{ fontSize: 10, color: T.accentRed, marginTop: 4, textAlign: 'center' }}>{loginError}</p>}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => { setLoginStep('idle'); setLoginError(''); }} style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, color: T.dark300, fontSize: 12, padding: '8px 0', cursor: 'pointer' }}>取消</button>
+                <button onClick={handleVerifyOtp} disabled={loginVerifying} style={{ flex: 1, background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', borderRadius: 8, color: 'white', fontSize: 12, fontWeight: 600, padding: '8px 0', cursor: loginVerifying ? 'default' : 'pointer', opacity: loginVerifying ? 0.6 : 1 }}>{loginVerifying ? '验证中...' : '验证'}</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
       {showTransfer && (
@@ -270,6 +396,8 @@ function WalletPanel() {
     </div>
   );
 }
+
+
 function StrategyTradingPanel() {
   const { address } = useAccount();
   const userId = address || '';
