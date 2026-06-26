@@ -46,7 +46,7 @@ class BaseAutoTrader {
       }
 
       // ⑤ 钱包获取
-      const wallet = await this.getActiveWallet(userId);
+      const wallet = await this.getActiveWallet(userId, config.wallet_address);
       if (!wallet) {
         console.log(`[BaseAutoTrader] no active wallet for user=${userId}`);
         return { ok: false, reason: 'no_active_wallet' };
@@ -122,11 +122,21 @@ class BaseAutoTrader {
     }
   }
 
-  async getActiveWallet(userId) {
+  async getActiveWallet(userId, walletAddress) {
     try {
       if (!this.db) return null;
+      // 策略级钱包绑定：优先用 config.wallet_address
+      if (walletAddress) {
+        const { rows } = await this.db.query(
+          `SELECT * FROM agentic_wallets WHERE user_id = $1 AND wallet_address = $2 AND is_active = true LIMIT 1`,
+          [userId, walletAddress]
+        );
+        if (rows.length > 0) return rows[0];
+        console.log('[BaseAutoTrader] strategy wallet not found, fallback to default');
+      }
+      // 降级：默认活跃钱包
       const { rows } = await this.db.query(
-        `SELECT * FROM agentic_wallets WHERE user_id = $1 AND is_active = true LIMIT 1`,
+        `SELECT * FROM agentic_wallets WHERE user_id = $1 AND is_active = true ORDER BY is_default DESC LIMIT 1`,
         [userId]
       );
       return rows.length > 0 ? rows[0] : null;

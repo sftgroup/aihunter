@@ -17,7 +17,7 @@ export default async function liveTradingV3Routes(fastify, opts) {
   // ================================================================
   fastify.post('/live/toggle', async (request, reply) => {
     try {
-      const { strategy_id, active, userId } = request.body || {};
+      const { strategy_id, active, userId, wallet_address } = request.body || {};
       if (!strategy_id || !userId) {
         return reply.status(400).send({ code: 400, error: '缺少 strategy_id 或 userId' });
       }
@@ -32,6 +32,19 @@ export default async function liveTradingV3Routes(fastify, opts) {
 
       const isActive = active ? '1' : '0';
       await redis.hset(`trade:active:${strategy_id}`, userId, isActive);
+
+      // 同步写入策略级钱包绑定
+      const db = request.server.db || (request.server.execution?.dispatcher?.db);
+      if (db && wallet_address && active) {
+        try {
+          await db.query(
+            `INSERT INTO strategy_configs (user_id, strategy_id, is_active, wallet_address)
+             VALUES ($1, $2, true, $3)
+             ON CONFLICT (user_id, strategy_id) DO UPDATE SET wallet_address = $3, is_active = true, updated_at = NOW()`,
+            [userId, strategy_id, wallet_address]
+          );
+        } catch (e) { console.log('[LiveTradingV3] wallet_address upsert error:', e.message); }
+      }
 
       const message = active ? '策略已开启' : '策略已暂停';
       console.log(`[LiveTradingV3] toggle: strategy=${strategy_id} userId=${userId} active=${active}`);

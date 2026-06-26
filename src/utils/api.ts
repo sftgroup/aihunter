@@ -457,7 +457,7 @@ export const strategyApiV3 = {
 
 export const liveApiV3 = {
   getStatus: (userId: string) => api.get<ApiResponse<unknown>>('/api/v3/live/status', { params: { userId } }),
-  toggleStrategy: (userId: string, strategyId: string, active: boolean) =>
+  toggleStrategy: (userId: string, strategyId: string, active: boolean, wallet_address?: string) =>
     api.post<ApiResponse<unknown>>('/api/v3/live/toggle', { json: { userId, strategy_id: strategyId, active } }),
   getRecords: (userId: string, params?: { strategy_id?: string; page?: number; size?: number }) =>
     api.get<ApiResponse<unknown>>('/api/v3/live/records', { params: { ...params, userId } }),

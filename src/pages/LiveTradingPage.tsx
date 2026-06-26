@@ -404,6 +404,8 @@ function StrategyTradingPanel() {
   const [strategies, setStrategies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState<string | null>(null);
+  const [strategyWallets, setStrategyWallets] = useState<Record<string, string>>({});
+  const [availableWallets, setAvailableWallets] = useState<any[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -415,12 +417,24 @@ function StrategyTradingPanel() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+    const loadWallets = async () => {
+    if (!userId) return;
+    try {
+      const res = await walletApiV2.getStatus(userId);
+      if (res && (res as any).code === 200) {
+        const data = (res as any).data;
+        if (data?.wallets?.length) setAvailableWallets(data.wallets);
+        else if (data?.wallet_address) setAvailableWallets([data]);
+      }
+    } catch (_) {}
+  };
+
+  useEffect(() => { load(); loadWallets(); }, [load]);
 
   const handleToggle = async (id: string, active: boolean) => {
     setToggling(id);
     try {
-      await liveApiV3.toggleStrategy(userId, id, active);
+      await liveApiV3.toggleStrategy(userId, id, active, strategyWallets[id]);
       setStrategies(prev => prev.map((s: any) => (s.strategy_id || s.id) === id ? { ...s, active } : s));
     } catch (e) { console.error(e); }
     setToggling(null);
