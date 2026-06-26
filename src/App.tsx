@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { createConfig, http, WagmiProvider, useReconnect } from 'wagmi';
+import { createConfig, http, WagmiProvider, useReconnect, useAccount } from 'wagmi';
 import { mainnet, polygon, optimism, arbitrum, bsc, base } from 'wagmi/chains';
-import { injected, metaMask, coinbaseWallet, walletConnect } from 'wagmi/connectors';
+import { injected, coinbaseWallet, walletConnect } from 'wagmi/connectors';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
@@ -22,7 +22,6 @@ const config = createConfig({
   chains: [mainnet, polygon, optimism, arbitrum, bsc, base],
   connectors: [
     injected(),
-    metaMask(),
     coinbaseWallet({ appName: 'AIHunter' }),
     walletConnect({ projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'b405f4f15938582260758473465a651b' }),
   ],
@@ -46,24 +45,18 @@ function AppContent() {
   // 页面加载时尝试恢复已有钱包连接
   useEffect(() => { reconnect(); }, [reconnect]);
 
-  // 监听 MetaMask 地址切换
+  // wagmi v3 injected() 连接器已内置 accountsChanged/chainChanged
+  // → useAccount() 自动更新 address，这里只做 localStorage 同步
+  // LiveTradingPage 通过 localStorage 读取 userId 做 API 调用
+  const { address, isConnected } = useAccount();
+
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const eth = (window as any).ethereum;
-    if (!eth) return;
-    const handler = (accounts: string[]) => {
-      console.log('[AIHunter] accountsChanged:', accounts);
-      if (accounts.length > 0) {
-        localStorage.setItem('aihunter_user_id', accounts[0]);
-      } else {
-        localStorage.removeItem('aihunter_user_id');
-      }
-      // 断开时强制刷新，让 wagmi 感知变化
-      window.location.reload();
-    };
-    try { eth.on('accountsChanged', handler); } catch (e) { /* ignore */ }
-    return () => { try { eth.removeListener('accountsChanged', handler); } catch (e) { /* ignore */ } };
-  }, []);
+    if (isConnected && address) {
+      localStorage.setItem('aihunter_user_id', address);
+    } else if (!isConnected) {
+      localStorage.removeItem('aihunter_user_id');
+    }
+  }, [address, isConnected]);
 
   const handleResize = useCallback(() => {
     setIsMobile(window.innerWidth < 768);
